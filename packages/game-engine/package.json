@@ -1,0 +1,20 @@
+{
+  "name": "@room-riot/game-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "test": "tsc -b && node --test dist/index.test.js",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@room-riot/contracts": "workspace:*"
+  }
+}

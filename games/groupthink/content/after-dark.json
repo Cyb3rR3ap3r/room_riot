@@ -1,0 +1,15 @@
+{
+  "prompts": [
+    { "id": "after-dark-01", "text": "Name something people lie about on dating profiles." },
+    { "id": "after-dark-02", "text": "Name a terrible place to run into an ex." },
+    {
+      "id": "after-dark-03",
+      "text": "Name something that sounds romantic but is actually inconvenient."
+    },
+    { "id": "after-dark-04", "text": "Name a reason someone might fake a phone call." },
+    { "id": "after-dark-05", "text": "Name something people regret sending in a group chat." },
+    { "id": "after-dark-06", "text": "Name a bad idea after midnight." },
+    { "id": "after-dark-07", "text": "Name a suspicious thing to keep in a desk drawer." },
+    { "id": "after-dark-08", "text": "Name something that can ruin a perfectly good night out." }
+  ]
+}

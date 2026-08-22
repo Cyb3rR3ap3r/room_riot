@@ -1,0 +1,16 @@
+{
+  "name": "@room-riot/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b && node scripts/copy-assets.mjs",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@room-riot/contracts": "workspace:*",
+    "@room-riot/game-engine": "workspace:*",
+    "@room-riot/groupthink": "workspace:*",
+    "@room-riot/hot-take": "workspace:*"
+  }
+}

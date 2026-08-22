@@ -1,0 +1,22 @@
+services:
+  room-riot:
+    build: .
+    image: room-riot:local
+    ports:
+      - '3000:3000'
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+    volumes:
+      - room-riot-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
+
+volumes:
+  room-riot-data:

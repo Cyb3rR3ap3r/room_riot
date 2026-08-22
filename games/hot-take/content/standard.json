@@ -1,0 +1,49 @@
+{
+  "prompts": [
+    {
+      "id": "standard-restaurant",
+      "text": "What is the most overrated fast-food restaurant?",
+      "kind": "open"
+    },
+    {
+      "id": "standard-roommate",
+      "text": "Which fictional character would be the worst roommate?",
+      "kind": "open"
+    },
+    {
+      "id": "standard-chore",
+      "text": "What household chore should be permanently eliminated?",
+      "kind": "open"
+    },
+    {
+      "id": "standard-survival",
+      "text": "Who in this room would survive longest in a zombie apocalypse?",
+      "kind": "player-targeted"
+    },
+    {
+      "id": "standard-pretend",
+      "text": "What is something everyone pretends to like?",
+      "kind": "open"
+    },
+    {
+      "id": "standard-cult",
+      "text": "Who in this room is most likely to accidentally join a cult?",
+      "kind": "player-targeted"
+    },
+    {
+      "id": "standard-trend",
+      "text": "What popular trend needs to disappear immediately?",
+      "kind": "open"
+    },
+    {
+      "id": "standard-defense",
+      "text": "What is the most defensible terrible movie?",
+      "kind": "open"
+    },
+    {
+      "id": "standard-party",
+      "text": "What is the worst thing someone can bring to a party?",
+      "kind": "open"
+    }
+  ]
+}

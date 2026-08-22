@@ -1,0 +1,36 @@
+{
+  "prompts": [
+    {
+      "id": "family-restaurant",
+      "text": "What is the most overrated fast-food restaurant?",
+      "kind": "open"
+    },
+    {
+      "id": "family-chore",
+      "text": "What household chore should be permanently eliminated?",
+      "kind": "open"
+    },
+    { "id": "family-snack", "text": "What snack is secretly better than dessert?", "kind": "open" },
+    {
+      "id": "family-survival",
+      "text": "Who in this room would survive longest in a zombie apocalypse?",
+      "kind": "player-targeted"
+    },
+    { "id": "family-roadtrip", "text": "What is the best road-trip snack?", "kind": "open" },
+    {
+      "id": "family-superpower",
+      "text": "What superpower would be the most inconvenient?",
+      "kind": "open"
+    },
+    {
+      "id": "family-cult",
+      "text": "Who in this room is most likely to accidentally join a cult?",
+      "kind": "player-targeted"
+    },
+    {
+      "id": "family-pretend",
+      "text": "What is something everyone pretends to like?",
+      "kind": "open"
+    }
+  ]
+}

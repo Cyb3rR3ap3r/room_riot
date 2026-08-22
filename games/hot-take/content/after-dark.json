@@ -1,0 +1,44 @@
+{
+  "prompts": [
+    {
+      "id": "adult-dating",
+      "text": "What is the biggest red flag people ignore on a first date?",
+      "kind": "open"
+    },
+    {
+      "id": "adult-texting",
+      "text": "What text message should never be sent after midnight?",
+      "kind": "open"
+    },
+    {
+      "id": "adult-excuse",
+      "text": "What is the most suspicious excuse for leaving a party early?",
+      "kind": "open"
+    },
+    {
+      "id": "adult-chaos",
+      "text": "Who in this room would cause the most chaos on a reality show?",
+      "kind": "player-targeted"
+    },
+    {
+      "id": "adult-overrated",
+      "text": "What adult responsibility is wildly overrated?",
+      "kind": "open"
+    },
+    {
+      "id": "adult-secret",
+      "text": "What is the most harmless secret people keep from their friends?",
+      "kind": "open"
+    },
+    {
+      "id": "adult-trouble",
+      "text": "Who in this room is most likely to talk their way out of trouble?",
+      "kind": "player-targeted"
+    },
+    {
+      "id": "adult-party",
+      "text": "What is the worst thing to hear from a host at a party?",
+      "kind": "open"
+    }
+  ]
+}

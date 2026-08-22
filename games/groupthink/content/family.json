@@ -1,0 +1,12 @@
+{
+  "prompts": [
+    { "id": "family-01", "text": "Name something people forget when they leave the house." },
+    { "id": "family-02", "text": "Name a food that is better cold than hot." },
+    { "id": "family-03", "text": "Name something you might find under a couch." },
+    { "id": "family-04", "text": "Name an animal that would make a terrible babysitter." },
+    { "id": "family-05", "text": "Name something people do while waiting in line." },
+    { "id": "family-06", "text": "Name a gift that is hard to wrap." },
+    { "id": "family-07", "text": "Name something that makes a room feel cozy." },
+    { "id": "family-08", "text": "Name a reason someone might be late." }
+  ]
+}

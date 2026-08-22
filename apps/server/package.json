@@ -1,0 +1,24 @@
+{
+  "name": "@room-riot/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b",
+    "dev": "node --watch dist/index.js",
+    "test": "tsc -b && node --test dist/http.test.js dist/room-manager.test.js dist/socket.test.js",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@room-riot/contracts": "workspace:*",
+    "@room-riot/game-engine": "workspace:*",
+    "@room-riot/groupthink": "workspace:*",
+    "@room-riot/hot-take": "workspace:*",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.5",
+    "socket.io-client": "^4.8.1"
+  }
+}

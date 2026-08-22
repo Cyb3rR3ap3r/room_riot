@@ -1,0 +1,19 @@
+services:
+  room-riot:
+    image: ghcr.io/REPLACE_WITH_OWNER/room-riot:0.1.0
+    environment:
+      HOST: 0.0.0.0
+      PORT: '3000'
+      NODE_ENV: production
+    ports:
+      - '3000:3000'
+    volumes:
+      - /mnt/REPLACE_WITH_POOL/room-riot:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped

@@ -1,0 +1,14 @@
+{
+  "prompts": [
+    { "id": "standard-01", "text": "Name something people lose constantly." },
+    { "id": "standard-02", "text": "Name the worst thing to hear from a pilot." },
+    { "id": "standard-03", "text": "Name a food people pretend to enjoy at fancy events." },
+    { "id": "standard-04", "text": "Name something you should never say on a first date." },
+    { "id": "standard-05", "text": "Name a terrible theme for a restaurant." },
+    { "id": "standard-06", "text": "Name something that makes a person look suspicious." },
+    { "id": "standard-07", "text": "Name a job that would be awful during a heat wave." },
+    { "id": "standard-08", "text": "Name something people do when they think nobody is watching." },
+    { "id": "standard-09", "text": "Name a bad place to discover that your phone is dead." },
+    { "id": "standard-10", "text": "Name something that should not be made into a scented candle." }
+  ]
+}

@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#101014" />
+    <title>Room Riot</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
+        background: #101014;
+        color: #f8f7ff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-width: 320px;
+        min-height: 100svh;
+        background: radial-gradient(circle at 20% 0%, #30205f, transparent 45%), #101014;
+        overscroll-behavior-y: none;
+      }
+      button,
+      input,
+      select {
+        font: inherit;
+      }
+      button,
+      .button {
+        min-height: 48px;
+        border: 0;
+        border-radius: 999px;
+        padding: 0.8rem 1.2rem;
+        background: #ff4fb3;
+        color: #170d1b;
+        cursor: pointer;
+        font-weight: 800;
+        text-decoration: none;
+        touch-action: manipulation;
+      }
+      button:hover,
+      .button:hover {
+        filter: brightness(1.12);
+      }
+      button:disabled {
+        cursor: wait;
+        opacity: 0.5;
+      }
+      .secondary {
+        background: #2b2940;
+        color: #f8f7ff;
+      }
+      .page {
+        width: min(960px, 100%);
+        margin: 0 auto;
+        min-height: 100svh;
+        padding: max(2rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+          max(4rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+      }
+      .display-page {
+        width: min(1280px, 100%);
+        padding-inline: clamp(1rem, 4vw, 4rem);
+      }
+      .page-header {
+        margin-bottom: 1.5rem;
+      }
+      .brand {
+        color: #ff4fb3;
+        font-size: 0.8rem;
+        font-weight: 900;
+        letter-spacing: 0.32em;
+      }
+      h1 {
+        margin: 0.35rem 0;
+        font-size: clamp(2rem, 8vw, 4.5rem);
+        line-height: 0.95;
+      }
+      h2 {
+        margin-top: 0;
+      }
+      .muted {
+        color: #aaa7bd;
+      }
+      .notice {
+        min-height: 1.4rem;
+        color: #9fffe1;
+      }
+      .notice.error {
+        color: #ff94b9;
+      }
+      .content {
+        display: grid;
+        gap: 1rem;
+      }
+      .card {
+        border: 1px solid #3a3653;
+        border-radius: 1.25rem;
+        padding: 1.25rem;
+        background: rgba(24, 22, 35, 0.88);
+        box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.18);
+      }
+      .phase-card {
+        animation: phase-in 240ms ease-out both;
+      }
+      .phase-results,
+      .phase-winner {
+        border-color: #ffe66d;
+      }
+      .phase-voting {
+        border-color: #ff4fb3;
+      }
+      @keyframes phase-in {
+        from {
+          opacity: 0;
+          transform: translateY(0.5rem) scale(0.99);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+      .form {
+        display: grid;
+        gap: 1rem;
+        max-width: 32rem;
+      }
+      .field {
+        display: grid;
+        gap: 0.45rem;
+        color: #c4c0d5;
+        font-size: 0.9rem;
+        font-weight: 700;
+      }
+      input,
+      select {
+        width: 100%;
+        min-height: 48px;
+        border: 1px solid #4a4565;
+        border-radius: 0.75rem;
+        padding: 0.8rem;
+        background: #13121d;
+        color: #fff;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+      }
+      .room-details {
+        display: grid;
+        gap: 0.75rem;
+        justify-items: start;
+      }
+      .room-code {
+        display: block;
+        color: #ffe66d;
+        font-size: clamp(3rem, 12vw, 7rem);
+        letter-spacing: 0.16em;
+        line-height: 1;
+      }
+      .qr {
+        width: min(240px, 70vw);
+        border-radius: 0.75rem;
+        background: #fff;
+        padding: 0.5rem;
+      }
+      .prompt {
+        margin: 0.75rem 0 1rem;
+        font-size: clamp(1.5rem, 4vw, 3rem);
+        font-weight: 850;
+        line-height: 1.05;
+      }
+      .answer-form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-top: 1rem;
+      }
+      .answer-form input {
+        flex: 1 1 16rem;
+      }
+      .player-list {
+        display: grid;
+        gap: 0.55rem;
+        padding: 0;
+        margin: 0;
+        list-style: none;
+      }
+      .player-list li {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        border-bottom: 1px solid #302d43;
+        padding: 0.65rem 0;
+      }
+      .answer-list {
+        display: grid;
+        gap: 0.55rem;
+        padding: 0;
+        margin: 0;
+        list-style: none;
+      }
+      .answer-list li {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        border-bottom: 1px solid #302d43;
+        padding: 0.65rem 0;
+        overflow-wrap: anywhere;
+      }
+      .connected {
+        color: #9fffe1;
+      }
+      .pill {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 0.45rem 0.75rem;
+        background: #2b2940;
+        color: #ffe66d;
+        font-size: 0.8rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+      }
+      .center {
+        text-align: center;
+        justify-items: center;
+      }
+      @media (min-width: 720px) {
+        .room-details {
+          grid-template-columns: auto minmax(0, 1fr);
+          align-items: center;
+        }
+        .room-details .room-code {
+          grid-row: span 2;
+        }
+      }
+      @media (max-width: 600px) {
+        .page-header {
+          margin-bottom: 1rem;
+        }
+        .room-code {
+          font-size: clamp(2.5rem, 18vw, 5rem);
+        }
+        .actions > button,
+        .actions > .button {
+          flex: 1 1 100%;
+          text-align: center;
+        }
+        .answer-form {
+          flex-direction: column;
+        }
+        .answer-form button {
+          width: 100%;
+        }
+        .player-list li,
+        .answer-list li {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+      }
+      @media (min-width: 900px) {
+        .display-page .player-list {
+          grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+          column-gap: 2rem;
+        }
+        .display-page .prompt {
+          font-size: clamp(2rem, 5vw, 4.5rem);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          scroll-behavior: auto !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main id="app"></main>
+    <script src="/socket.io/socket.io.js"></script>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
