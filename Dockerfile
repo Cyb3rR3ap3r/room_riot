@@ -37,8 +37,10 @@ COPY --from=build /app/games/hot-take/package.json ./games/hot-take/package.json
 COPY --from=build /app/games/hot-take/node_modules ./games/hot-take/node_modules
 COPY --from=build /app/games/hot-take/dist ./games/hot-take/dist
 COPY --from=build /app/games/hot-take/content ./games/hot-take/content
+COPY --from=build /app/packages/contracts/package.json ./packages/contracts/package.json
 COPY --from=build /app/packages/contracts/node_modules ./packages/contracts/node_modules
 COPY --from=build /app/packages/contracts/dist ./packages/contracts/dist
+COPY --from=build /app/packages/game-engine/package.json ./packages/game-engine/package.json
 COPY --from=build /app/packages/game-engine/node_modules ./packages/game-engine/node_modules
 COPY --from=build /app/packages/game-engine/dist ./packages/game-engine/dist
 

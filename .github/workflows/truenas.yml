@@ -105,6 +105,25 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Smoke test published image
+        shell: bash
+        env:
+          IMAGE: ${{ steps.image.outputs.repository }}:sha-${{ github.sha }}
+        run: |
+          docker pull "$IMAGE"
+          docker run --detach --name room-riot-smoke --publish 3100:3000 "$IMAGE"
+          trap 'docker rm --force room-riot-smoke >/dev/null 2>&1 || true' EXIT
+
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3100/healthz > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          docker logs room-riot-smoke
+          exit 1
+
       - name: Prepare TrueNAS deployment bundle
         shell: bash
         env:
