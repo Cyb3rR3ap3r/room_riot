@@ -6,7 +6,7 @@ Room Riot is a locally hosted party-game platform for a single household or priv
 
 ## Current implementation status
 
-Milestones 0 through 4 are implemented, and the Milestone 5 stability/polish work is implemented in the repository. The codebase now has the TypeScript workspace foundation, shared validation contracts, immutable room-state models, room creation, host authorization, player reconnect tokens, Socket.IO synchronization, QR generation, browser host/player/display routes, complete Groupthink and Hot Take game loops, server-owned answer/vote deadlines, automated tests, a hardened Docker/Compose deployment path, reconnect/error recovery UI, live countdowns, phase transitions, sound hooks, responsive layouts, and 12-player/reconnect integration coverage. Physical TrueNAS installation and multi-device LAN validation are still pending.
+Milestones 0 through 4 are implemented, and the Milestone 5 stability/polish work is implemented in the repository. The codebase now has the TypeScript workspace foundation, shared validation contracts, immutable room-state models, room creation, host authorization, player reconnect tokens, Socket.IO synchronization, QR generation, browser host/player/display routes, complete Groupthink and Hot Take game loops, server-owned answer/vote deadlines, automated tests, a hardened Docker/Compose deployment path, reconnect/error recovery UI, live countdowns, phase transitions, sound hooks, responsive layouts, 12-player/reconnect integration coverage, and a GitHub Actions workflow that validates, compiles, publishes the image, and creates a TrueNAS deployment bundle on every `main` push. Physical TrueNAS installation and multi-device LAN validation are still pending.
 
 Initial deployment target:
 
@@ -252,6 +252,7 @@ Implemented in the repository:
 - Persistent `/data` mount in Compose and the TrueNAS YAML template
 - TrueNAS Custom App / Compose installation guide
 - LAN smoke-test script for health, browser routes, and Socket.IO
+- GitHub Actions workflow that checks, compiles, publishes a GHCR image, and uploads a SHA-pinned TrueNAS Compose bundle on `main` pushes
 - Backup, upgrade, rollback, ACL, and recovery instructions
 
 Still requires the physical TrueNAS installation:

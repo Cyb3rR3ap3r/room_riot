@@ -10,6 +10,8 @@ See [BUILD_PLAN.md](./BUILD_PLAN.md) for the implementation roadmap.
 See [deploy/truenas/README.md](./deploy/truenas/README.md) for TrueNAS SCALE installation, upgrades, backups, and LAN verification.
 See [docs/QA_CHECKLIST.md](./docs/QA_CHECKLIST.md) for the Milestone 5 device and network test matrix.
 
+Pushing to `main` runs the GitHub Actions validation/build workflow, publishes the TrueNAS-ready image to GitHub Container Registry, and uploads a deployment bundle with the immutable commit tag.
+
 ## Development
 
 Requirements:

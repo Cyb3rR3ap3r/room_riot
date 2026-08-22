@@ -6,8 +6,21 @@ endpoints from one container.
 
 ## 1. Build and publish the image
 
-TrueNAS must be able to pull the image from a registry. From a machine with Docker and access
-to this repository:
+The preferred path is to push a commit to `main`. The GitHub Actions workflow in
+[`../../.github/workflows/truenas.yml`](../../.github/workflows/truenas.yml) runs the checks, compiles the
+production assets, verifies the compiled routes, builds the Docker image, and publishes it to
+GitHub Container Registry. Each successful run publishes:
+
+- `ghcr.io/YOUR_ACCOUNT/room-riot:main` for the current main branch
+- `ghcr.io/YOUR_ACCOUNT/room-riot:latest` as a convenience tag
+- `ghcr.io/YOUR_ACCOUNT/room-riot:sha-COMMIT_SHA` as the immutable deployment tag
+
+The workflow also uploads a `room-riot-truenas-COMMIT_SHA` artifact containing a Compose file
+with the immutable image tag already filled in. Download that artifact from the successful
+workflow run when preparing a TrueNAS upgrade.
+
+TrueNAS must be able to pull the image from a registry. If GitHub Actions is not being used, the
+manual alternative from a machine with Docker and access to this repository is:
 
 ```bash
 docker build --tag ghcr.io/YOUR_ACCOUNT/room-riot:0.1.0 .
@@ -63,9 +76,10 @@ configuration in its [Custom Apps guide](https://apps.truenas.com/managing-apps/
 
 ## 4. Upgrade and rollback
 
-Build and push a new immutable tag, such as `0.1.1`, then edit the Custom App image tag and
-redeploy. Keep the previous tag available so rollback is just changing the tag back. Avoid
-using `latest` for a game-night server.
+Push the desired commit to `main`, wait for the GitHub Actions workflow to finish, and download
+the generated TrueNAS bundle. Apply its Compose YAML in the Custom App editor and redeploy.
+Keep the previous `sha-COMMIT_SHA` tag available so rollback is just changing the tag back.
+Avoid using `latest` for a game-night server.
 
 ## 5. Backup and recovery
 
