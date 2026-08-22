@@ -63,8 +63,12 @@ export function createRequestHandler(metadata: ServerMetadata, options: HttpOpti
         return;
       }
 
-      if (requestUrl.pathname === '/main.js') {
-        serveFile(response, resolve(options.webRoot, 'main.js'), 'text/javascript; charset=utf-8');
+      if (requestUrl.pathname === '/main.js' || requestUrl.pathname === '/protocol.js') {
+        serveFile(
+          response,
+          resolve(options.webRoot, requestUrl.pathname.slice(1)),
+          'text/javascript; charset=utf-8',
+        );
         return;
       }
     }

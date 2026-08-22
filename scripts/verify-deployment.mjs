@@ -30,6 +30,10 @@ const checks = [
     path: '/socket.io/socket.io.js',
     validate: async (response) => response.ok && (await response.text()).includes('socket'),
   },
+  {
+    path: '/protocol.js',
+    validate: async (response) => response.ok && (await response.text()).includes('isSuccess'),
+  },
 ];
 
 let failed = false;

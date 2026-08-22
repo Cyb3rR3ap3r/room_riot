@@ -74,6 +74,14 @@ test('serves the browser shell and an offline QR code for a room', async () => {
   assert.equal(pageResponse.status, 200);
   assert.match(await pageResponse.text(), /socket\.io\/socket\.io\.js/);
 
+  const mainScriptResponse = await fetch(`http://127.0.0.1:${address.port}/main.js`);
+  assert.equal(mainScriptResponse.status, 200);
+  assert.match(await mainScriptResponse.text(), /protocol\.js/);
+
+  const protocolScriptResponse = await fetch(`http://127.0.0.1:${address.port}/protocol.js`);
+  assert.equal(protocolScriptResponse.status, 200);
+  assert.match(await protocolScriptResponse.text(), /isSuccess/);
+
   const qrResponse = await fetch(
     `http://127.0.0.1:${address.port}/api/rooms/${room.roomCode}/qr.svg`,
   );
