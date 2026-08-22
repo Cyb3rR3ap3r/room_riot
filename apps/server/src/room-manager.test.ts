@@ -94,15 +94,11 @@ test('automatically reveals Groupthink when the input deadline expires', async (
   const manager = new RoomManager({ groupthinkInputDurationMs: 15 });
   const room = manager.createRoom({ settings: { roundCount: 1 } });
   manager.joinRoom({ roomCode: room.roomCode, name: 'Joe', avatar: '😎' });
-  let observedPhase: string | undefined;
-  manager.subscribe((roomCode, snapshot) => {
-    if (roomCode === room.roomCode) observedPhase = snapshot.state.phase;
-  });
+  const resultsPhase = waitForRoomPhase(manager, room.roomCode, 'results');
 
   manager.startGame(room.roomCode, room.hostToken, 'groupthink');
-  await new Promise((resolve) => setTimeout(resolve, 40));
+  await resultsPhase;
 
-  assert.equal(observedPhase, 'results');
   const snapshot = manager.getRoomSnapshot(room.roomCode);
   assert.equal(snapshot.game?.id, 'groupthink');
   if (snapshot.game?.id === 'groupthink') {
@@ -152,19 +148,10 @@ test('automatically advances Hot Take from answer deadline to vote deadline', as
   manager.joinRoom({ roomCode: room.roomCode, name: 'Blair', avatar: '👽' });
   manager.joinRoom({ roomCode: room.roomCode, name: 'Casey', avatar: '🤖' });
   const phases: string[] = [];
-  let resolveVoting!: () => void;
-  let resolveResults!: () => void;
-  const votingPhase = new Promise<void>((resolve) => {
-    resolveVoting = resolve;
-  });
-  const resultsPhase = new Promise<void>((resolve) => {
-    resolveResults = resolve;
-  });
+  const votingPhase = waitForRoomPhase(manager, room.roomCode, 'voting');
+  const resultsPhase = waitForRoomPhase(manager, room.roomCode, 'results');
   manager.subscribe((roomCode, snapshot) => {
     if (roomCode === room.roomCode) phases.push(snapshot.state.phase);
-    if (roomCode !== room.roomCode) return;
-    if (snapshot.state.phase === 'voting') resolveVoting();
-    if (snapshot.state.phase === 'results') resolveResults();
   });
 
   manager.startGame(room.roomCode, room.hostToken, 'hot-take');
@@ -173,3 +160,25 @@ test('automatically advances Hot Take from answer deadline to vote deadline', as
   await resultsPhase;
   assert.equal(phases.at(-1), 'results');
 });
+
+function waitForRoomPhase(manager: RoomManager, roomCode: string, phase: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const state: {
+      unsubscribe: () => void;
+      timeout?: ReturnType<typeof setTimeout>;
+    } = {
+      unsubscribe: () => undefined,
+    };
+    state.timeout = setTimeout(() => {
+      state.unsubscribe();
+      reject(new Error(`Timed out waiting for room ${roomCode} to reach ${phase}.`));
+    }, 1_000);
+
+    state.unsubscribe = manager.subscribe((observedRoomCode, snapshot) => {
+      if (observedRoomCode !== roomCode || snapshot.state.phase !== phase) return;
+      if (state.timeout) clearTimeout(state.timeout);
+      state.unsubscribe();
+      resolve();
+    });
+  });
+}
