@@ -71,6 +71,14 @@ export function createRequestHandler(metadata: ServerMetadata, options: HttpOpti
         );
         return;
       }
+
+      const assetMatch = requestUrl.pathname.match(/^\/assets\/([a-z0-9][a-z0-9._-]*)$/i);
+      if (assetMatch) {
+        const assetName = assetMatch[1] ?? '';
+        const contentType = assetName.endsWith('.png') ? 'image/png' : 'application/octet-stream';
+        serveFile(response, resolve(options.webRoot, 'assets', assetName), contentType);
+        return;
+      }
     }
 
     writeJson(response, 404, {

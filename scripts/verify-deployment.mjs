@@ -34,6 +34,11 @@ const checks = [
     path: '/protocol.js',
     validate: async (response) => response.ok && (await response.text()).includes('isSuccess'),
   },
+  {
+    path: '/assets/room-riot-logo.png',
+    validate: async (response) =>
+      response.ok && (response.headers.get('content-type') ?? '').includes('image/png'),
+  },
 ];
 
 let failed = false;

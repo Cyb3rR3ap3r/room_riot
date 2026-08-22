@@ -64,14 +64,24 @@ interface SoundController {
 
 function createPage(root: HTMLElement, titleText: string, subtitleText: string): PageParts {
   root.replaceChildren();
-  root.className = 'page';
+  const pageKind =
+    window.location.pathname === routes.host
+      ? 'host-page'
+      : window.location.pathname === routes.play
+        ? 'player-page'
+        : 'display-page';
+  root.className = `page ${pageKind}`;
 
   const header = document.createElement('header');
   header.className = 'page-header';
 
   const title = document.createElement('div');
   title.className = 'brand';
-  title.textContent = 'ROOM RIOT';
+  const logo = document.createElement('img');
+  logo.className = 'brand-logo';
+  logo.src = '/assets/room-riot-logo.png';
+  logo.alt = 'Room Riot';
+  title.append(logo);
 
   const heading = document.createElement('h1');
   heading.textContent = titleText;

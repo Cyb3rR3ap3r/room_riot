@@ -8,3 +8,4 @@ const distDirectory = resolve(webRoot, 'dist');
 
 await mkdir(distDirectory, { recursive: true });
 await cp(resolve(webRoot, 'index.html'), resolve(distDirectory, 'index.html'));
+await cp(resolve(webRoot, 'assets'), resolve(distDirectory, 'assets'), { recursive: true });
