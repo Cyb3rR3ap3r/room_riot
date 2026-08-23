@@ -5,7 +5,7 @@ import test, { afterEach } from 'node:test';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { createRequestHandler } from './http.js';
+import { buildJoinPath, createRequestHandler } from './http.js';
 import { RoomManager } from './room-manager.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
@@ -56,6 +56,12 @@ test('health endpoint returns a JSON 404 for unknown routes', async () => {
   });
 });
 
+test('builds game-specific player paths with a generic fallback', () => {
+  assert.equal(buildJoinPath('ABCD', 'groupthink'), '/play/groupthink?room=ABCD');
+  assert.equal(buildJoinPath('WXYZ', 'hot-take'), '/play/hot-take?room=WXYZ');
+  assert.equal(buildJoinPath('RAGE', null), '/play?room=RAGE');
+});
+
 test('serves the browser shell and an offline QR code for a room', async () => {
   const roomManager = new RoomManager();
   const room = roomManager.createRoom({});
@@ -79,6 +85,8 @@ test('serves the browser shell and an offline QR code for a room', async () => {
     '/host/hot-take',
     '/display/groupthink',
     '/display/hot-take',
+    '/play/groupthink',
+    '/play/hot-take',
   ]) {
     const gamePageResponse: Response = await fetch(`http://127.0.0.1:${address.port}${pagePath}`);
     assert.equal(gamePageResponse.status, 200);

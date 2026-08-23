@@ -38,6 +38,11 @@ const checks = [
     validate: async (response) =>
       response.ok && (await response.text()).toLowerCase().includes('room riot'),
   },
+  ...['groupthink', 'hot-take'].map((gameId) => ({
+    path: `/play/${gameId}`,
+    validate: async (response) =>
+      response.ok && (await response.text()).toLowerCase().includes('room riot'),
+  })),
   {
     path: '/socket.io/socket.io.js',
     validate: async (response) => response.ok && (await response.text()).includes('socket'),

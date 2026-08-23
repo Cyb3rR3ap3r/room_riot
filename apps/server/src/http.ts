@@ -51,7 +51,8 @@ export function createRequestHandler(metadata: ServerMetadata, options: HttpOpti
           return;
         }
 
-        void writeQrCode(response, buildJoinUrl(request, roomCode));
+        const gameId = options.roomManager.getRoomSnapshot(roomCode).state.gameId;
+        void writeQrCode(response, buildJoinUrl(request, roomCode, gameId));
         return;
       }
     }
@@ -66,6 +67,8 @@ export function createRequestHandler(metadata: ServerMetadata, options: HttpOpti
         '/host/groupthink',
         '/host/hot-take',
         '/play',
+        '/play/groupthink',
+        '/play/hot-take',
       ]);
       if (pagePaths.has(requestUrl.pathname)) {
         serveFile(response, resolve(options.webRoot, 'index.html'), 'text/html; charset=utf-8');
@@ -128,9 +131,14 @@ async function writeQrCode(response: ServerResponse, joinUrl: string): Promise<v
   }
 }
 
-function buildJoinUrl(request: IncomingMessage, roomCode: string): string {
+export function buildJoinPath(roomCode: string, gameId: string | null): string {
+  const gamePath = gameId === 'groupthink' || gameId === 'hot-take' ? `/${gameId}` : '';
+  return `/play${gamePath}?room=${encodeURIComponent(roomCode)}`;
+}
+
+function buildJoinUrl(request: IncomingMessage, roomCode: string, gameId: string | null): string {
   const forwardedProtocol = request.headers['x-forwarded-proto'];
   const protocol = typeof forwardedProtocol === 'string' ? forwardedProtocol : 'http';
   const host = request.headers.host ?? 'localhost:3000';
-  return `${protocol}://${host}/play?room=${encodeURIComponent(roomCode)}`;
+  return `${protocol}://${host}${buildJoinPath(roomCode, gameId)}`;
 }

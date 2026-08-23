@@ -113,7 +113,7 @@ const GAME_CATALOG: readonly GameDefinition[] = [
 ];
 
 function getGameFromPathname(pathname = window.location.pathname): SupportedGameId | null {
-  const match = pathname.match(/^\/(?:host|display)\/(groupthink|hot-take)$/);
+  const match = pathname.match(/^\/(?:host|display|play)\/(groupthink|hot-take)$/);
   const gameId = match?.[1];
   return gameId === 'groupthink' || gameId === 'hot-take' ? gameId : null;
 }
@@ -124,6 +124,11 @@ function buildHostRoute(gameId: SupportedGameId): string {
 
 function buildDisplayRoute(gameId: SupportedGameId, roomCode: string): string {
   return `/display/${gameId}?room=${encodeURIComponent(roomCode)}`;
+}
+
+function buildPlayRoute(gameId: SupportedGameId, roomCode = ''): string {
+  const query = roomCode ? `?room=${encodeURIComponent(roomCode)}` : '';
+  return `/play/${gameId}${query}`;
 }
 
 interface SoundController {
@@ -141,7 +146,7 @@ function createPage(
   const pageKind =
     window.location.pathname === routes.host || window.location.pathname.startsWith('/host/')
       ? 'host-page'
-      : window.location.pathname === routes.play
+      : window.location.pathname === routes.play || window.location.pathname.startsWith('/play/')
         ? 'player-page'
         : 'display-page';
   root.className = `page ${pageKind}`;
@@ -623,7 +628,7 @@ function createRoomPass(roomCode: string, gameId: SupportedGameId): HTMLElement 
   label.textContent = 'Join at this address';
   const address = document.createElement('strong');
   address.className = 'join-address';
-  address.textContent = `${window.location.host}/play`;
+  address.textContent = `${window.location.host}${buildPlayRoute(gameId)}`;
   const code = document.createElement('strong');
   code.className = 'room-code';
   code.textContent = roomCode;
@@ -1048,6 +1053,7 @@ function renderHost(root: HTMLElement): void {
 
 function renderPlayer(root: HTMLElement): void {
   const socket = window.io();
+  const routeGameId = getGameFromPathname();
   let connectionStatus: ConnectionStatus = 'connecting';
   const roomFromUrl = new URLSearchParams(window.location.search).get('room')?.toUpperCase() ?? '';
   let session = readStorage<PlayerSession>(PLAYER_STORAGE_KEY);
@@ -1080,6 +1086,14 @@ function renderPlayer(root: HTMLElement): void {
       };
       snapshot = response.snapshot;
       playerState = response.playerState;
+      const joinedGame = response.snapshot.state.gameId;
+      if (joinedGame && getGameFromPathname() !== joinedGame) {
+        window.history.replaceState(
+          null,
+          '',
+          buildPlayRoute(getGameDefinition(joinedGame).id, response.roomCode),
+        );
+      }
       writeStorage(PLAYER_STORAGE_KEY, session);
       render();
     });
@@ -1092,14 +1106,36 @@ function renderPlayer(root: HTMLElement): void {
       session
         ? 'Keep this page open and watch the big screen.'
         : 'Enter the code shown on the display.',
-      snapshot?.game?.id ?? snapshot?.state.gameId,
+      snapshot?.game?.id ?? snapshot?.state.gameId ?? routeGameId,
     );
     renderConnectionNotice(page, connectionStatus);
-    setGameTheme(root, snapshot?.state.gameId);
+    setGameTheme(root, snapshot?.state.gameId ?? routeGameId);
 
     if (!session) {
       const form = document.createElement('form');
-      form.className = 'card form';
+      form.className = routeGameId ? `form themed-join-card join-${routeGameId}` : 'card form';
+      if (routeGameId) {
+        const game = getGameDefinition(routeGameId);
+        const intro = document.createElement('div');
+        intro.className = 'themed-join-intro';
+        intro.append(createGameArtwork(game, 'themed-join-logo'));
+        const copy = document.createElement('div');
+        const kicker = document.createElement('span');
+        kicker.className = 'experience-eyebrow';
+        kicker.textContent =
+          routeGameId === 'groupthink' ? 'Connect your mind' : 'Claim your backstage pass';
+        const heading = document.createElement('h1');
+        heading.textContent = `Join ${game.label}`;
+        const helper = document.createElement('p');
+        helper.className = 'muted';
+        helper.textContent =
+          routeGameId === 'groupthink'
+            ? 'Enter the room code and tune into the consensus reactor.'
+            : 'Enter the room code and step into tonight’s live audience.';
+        copy.append(kicker, heading, helper);
+        intro.append(copy);
+        form.append(intro);
+      }
       const roomInput = createTextInput(roomFromUrl);
       roomInput.autocomplete = 'off';
       roomInput.placeholder = 'RAGE';
@@ -1508,7 +1544,10 @@ if (typeof document !== 'undefined') {
       window.location.pathname.startsWith('/host/')
     ) {
       renderHost(target);
-    } else if (window.location.pathname === routes.play) {
+    } else if (
+      window.location.pathname === routes.play ||
+      window.location.pathname.startsWith('/play/')
+    ) {
       renderPlayer(target);
     } else {
       renderDisplay(target);
