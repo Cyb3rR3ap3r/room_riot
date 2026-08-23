@@ -300,6 +300,226 @@
         }
       }
 
+      .game-groupthink {
+        --game-accent: #29e9f4;
+        --game-accent-strong: #2374ff;
+        --game-glow: rgba(41, 233, 244, 0.2);
+        --game-surface: rgba(10, 54, 91, 0.66);
+      }
+
+      .game-hot-take {
+        --game-accent: #ff3ea9;
+        --game-accent-strong: #9d46ff;
+        --game-glow: rgba(255, 62, 169, 0.2);
+        --game-surface: rgba(84, 21, 86, 0.66);
+      }
+
+      .page.game-groupthink,
+      .page.game-hot-take {
+        background:
+          radial-gradient(circle at 100% 0, var(--game-glow), transparent 28rem),
+          radial-gradient(circle at 0 100%, var(--game-glow), transparent 24rem);
+      }
+
+      .page.game-groupthink .phase-card,
+      .game-detail.game-groupthink {
+        border-color: color-mix(in srgb, var(--game-accent) 65%, transparent);
+        background:
+          linear-gradient(135deg, rgba(41, 233, 244, 0.13), transparent 48%), var(--surface);
+      }
+
+      .page.game-hot-take .phase-card,
+      .game-detail.game-hot-take {
+        border-color: color-mix(in srgb, var(--game-accent) 65%, transparent);
+        background:
+          linear-gradient(135deg, rgba(255, 62, 169, 0.14), transparent 48%), var(--surface);
+      }
+
+      .game-launcher {
+        width: 100%;
+        max-width: 56rem;
+        gap: 1.25rem;
+      }
+
+      .game-picker {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .game-picker-heading h2 {
+        margin-bottom: 0.3rem;
+      }
+
+      .game-picker-heading p {
+        margin: 0;
+      }
+
+      .game-options {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.8rem;
+      }
+
+      .game-option {
+        display: grid;
+        min-height: 10rem;
+        grid-template-columns: 5.8rem minmax(0, 1fr);
+        align-items: center;
+        justify-content: start;
+        gap: 0.8rem;
+        border: 1px solid rgba(152, 177, 220, 0.24);
+        border-radius: 1.25rem;
+        padding: 0.75rem;
+        background: rgba(5, 10, 23, 0.6);
+        color: var(--text);
+        text-align: left;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+      }
+
+      .game-option:hover {
+        border-color: color-mix(in srgb, var(--game-accent) 75%, transparent);
+        background: var(--game-surface);
+        box-shadow: 0 0.9rem 2rem var(--game-glow);
+      }
+
+      .game-option[aria-pressed='true'] {
+        border-color: var(--game-accent);
+        background: var(--game-surface);
+        box-shadow:
+          0 0 0 2px color-mix(in srgb, var(--game-accent) 30%, transparent),
+          0 1rem 2.4rem var(--game-glow);
+      }
+
+      .game-option-copy {
+        display: grid;
+        gap: 0.2rem;
+        min-width: 0;
+      }
+
+      .game-option-copy strong {
+        font-size: 1.15rem;
+      }
+
+      .game-option-copy span {
+        color: var(--game-accent);
+        font-size: 0.78rem;
+        font-weight: 900;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .game-detail {
+        display: grid;
+        grid-template-columns: minmax(8rem, 12rem) minmax(0, 1fr);
+        align-items: center;
+        gap: 1rem 1.2rem;
+        border: 1px solid var(--line);
+        border-radius: 1.25rem;
+        padding: 1rem;
+      }
+
+      .game-detail-copy {
+        min-width: 0;
+      }
+
+      .game-detail-copy h3 {
+        margin: 0.2rem 0 0.35rem;
+        font-size: clamp(1.6rem, 4vw, 2.4rem);
+        letter-spacing: -0.045em;
+      }
+
+      .game-detail-copy p {
+        max-width: 42rem;
+        margin: 0 0 0.8rem;
+        color: #c0cbe1;
+        line-height: 1.45;
+      }
+
+      .game-facts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.45rem;
+        padding: 0;
+        margin: 0;
+        list-style: none;
+      }
+
+      .game-facts li {
+        border: 1px solid color-mix(in srgb, var(--game-accent) 42%, transparent);
+        border-radius: 999px;
+        padding: 0.35rem 0.65rem;
+        background: color-mix(in srgb, var(--game-accent) 10%, transparent);
+        color: var(--game-accent);
+        font-size: 0.75rem;
+        font-weight: 900;
+      }
+
+      .game-art {
+        display: block;
+        height: auto;
+        object-fit: contain;
+        filter: drop-shadow(0 0.7rem 0.8rem rgba(0, 0, 0, 0.32));
+      }
+
+      .game-art-option {
+        width: 5.5rem;
+      }
+
+      .game-art-large {
+        width: min(100%, 12rem);
+        justify-self: center;
+      }
+
+      .game-art-small {
+        width: 4.8rem;
+        flex: 0 0 4.8rem;
+      }
+
+      .game-identity {
+        display: flex;
+        width: min(100%, 34rem);
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.7rem;
+        text-align: left;
+      }
+
+      .game-identity-copy {
+        display: grid;
+        gap: 0.12rem;
+        min-width: 0;
+      }
+
+      .game-identity-copy strong {
+        color: var(--game-accent);
+        font-size: clamp(1.2rem, 3vw, 1.8rem);
+        line-height: 1;
+      }
+
+      .game-kicker {
+        color: var(--game-accent);
+        font-size: 0.7rem;
+        font-weight: 950;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .game-launcher-actions {
+        justify-content: flex-end;
+        border-top: 1px solid rgba(152, 177, 220, 0.16);
+        padding-top: 1rem;
+      }
+
+      .create-game-button {
+        min-width: 12rem;
+        background: linear-gradient(135deg, #fff047, #ffb516 52%, #ff5a87);
+        box-shadow: 0 0.75rem 1.8rem rgba(255, 180, 22, 0.2);
+      }
+
+      .create-game-button:hover {
+        box-shadow: 0 1rem 2rem rgba(255, 180, 22, 0.3);
+      }
+
       .form {
         display: grid;
         gap: 1rem;
@@ -567,6 +787,23 @@
 
         .brand {
           width: min(13rem, 70vw);
+        }
+
+        .game-options,
+        .game-detail {
+          grid-template-columns: 1fr;
+        }
+
+        .game-option {
+          min-height: 7.5rem;
+        }
+
+        .game-art-large {
+          width: min(10rem, 50vw);
+        }
+
+        .game-launcher-actions > button {
+          width: 100%;
         }
 
         .room-details {

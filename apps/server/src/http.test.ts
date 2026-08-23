@@ -82,10 +82,14 @@ test('serves the browser shell and an offline QR code for a room', async () => {
   assert.equal(protocolScriptResponse.status, 200);
   assert.match(await protocolScriptResponse.text(), /isSuccess/);
 
-  const logoResponse = await fetch(`http://127.0.0.1:${address.port}/assets/room-riot-logo.png`);
-  assert.equal(logoResponse.status, 200);
-  assert.match(logoResponse.headers.get('content-type') ?? '', /image\/png/);
-  assert.ok((await logoResponse.arrayBuffer()).byteLength > 1_000);
+  for (const assetName of ['room-riot-logo.png', 'groupthink-icon.png', 'hot-take-icon.png']) {
+    const assetResponse: Response = await fetch(
+      `http://127.0.0.1:${address.port}/assets/${assetName}`,
+    );
+    assert.equal(assetResponse.status, 200);
+    assert.match(assetResponse.headers.get('content-type') ?? '', /image\/png/);
+    assert.ok((await assetResponse.arrayBuffer()).byteLength > 1_000);
+  }
 
   const qrResponse = await fetch(
     `http://127.0.0.1:${address.port}/api/rooms/${room.roomCode}/qr.svg`,

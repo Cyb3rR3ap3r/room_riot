@@ -34,11 +34,11 @@ const checks = [
     path: '/protocol.js',
     validate: async (response) => response.ok && (await response.text()).includes('isSuccess'),
   },
-  {
-    path: '/assets/room-riot-logo.png',
+  ...['room-riot-logo.png', 'groupthink-icon.png', 'hot-take-icon.png'].map((assetName) => ({
+    path: `/assets/${assetName}`,
     validate: async (response) =>
       response.ok && (response.headers.get('content-type') ?? '').includes('image/png'),
-  },
+  })),
 ];
 
 let failed = false;
