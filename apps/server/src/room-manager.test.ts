@@ -61,6 +61,42 @@ test('requires the host token to start a game', () => {
   assert.equal(state.state.phase, 'input');
 });
 
+test('rejects unsupported games and enforces the active-room limit', () => {
+  const manager = new RoomManager({ maxRooms: 1 });
+  const room = manager.createRoom({});
+
+  assert.throws(
+    () => manager.startGame(room.roomCode, room.hostToken, 'made-up'),
+    (error: unknown) => error instanceof RoomManagerError && error.code === 'INVALID_STATE',
+  );
+  assert.throws(
+    () => manager.createRoom({}),
+    (error: unknown) => error instanceof RoomManagerError && error.code === 'ROOM_LIMIT',
+  );
+  manager.close();
+});
+
+test('expires inactive rooms and rejects answers after a deadline', () => {
+  const manager = new RoomManager({ groupthinkInputDurationMs: 10, roomIdleTtlMs: 100 });
+  const room = manager.createRoom({ settings: { roundCount: 1 } });
+  const player = manager.joinRoom({ roomCode: room.roomCode, name: 'Alex', avatar: '😎' });
+  manager.startGame(room.roomCode, room.hostToken, 'groupthink');
+
+  const deadlineStart = Date.now();
+  while (Date.now() - deadlineStart < 20) {
+    // Keep the test deterministic even when the timer callback is delayed.
+  }
+  assert.throws(
+    () => manager.submitAnswer(room.roomCode, player.playerId, 'late'),
+    /deadline|no longer accepting/i,
+  );
+  assert.equal(manager.getRoomSnapshot(room.roomCode).state.phase, 'results');
+  const removed = manager.cleanupExpiredRooms(Date.now() + 101);
+  assert.equal(removed, 1);
+  assert.equal(manager.hasRoom(room.roomCode), false);
+  manager.close();
+});
+
 test('marks a connected player offline when their socket disconnects', () => {
   const manager = new RoomManager();
   const room = manager.createRoom({});
@@ -72,7 +108,7 @@ test('marks a connected player offline when their socket disconnects', () => {
 });
 
 test('runs Groupthink from input through results, scoring, and winner', () => {
-  const manager = new RoomManager();
+  const manager = new RoomManager({ randomizePrompts: false });
   const room = manager.createRoom({ settings: { roundCount: 1 } });
   const first = manager.joinRoom({ roomCode: room.roomCode, name: 'Joe', avatar: '😎' });
   const second = manager.joinRoom({ roomCode: room.roomCode, name: 'Sarah', avatar: '👽' });
@@ -116,7 +152,7 @@ test('automatically reveals Groupthink when the input deadline expires', async (
 });
 
 test('runs Hot Take from anonymous answers through voting and winner scoring', () => {
-  const manager = new RoomManager();
+  const manager = new RoomManager({ randomizePrompts: false });
   const room = manager.createRoom({ settings: { roundCount: 1 } });
   const first = manager.joinRoom({ roomCode: room.roomCode, name: 'Alex', avatar: '😎' });
   const second = manager.joinRoom({ roomCode: room.roomCode, name: 'Blair', avatar: '👽' });
@@ -147,7 +183,7 @@ test('runs Hot Take from anonymous answers through voting and winner scoring', (
   assert.equal(winner.state.players.find((player) => player.id === second.playerId)?.score, 100);
 });
 
-test('automatically advances Hot Take from answer deadline to vote deadline', async () => {
+test('automatically resolves Hot Take with no submitted answers', async () => {
   const manager = new RoomManager({
     hotTakeInputDurationMs: 15,
     hotTakeVotingDurationMs: 15,
@@ -157,15 +193,12 @@ test('automatically advances Hot Take from answer deadline to vote deadline', as
   manager.joinRoom({ roomCode: room.roomCode, name: 'Blair', avatar: '👽' });
   manager.joinRoom({ roomCode: room.roomCode, name: 'Casey', avatar: '🤖' });
   const phases: string[] = [];
-  const votingPhase = waitForRoomPhase(manager, room.roomCode, 'voting');
   const resultsPhase = waitForRoomPhase(manager, room.roomCode, 'results');
   manager.subscribe((roomCode, snapshot) => {
     if (roomCode === room.roomCode) phases.push(snapshot.state.phase);
   });
 
   manager.startGame(room.roomCode, room.hostToken, 'hot-take');
-  await votingPhase;
-  assert.equal(phases.at(-1), 'voting');
   await resultsPhase;
   assert.equal(phases.at(-1), 'results');
 });

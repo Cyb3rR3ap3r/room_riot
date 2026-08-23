@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { randomInt } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -14,7 +15,17 @@ const PromptSchema = z.object({
   id: z.string().min(1),
   text: z.string().trim().min(1),
 });
-const PromptFileSchema = z.object({ prompts: z.array(PromptSchema).min(1) });
+const PromptFileSchema = z
+  .object({ prompts: z.array(PromptSchema).min(1) })
+  .superRefine((file, context) => {
+    const ids = new Set(file.prompts.map((prompt) => prompt.id));
+    if (ids.size !== file.prompts.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Prompt IDs must be unique within a content pack.',
+      });
+    }
+  });
 
 export interface GroupthinkPrompt {
   readonly id: string;
@@ -39,6 +50,7 @@ export interface GroupthinkSessionState {
   readonly roundNumber: number;
   readonly totalRounds: number;
   readonly prompt: GroupthinkPrompt;
+  readonly promptOrder: readonly string[];
   readonly inputDeadlineAt: number | null;
   readonly usedPromptIds: readonly string[];
   readonly answers: Readonly<Record<PlayerId, GroupthinkAnswer>>;
@@ -104,8 +116,10 @@ export function createGroupthinkSession(
   totalRounds: number,
   now = Date.now(),
   inputDurationMs = GROUPTHINK_INPUT_DURATION_MS,
+  randomizePrompts = false,
 ): GroupthinkSessionState {
-  const firstPrompt = prompts[0];
+  const orderedPrompts = randomizePrompts ? shufflePrompts(prompts) : prompts;
+  const firstPrompt = orderedPrompts[0];
   if (!firstPrompt) throw new Error('Groupthink requires at least one prompt.');
   if (!Number.isInteger(totalRounds) || totalRounds < 1) {
     throw new Error('Groupthink requires at least one round.');
@@ -119,6 +133,7 @@ export function createGroupthinkSession(
     roundNumber: 1,
     totalRounds,
     prompt: firstPrompt,
+    promptOrder: orderedPrompts.map((prompt) => prompt.id),
     inputDeadlineAt: now + inputDurationMs,
     usedPromptIds: [firstPrompt.id],
     answers: {},
@@ -131,8 +146,12 @@ export function submitGroupthinkAnswer(
   session: GroupthinkSessionState,
   playerId: PlayerId,
   answer: string,
+  now?: number,
 ): GroupthinkSessionState {
   if (session.status !== 'input') throw new Error('This round is no longer accepting answers.');
+  if (now !== undefined && session.inputDeadlineAt !== null && now >= session.inputDeadlineAt) {
+    throw new Error('The answer deadline has passed.');
+  }
   if (session.answers[playerId]) throw new Error('This player already submitted an answer.');
 
   const display = answer.trim();
@@ -205,9 +224,12 @@ export function advanceGroupthinkRound(
     return { ...session, status: 'complete', inputDeadlineAt: null };
   }
 
+  const orderedPrompts = session.promptOrder
+    .map((promptId) => prompts.find((prompt) => prompt.id === promptId))
+    .filter((prompt): prompt is GroupthinkPrompt => Boolean(prompt));
   const nextPrompt =
-    prompts.find((prompt) => !session.usedPromptIds.includes(prompt.id)) ??
-    prompts[(session.roundNumber - 1) % prompts.length];
+    orderedPrompts.find((prompt) => !session.usedPromptIds.includes(prompt.id)) ??
+    prompts[session.roundNumber % prompts.length];
   if (!nextPrompt) throw new Error('Groupthink could not select the next prompt.');
 
   return {
@@ -221,6 +243,20 @@ export function advanceGroupthinkRound(
     groups: [],
     roundScores: {},
   };
+}
+
+function shufflePrompts(prompts: readonly GroupthinkPrompt[]): readonly GroupthinkPrompt[] {
+  const shuffled = [...prompts];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = randomInt(index + 1);
+    const current = shuffled[index];
+    const swap = shuffled[swapIndex];
+    if (current && swap) {
+      shuffled[index] = swap;
+      shuffled[swapIndex] = current;
+    }
+  }
+  return shuffled;
 }
 
 export function getGroupthinkPublicView(

@@ -79,6 +79,7 @@ interface RoomSession {
   groupthink?: GroupthinkSessionState;
   hotTake?: HotTakeSessionState;
   readonly hostToken: SessionToken;
+  lastActivityAt: number;
   hostSocketId?: string;
   readonly playerTokens: Map<SessionToken, PlayerId>;
   readonly playerSocketIds: Map<PlayerId, string>;
@@ -86,7 +87,7 @@ interface RoomSession {
 
 export class RoomManagerError extends Error {
   constructor(
-    readonly code: 'ROOM_NOT_FOUND' | 'ROOM_FULL' | 'UNAUTHORIZED' | 'INVALID_STATE',
+    readonly code: 'ROOM_NOT_FOUND' | 'ROOM_FULL' | 'ROOM_LIMIT' | 'UNAUTHORIZED' | 'INVALID_STATE',
     message: string,
   ) {
     super(message);
@@ -125,6 +126,10 @@ export interface RoomManagerOptions {
   readonly groupthinkInputDurationMs?: number;
   readonly hotTakeInputDurationMs?: number;
   readonly hotTakeVotingDurationMs?: number;
+  readonly maxRooms?: number;
+  readonly roomIdleTtlMs?: number;
+  readonly cleanupIntervalMs?: number;
+  readonly randomizePrompts?: boolean;
 }
 
 export type RoomSnapshotListener = (roomCode: RoomCode, snapshot: RoomSnapshot) => void;
@@ -139,25 +144,50 @@ export class RoomManager {
   private readonly groupthinkInputDurationMs: number;
   private readonly hotTakeInputDurationMs: number;
   private readonly hotTakeVotingDurationMs: number;
+  private readonly maxRooms: number;
+  private readonly roomIdleTtlMs: number;
+  private readonly cleanupTimer: ReturnType<typeof setInterval>;
+  private readonly randomizePrompts: boolean;
 
   constructor(options: RoomManagerOptions = {}) {
     const groupthinkInputDurationMs =
       options.groupthinkInputDurationMs ?? GROUPTHINK_INPUT_DURATION_MS;
     const hotTakeInputDurationMs = options.hotTakeInputDurationMs ?? HOT_TAKE_INPUT_DURATION_MS;
     const hotTakeVotingDurationMs = options.hotTakeVotingDurationMs ?? HOT_TAKE_VOTING_DURATION_MS;
+    const maxRooms = options.maxRooms ?? 1_000;
+    const roomIdleTtlMs = options.roomIdleTtlMs ?? 6 * 60 * 60 * 1_000;
+    const cleanupIntervalMs = options.cleanupIntervalMs ?? 60_000;
+    const randomizePrompts = options.randomizePrompts ?? true;
     if (
       !Number.isInteger(groupthinkInputDurationMs) ||
       groupthinkInputDurationMs < 1 ||
       !Number.isInteger(hotTakeInputDurationMs) ||
       hotTakeInputDurationMs < 1 ||
       !Number.isInteger(hotTakeVotingDurationMs) ||
-      hotTakeVotingDurationMs < 1
+      hotTakeVotingDurationMs < 1 ||
+      !Number.isInteger(maxRooms) ||
+      maxRooms < 1 ||
+      !Number.isInteger(roomIdleTtlMs) ||
+      roomIdleTtlMs < 1 ||
+      !Number.isInteger(cleanupIntervalMs) ||
+      cleanupIntervalMs < 1
     ) {
       throw new Error('Game timers must be positive integers.');
     }
     this.groupthinkInputDurationMs = groupthinkInputDurationMs;
     this.hotTakeInputDurationMs = hotTakeInputDurationMs;
     this.hotTakeVotingDurationMs = hotTakeVotingDurationMs;
+    this.maxRooms = maxRooms;
+    this.roomIdleTtlMs = roomIdleTtlMs;
+    this.randomizePrompts = randomizePrompts;
+    this.cleanupTimer = setInterval(() => this.cleanupExpiredRooms(), cleanupIntervalMs);
+    this.cleanupTimer.unref?.();
+  }
+
+  close(): void {
+    clearInterval(this.cleanupTimer);
+    this.inputTimers.forEach((timer) => clearTimeout(timer));
+    this.inputTimers.clear();
   }
 
   subscribe(listener: RoomSnapshotListener): () => void {
@@ -166,12 +196,18 @@ export class RoomManager {
   }
 
   createRoom(input: CreateRoomRequest = {}): CreatedRoom {
+    this.cleanupExpiredRooms();
+    if (this.rooms.size >= this.maxRooms) {
+      throw new RoomManagerError('ROOM_LIMIT', 'The server is at its active room limit.');
+    }
     const request = CreateRoomRequestSchema.parse(input);
     const roomCode = this.createRoomCode();
     const hostToken = SessionTokenSchema.parse(randomUUID());
     const settings = normalizeSettings(request.settings);
+    const now = Date.now();
     const initialState = createInitialRoomState({
       roomCode,
+      now,
       ...(settings ? { settings } : {}),
     });
     const state: RoomState = request.gameId
@@ -181,6 +217,7 @@ export class RoomManager {
     this.rooms.set(roomCode, {
       state,
       hostToken,
+      lastActivityAt: now,
       playerTokens: new Map(),
       playerSocketIds: new Map(),
     });
@@ -238,6 +275,12 @@ export class RoomManager {
     const session = this.requireRoom(roomCode);
 
     this.assertHost(session, hostToken);
+    if (session.state.phase !== 'lobby') {
+      throw new RoomManagerError('INVALID_STATE', 'A game can only be started from the lobby.');
+    }
+    if (gameId !== GROUPTHINK_GAME_ID && gameId !== HOT_TAKE_GAME_ID) {
+      throw new RoomManagerError('INVALID_STATE', 'That game is not available.');
+    }
     if (gameId === HOT_TAKE_GAME_ID && Object.keys(session.state.players).length < 3) {
       throw new RoomManagerError('INVALID_STATE', 'Hot Take requires at least three players.');
     }
@@ -250,6 +293,7 @@ export class RoomManager {
         session.state.settings.roundCount,
         Date.now(),
         this.groupthinkInputDurationMs,
+        this.randomizePrompts,
       );
       session.state = setPhase(session.state, 'input');
       this.scheduleGroupthinkDeadline(roomCode, session);
@@ -261,6 +305,7 @@ export class RoomManager {
         session.state.settings.roundCount,
         Date.now(),
         this.hotTakeInputDurationMs,
+        this.randomizePrompts,
       );
       session.state = setPhase(session.state, 'input');
       this.scheduleHotTakeDeadline(roomCode, session);
@@ -290,12 +335,23 @@ export class RoomManager {
     return parsed.success && this.rooms.has(parsed.data);
   }
 
+  cleanupExpiredRooms(now = Date.now()): number {
+    let removed = 0;
+    this.rooms.forEach((session, roomCode) => {
+      if (now - session.lastActivityAt < this.roomIdleTtlMs) return;
+      this.removeRoom(roomCode, session);
+      removed += 1;
+    });
+    return removed;
+  }
+
   bindHost(roomCodeInput: string, hostTokenInput: string, socketId: string): RoomSnapshot {
     const roomCode = RoomCodeSchema.parse(roomCodeInput);
     const hostToken = SessionTokenSchema.parse(hostTokenInput);
     const session = this.requireRoom(roomCode);
 
     this.assertHost(session, hostToken);
+    this.releaseSocket(socketId);
     if (session.hostSocketId && session.hostSocketId !== socketId) {
       this.socketBindings.delete(session.hostSocketId);
     }
@@ -313,6 +369,15 @@ export class RoomManager {
       throw new RoomManagerError('UNAUTHORIZED', 'Player session is not part of this room.');
     }
 
+    const currentBinding = this.socketBindings.get(socketId);
+    if (
+      !currentBinding ||
+      currentBinding.kind !== 'player' ||
+      currentBinding.roomCode !== roomCode ||
+      currentBinding.playerId !== parsedPlayerId
+    ) {
+      this.releaseSocket(socketId);
+    }
     const previousSocketId = session.playerSocketIds.get(parsedPlayerId);
     if (previousSocketId && previousSocketId !== socketId) {
       this.socketBindings.delete(previousSocketId);
@@ -327,6 +392,49 @@ export class RoomManager {
   }
 
   disconnectSocket(socketId: string): RoomSnapshot | null {
+    return this.releaseSocket(socketId);
+  }
+
+  getSocketBinding(socketId: string): SocketBinding | null {
+    return this.socketBindings.get(socketId) ?? null;
+  }
+
+  getPlayerSocketId(roomCodeInput: string, playerIdInput: string): string | null {
+    const roomCode = RoomCodeSchema.parse(roomCodeInput);
+    const playerId = PlayerIdSchemaFromInput(playerIdInput);
+    const session = this.requireRoom(roomCode);
+    return session.playerSocketIds.get(playerId) ?? null;
+  }
+
+  getHostSocketId(roomCodeInput: string): string | null {
+    const roomCode = RoomCodeSchema.parse(roomCodeInput);
+    const session = this.requireRoom(roomCode);
+    return session.hostSocketId ?? null;
+  }
+
+  assertPlayerSocket(roomCodeInput: string, playerIdInput: string, socketId: string): void {
+    const roomCode = RoomCodeSchema.parse(roomCodeInput);
+    const playerId = PlayerIdSchemaFromInput(playerIdInput);
+    const binding = this.socketBindings.get(socketId);
+    if (
+      !binding ||
+      binding.kind !== 'player' ||
+      binding.roomCode !== roomCode ||
+      binding.playerId !== playerId
+    ) {
+      throw new RoomManagerError('UNAUTHORIZED', 'Player socket is not authorized.');
+    }
+  }
+
+  assertHostSocket(roomCodeInput: string, socketId: string): void {
+    const roomCode = RoomCodeSchema.parse(roomCodeInput);
+    const binding = this.socketBindings.get(socketId);
+    if (!binding || binding.kind !== 'host' || binding.roomCode !== roomCode) {
+      throw new RoomManagerError('UNAUTHORIZED', 'Host socket is not authorized.');
+    }
+  }
+
+  private releaseSocket(socketId: string): RoomSnapshot | null {
     const binding = this.socketBindings.get(socketId);
     if (!binding) return null;
 
@@ -366,12 +474,13 @@ export class RoomManager {
     answer: string,
   ): PlayerGameUpdate {
     const session = this.requireRoom(roomCodeInput);
+    this.expireGameIfNeeded(session);
     const playerId = PlayerIdSchemaFromInput(playerIdInput);
     const game = this.requireGroupthink(session);
     if (!session.state.players[playerId]) {
       throw new RoomManagerError('UNAUTHORIZED', 'Player session is not part of this room.');
     }
-    session.groupthink = submitGroupthinkAnswer(game, playerId, answer);
+    session.groupthink = submitGroupthinkAnswer(game, playerId, answer, Date.now());
 
     const playerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
     if (allPlayersSubmitted(session.groupthink, playerIds)) {
@@ -393,6 +502,7 @@ export class RoomManager {
     targetPlayerIdInput?: string,
   ): PlayerGameUpdate {
     const session = this.requireRoom(roomCodeInput);
+    this.expireGameIfNeeded(session);
     const playerId = PlayerIdSchemaFromInput(playerIdInput);
     const targetPlayerId = targetPlayerIdInput
       ? PlayerIdSchemaFromInput(targetPlayerIdInput)
@@ -422,7 +532,14 @@ export class RoomManager {
     const playerId = PlayerIdSchemaFromInput(playerIdInput);
     const game = this.requireHotTake(session);
     const playerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
-    session.hotTake = submitHotTakeAnswer(game, playerId, answer, targetPlayerId, playerIds);
+    session.hotTake = submitHotTakeAnswer(
+      game,
+      playerId,
+      answer,
+      targetPlayerId,
+      playerIds,
+      Date.now(),
+    );
 
     if (allHotTakePlayersSubmitted(session.hotTake, playerIds)) {
       session.hotTake = revealHotTakeAnswers(
@@ -442,10 +559,11 @@ export class RoomManager {
 
   castVote(roomCodeInput: string, playerIdInput: string, entryId: string): PlayerGameUpdate {
     const session = this.requireRoom(roomCodeInput);
+    this.expireGameIfNeeded(session);
     const playerId = PlayerIdSchemaFromInput(playerIdInput);
     const game = this.requireHotTake(session);
     const playerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
-    session.hotTake = submitHotTakeVote(game, playerId, entryId);
+    session.hotTake = submitHotTakeVote(game, playerId, entryId, Date.now());
 
     if (allHotTakePlayersVoted(session.hotTake, playerIds)) {
       session.hotTake = revealHotTakeVotes(session.hotTake);
@@ -485,6 +603,12 @@ export class RoomManager {
         Date.now(),
         this.hotTakeVotingDurationMs,
       );
+      if (Object.keys(session.hotTake.answers).length < 2) {
+        session.hotTake = revealHotTakeVotes(session.hotTake);
+        session.state = setPhase(session.state, 'results');
+        this.clearGameDeadline(session.state.roomCode);
+        return this.getSnapshot(session);
+      }
       session.state = setPhase(session.state, 'voting');
       this.scheduleHotTakeDeadline(session.state.roomCode, session);
       return this.getSnapshot(session);
@@ -557,6 +681,42 @@ export class RoomManager {
     return this.getSnapshot(session);
   }
 
+  private expireGameIfNeeded(session: RoomSession, now = Date.now()): void {
+    if (session.groupthink?.status === 'input' && session.groupthink.inputDeadlineAt !== null) {
+      if (now >= session.groupthink.inputDeadlineAt) {
+        session.groupthink = revealGroupthink(session.groupthink);
+        session.state = setPhase(session.state, 'results', now);
+        this.clearGameDeadline(session.state.roomCode);
+      }
+      return;
+    }
+
+    const game = session.hotTake;
+    if (!game) return;
+    if (game.status === 'input' && game.inputDeadlineAt !== null && now >= game.inputDeadlineAt) {
+      session.hotTake = revealHotTakeAnswers(game, now, this.hotTakeVotingDurationMs);
+      if (Object.keys(session.hotTake.answers).length < 2) {
+        session.hotTake = revealHotTakeVotes(session.hotTake);
+        session.state = setPhase(session.state, 'results', now);
+        this.clearGameDeadline(session.state.roomCode);
+      } else {
+        session.state = setPhase(session.state, 'voting', now);
+        this.scheduleHotTakeDeadline(session.state.roomCode, session);
+      }
+      return;
+    }
+
+    if (
+      game.status === 'voting' &&
+      game.votingDeadlineAt !== null &&
+      now >= game.votingDeadlineAt
+    ) {
+      session.hotTake = revealHotTakeVotes(game);
+      session.state = setPhase(session.state, 'results', now);
+      this.clearGameDeadline(session.state.roomCode);
+    }
+  }
+
   private scheduleGroupthinkDeadline(roomCode: RoomCode, session: RoomSession): void {
     this.clearGameDeadline(roomCode);
     const deadlineAt = session.groupthink?.inputDeadlineAt;
@@ -615,8 +775,14 @@ export class RoomManager {
             Date.now(),
             this.hotTakeVotingDurationMs,
           );
-          current.state = setPhase(current.state, 'voting');
-          this.scheduleHotTakeDeadline(roomCode, current);
+          if (Object.keys(current.hotTake.answers).length < 2) {
+            current.hotTake = revealHotTakeVotes(current.hotTake);
+            current.state = setPhase(current.state, 'results');
+            this.inputTimers.delete(roomCode);
+          } else {
+            current.state = setPhase(current.state, 'voting');
+            this.scheduleHotTakeDeadline(roomCode, current);
+          }
         } else {
           current.hotTake = revealHotTakeVotes(current.hotTake);
           current.state = setPhase(current.state, 'results');
@@ -647,7 +813,18 @@ export class RoomManager {
     if (!session) {
       throw new RoomManagerError('ROOM_NOT_FOUND', `Room ${roomCode} does not exist.`);
     }
+    session.lastActivityAt = Date.now();
     return session;
+  }
+
+  private removeRoom(roomCode: RoomCode, session: RoomSession): void {
+    this.clearGameDeadline(roomCode);
+    this.rooms.delete(roomCode);
+    this.socketBindings.forEach((binding, socketId) => {
+      if (binding.roomCode === roomCode) this.socketBindings.delete(socketId);
+    });
+    session.playerSocketIds.clear();
+    delete session.hostSocketId;
   }
 
   private assertHost(session: RoomSession, hostToken: SessionToken): void {

@@ -1,11 +1,13 @@
 import type {
   CreateRoomRequest,
   DisplayWatchRequest,
+  EventResponse,
   HostReconnectRequest,
   HostRoomActionRequest,
   HostStartGameRequest,
   JoinRoomRequest,
   PlayerCastVoteRequest,
+  PlayerLeaveRoomRequest,
   PlayerSubmitAnswerRequest,
   RoomCode,
   SessionToken,
@@ -13,16 +15,6 @@ import type {
 import type { PublicRoomState } from '@room-riot/game-engine';
 import type { GroupthinkPlayerView, GroupthinkPublicView } from '@room-riot/groupthink';
 import type { HotTakePlayerView, HotTakePublicView } from '@room-riot/hot-take';
-
-export interface EventError {
-  readonly ok: false;
-  readonly error: {
-    readonly code: string;
-    readonly message: string;
-  };
-}
-
-export type EventResponse<T extends object> = ({ readonly ok: true } & T) | EventError;
 
 export interface RoomSnapshot {
   readonly state: PublicRoomState;
@@ -61,11 +53,16 @@ export interface PlayerAnswerSuccess {
   readonly playerState: PlayerGameView | null;
 }
 
+export interface LeaveRoomSuccess {
+  readonly roomCode: RoomCode;
+}
+
 export type HostCreateResponse = EventResponse<HostCreateSuccess>;
 export type HostReconnectResponse = EventResponse<HostReconnectSuccess>;
 export type PlayerJoinResponse = EventResponse<PlayerJoinSuccess>;
 export type RoomStateResponse = EventResponse<RoomStateSuccess>;
 export type PlayerAnswerResponse = EventResponse<PlayerAnswerSuccess>;
+export type LeaveRoomResponse = EventResponse<LeaveRoomSuccess>;
 
 export interface SocketLike {
   on(event: 'connect', listener: () => void): this;
@@ -99,6 +96,11 @@ export interface SocketLike {
     ack: (response: RoomStateResponse) => void,
   ): this;
   emit(
+    event: 'host:leave',
+    payload: HostRoomActionRequest,
+    ack: (response: LeaveRoomResponse) => void,
+  ): this;
+  emit(
     event: 'player:join',
     payload: JoinRoomRequest,
     ack: (response: PlayerJoinResponse) => void,
@@ -112,6 +114,11 @@ export interface SocketLike {
     event: 'player:cast-vote',
     payload: PlayerCastVoteRequest,
     ack: (response: PlayerAnswerResponse) => void,
+  ): this;
+  emit(
+    event: 'player:leave',
+    payload: PlayerLeaveRoomRequest,
+    ack: (response: LeaveRoomResponse) => void,
   ): this;
   emit(
     event: 'display:watch',

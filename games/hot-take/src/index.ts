@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { randomInt } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -18,7 +19,17 @@ const PromptSchema = z.object({
   text: z.string().trim().min(1),
   kind: PromptKindSchema,
 });
-const PromptFileSchema = z.object({ prompts: z.array(PromptSchema).min(1) });
+const PromptFileSchema = z
+  .object({ prompts: z.array(PromptSchema).min(1) })
+  .superRefine((file, context) => {
+    const ids = new Set(file.prompts.map((prompt) => prompt.id));
+    if (ids.size !== file.prompts.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Prompt IDs must be unique within a content pack.',
+      });
+    }
+  });
 
 export type HotTakePromptKind = z.infer<typeof PromptKindSchema>;
 
@@ -46,6 +57,7 @@ export interface HotTakeSessionState {
   readonly roundNumber: number;
   readonly totalRounds: number;
   readonly prompt: HotTakePrompt;
+  readonly promptOrder: readonly string[];
   readonly usedPromptIds: readonly string[];
   readonly inputDeadlineAt: number | null;
   readonly votingDeadlineAt: number | null;
@@ -104,8 +116,10 @@ export function createHotTakeSession(
   totalRounds: number,
   now = Date.now(),
   inputDurationMs = HOT_TAKE_INPUT_DURATION_MS,
+  randomizePrompts = false,
 ): HotTakeSessionState {
-  const firstPrompt = prompts[0];
+  const orderedPrompts = randomizePrompts ? shufflePrompts(prompts) : prompts;
+  const firstPrompt = orderedPrompts[0];
   if (!firstPrompt) throw new Error('Hot Take requires at least one prompt.');
   if (!Number.isInteger(totalRounds) || totalRounds < 1) {
     throw new Error('Hot Take requires at least one round.');
@@ -119,6 +133,7 @@ export function createHotTakeSession(
     roundNumber: 1,
     totalRounds,
     prompt: firstPrompt,
+    promptOrder: orderedPrompts.map((prompt) => prompt.id),
     usedPromptIds: [firstPrompt.id],
     inputDeadlineAt: now + inputDurationMs,
     votingDeadlineAt: null,
@@ -135,8 +150,12 @@ export function submitHotTakeAnswer(
   answer: string,
   targetPlayerId: PlayerId | undefined,
   playerIds: readonly PlayerId[],
+  now?: number,
 ): HotTakeSessionState {
   if (session.status !== 'input') throw new Error('This round is no longer accepting answers.');
+  if (now !== undefined && session.inputDeadlineAt !== null && now >= session.inputDeadlineAt) {
+    throw new Error('The answer deadline has passed.');
+  }
   if (session.answers[playerId]) throw new Error('This player already submitted an answer.');
   if (!playerIds.includes(playerId)) throw new Error('This player is not in the room.');
 
@@ -197,8 +216,12 @@ export function submitHotTakeVote(
   session: HotTakeSessionState,
   voterId: PlayerId,
   entryId: string,
+  now?: number,
 ): HotTakeSessionState {
   if (session.status !== 'voting') throw new Error('This round is not accepting votes.');
+  if (now !== undefined && session.votingDeadlineAt !== null && now >= session.votingDeadlineAt) {
+    throw new Error('The voting deadline has passed.');
+  }
   if (session.votes[voterId]) throw new Error('This player already voted.');
   if (!session.answers[voterId]) throw new Error('This player did not submit an answer.');
 
@@ -289,9 +312,12 @@ export function advanceHotTakeRound(
     };
   }
 
+  const orderedPrompts = session.promptOrder
+    .map((promptId) => prompts.find((prompt) => prompt.id === promptId))
+    .filter((prompt): prompt is HotTakePrompt => Boolean(prompt));
   const nextPrompt =
-    prompts.find((prompt) => !session.usedPromptIds.includes(prompt.id)) ??
-    prompts[(session.roundNumber - 1) % prompts.length];
+    orderedPrompts.find((prompt) => !session.usedPromptIds.includes(prompt.id)) ??
+    prompts[session.roundNumber % prompts.length];
   if (!nextPrompt) throw new Error('Hot Take could not select the next prompt.');
 
   return {
@@ -307,6 +333,20 @@ export function advanceHotTakeRound(
     entries: [],
     roundScores: {},
   };
+}
+
+function shufflePrompts(prompts: readonly HotTakePrompt[]): readonly HotTakePrompt[] {
+  const shuffled = [...prompts];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = randomInt(index + 1);
+    const current = shuffled[index];
+    const swap = shuffled[swapIndex];
+    if (current && swap) {
+      shuffled[index] = swap;
+      shuffled[swapIndex] = current;
+    }
+  }
+  return shuffled;
 }
 
 export function getHotTakePublicView(

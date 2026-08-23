@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
@@ -15,11 +15,20 @@ export interface ServerMetadata {
 export interface HttpOptions {
   readonly roomManager?: RoomManager;
   readonly webRoot?: string;
+  readonly publicOrigin?: string;
 }
+
+const SECURITY_HEADERS = {
+  'content-security-policy':
+    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws: wss:",
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'no-referrer',
+} as const;
 
 function writeJson(response: ServerResponse, statusCode: number, body: unknown): void {
   const payload = JSON.stringify(body);
   response.writeHead(statusCode, {
+    ...SECURITY_HEADERS,
     'content-type': 'application/json; charset=utf-8',
     'content-length': Buffer.byteLength(payload),
   });
@@ -28,7 +37,13 @@ function writeJson(response: ServerResponse, statusCode: number, body: unknown):
 
 export function createRequestHandler(metadata: ServerMetadata, options: HttpOptions = {}) {
   return (request: IncomingMessage, response: ServerResponse): void => {
-    const requestUrl = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
+    let requestUrl: URL;
+    try {
+      requestUrl = new URL(request.url ?? '/', 'http://localhost');
+    } catch {
+      writeJson(response, 400, { status: 'error', error: 'invalid_request_target' });
+      return;
+    }
 
     if (request.method === 'GET' && requestUrl.pathname === '/healthz') {
       const engineReady = createInitialRoomState({ roomCode: 'READY', now: 0 }).phase === 'lobby';
@@ -52,7 +67,7 @@ export function createRequestHandler(metadata: ServerMetadata, options: HttpOpti
         }
 
         const gameId = options.roomManager.getRoomSnapshot(roomCode).state.gameId;
-        void writeQrCode(response, buildJoinUrl(request, roomCode, gameId));
+        void writeQrCode(response, buildJoinUrl(request, roomCode, gameId, options.publicOrigin));
         return;
       }
     }
@@ -71,15 +86,21 @@ export function createRequestHandler(metadata: ServerMetadata, options: HttpOpti
         '/play/hot-take',
       ]);
       if (pagePaths.has(requestUrl.pathname)) {
-        serveFile(response, resolve(options.webRoot, 'index.html'), 'text/html; charset=utf-8');
+        void serveFile(
+          response,
+          resolve(options.webRoot, 'index.html'),
+          'text/html; charset=utf-8',
+          'no-cache',
+        );
         return;
       }
 
       if (requestUrl.pathname === '/main.js' || requestUrl.pathname === '/protocol.js') {
-        serveFile(
+        void serveFile(
           response,
           resolve(options.webRoot, requestUrl.pathname.slice(1)),
           'text/javascript; charset=utf-8',
+          'no-cache',
         );
         return;
       }
@@ -88,7 +109,12 @@ export function createRequestHandler(metadata: ServerMetadata, options: HttpOpti
       if (assetMatch) {
         const assetName = assetMatch[1] ?? '';
         const contentType = assetName.endsWith('.png') ? 'image/png' : 'application/octet-stream';
-        serveFile(response, resolve(options.webRoot, 'assets', assetName), contentType);
+        void serveFile(
+          response,
+          resolve(options.webRoot, 'assets', assetName),
+          contentType,
+          'public, max-age=86_400',
+        );
         return;
       }
     }
@@ -100,16 +126,23 @@ export function createRequestHandler(metadata: ServerMetadata, options: HttpOpti
   };
 }
 
-function serveFile(response: ServerResponse, filePath: string, contentType: string): void {
+async function serveFile(
+  response: ServerResponse,
+  filePath: string,
+  contentType: string,
+  cacheControl: string,
+): Promise<void> {
   try {
-    const contents = readFileSync(filePath);
+    const contents = await readFile(filePath);
     response.writeHead(200, {
+      ...SECURITY_HEADERS,
+      'cache-control': cacheControl,
       'content-type': contentType,
       'content-length': contents.byteLength,
     });
     response.end(contents);
   } catch {
-    writeJson(response, 404, { status: 'error', error: 'not_found' });
+    if (!response.headersSent) writeJson(response, 404, { status: 'error', error: 'not_found' });
   }
 }
 
@@ -121,6 +154,7 @@ async function writeQrCode(response: ServerResponse, joinUrl: string): Promise<v
       errorCorrectionLevel: 'M',
     });
     response.writeHead(200, {
+      ...SECURITY_HEADERS,
       'cache-control': 'no-store',
       'content-type': 'image/svg+xml; charset=utf-8',
       'content-length': Buffer.byteLength(svg),
@@ -136,9 +170,33 @@ export function buildJoinPath(roomCode: string, gameId: string | null): string {
   return `/play${gamePath}?room=${encodeURIComponent(roomCode)}`;
 }
 
-function buildJoinUrl(request: IncomingMessage, roomCode: string, gameId: string | null): string {
+function buildJoinUrl(
+  request: IncomingMessage,
+  roomCode: string,
+  gameId: string | null,
+  configuredOrigin?: string,
+): string {
+  if (configuredOrigin) {
+    try {
+      const origin = new URL(configuredOrigin);
+      if (origin.protocol === 'http:' || origin.protocol === 'https:') {
+        return `${origin.origin}${buildJoinPath(roomCode, gameId)}`;
+      }
+    } catch {
+      // Fall back to a validated request origin below.
+    }
+  }
+
   const forwardedProtocol = request.headers['x-forwarded-proto'];
-  const protocol = typeof forwardedProtocol === 'string' ? forwardedProtocol : 'http';
+  const protocol =
+    typeof forwardedProtocol === 'string' && forwardedProtocol.split(',')[0]?.trim() === 'https'
+      ? 'https'
+      : 'http';
   const host = request.headers.host ?? 'localhost:3000';
-  return `${protocol}://${host}${buildJoinPath(roomCode, gameId)}`;
+  try {
+    const origin = new URL(`${protocol}://${host}`);
+    return `${origin.origin}${buildJoinPath(roomCode, gameId)}`;
+  } catch {
+    return `http://localhost:3000${buildJoinPath(roomCode, gameId)}`;
+  }
 }

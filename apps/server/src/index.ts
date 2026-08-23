@@ -1,4 +1,5 @@
 import { createServer } from 'node:http';
+import type { Server as HttpServer } from 'node:http';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -6,11 +7,17 @@ import { createRequestHandler } from './http.js';
 import { RoomManager } from './room-manager.js';
 import { attachRealtimeServer } from './socket.js';
 
+const runtimes = new WeakMap<
+  HttpServer,
+  { readonly closeRealtime: (callback: () => void) => void; readonly roomManager: RoomManager }
+>();
+
 export interface ServerOptions {
   readonly host?: string;
   readonly port?: number;
   readonly version?: string;
   readonly webRoot?: string;
+  readonly publicOrigin?: string;
   readonly roomManager?: RoomManager;
 }
 
@@ -21,8 +28,18 @@ export function startServer(options: ServerOptions = {}) {
   const roomManager = options.roomManager ?? new RoomManager();
   const webRoot =
     options.webRoot ?? resolve(dirname(fileURLToPath(import.meta.url)), '../../web/dist');
-  const server = createServer(createRequestHandler({ version }, { roomManager, webRoot }));
-  attachRealtimeServer(server, roomManager);
+  const publicOrigin = options.publicOrigin ?? process.env.PUBLIC_ORIGIN;
+  const server = createServer(
+    createRequestHandler(
+      { version },
+      { roomManager, webRoot, ...(publicOrigin ? { publicOrigin } : {}) },
+    ),
+  );
+  const realtimeServer = attachRealtimeServer(server, roomManager);
+  runtimes.set(server, {
+    closeRealtime: (callback) => realtimeServer.close(callback),
+    roomManager,
+  });
 
   server.listen(port, host, () => {
     const address = server.address();
@@ -32,6 +49,18 @@ export function startServer(options: ServerOptions = {}) {
   });
 
   return server;
+}
+
+export function stopServer(server: HttpServer, callback: () => void): void {
+  const runtime = runtimes.get(server);
+  if (!runtime) {
+    server.close(callback);
+    return;
+  }
+  runtime.closeRealtime(() => {
+    runtime.roomManager.close();
+    server.close(callback);
+  });
 }
 
 function isMainModule(): boolean {
@@ -45,7 +74,9 @@ if (isMainModule()) {
   const server = startServer();
   const shutdown = (signal: string) => {
     console.log(`Received ${signal}; shutting down.`);
-    server.close(() => process.exit(0));
+    stopServer(server, () => process.exit(0));
+    const forceExit = setTimeout(() => process.exit(1), 5_000);
+    forceExit.unref();
   };
 
   process.once('SIGINT', () => shutdown('SIGINT'));

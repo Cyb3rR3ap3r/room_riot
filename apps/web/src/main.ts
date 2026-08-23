@@ -999,6 +999,17 @@ function renderHost(root: HTMLElement): void {
     const reset = createButton('New Room');
     reset.className = 'secondary';
     reset.addEventListener('click', () => {
+      const currentSession = session;
+      if (currentSession) {
+        socket.emit(
+          'host:leave',
+          {
+            roomCode: currentSession.roomCode,
+            hostToken: currentSession.hostToken,
+          },
+          () => undefined,
+        );
+      }
       session = null;
       snapshot = null;
       window.localStorage.removeItem(HOST_STORAGE_KEY);
@@ -1059,6 +1070,7 @@ function renderPlayer(root: HTMLElement): void {
   let session = readStorage<PlayerSession>(PLAYER_STORAGE_KEY);
   let snapshot: RoomSnapshot | null = null;
   let playerState: PlayerGameView | null = null;
+  let activeNotice: HTMLElement | null = null;
 
   const join = (
     roomCodeInput: string,
@@ -1074,7 +1086,15 @@ function renderPlayer(root: HTMLElement): void {
 
     socket.emit('player:join', request, (response: PlayerJoinResponse) => {
       if (!isSuccess(response)) {
-        setNotice(notice, response.error.message, true);
+        if (response.error.code === 'ROOM_NOT_FOUND' || response.error.code === 'UNAUTHORIZED') {
+          session = null;
+          snapshot = null;
+          playerState = null;
+          window.localStorage.removeItem(PLAYER_STORAGE_KEY);
+          render();
+        } else {
+          setNotice(notice, response.error.message, true);
+        }
         return;
       }
       session = {
@@ -1108,6 +1128,7 @@ function renderPlayer(root: HTMLElement): void {
         : 'Enter the code shown on the display.',
       snapshot?.game?.id ?? snapshot?.state.gameId ?? routeGameId,
     );
+    activeNotice = page.notice;
     renderConnectionNotice(page, connectionStatus);
     setGameTheme(root, snapshot?.state.gameId ?? routeGameId);
 
@@ -1381,6 +1402,17 @@ function renderPlayer(root: HTMLElement): void {
     const leave = createButton('Leave Room');
     leave.className = 'secondary';
     leave.addEventListener('click', () => {
+      const currentSession = session;
+      if (currentSession) {
+        socket.emit(
+          'player:leave',
+          {
+            roomCode: currentSession.roomCode,
+            playerToken: currentSession.playerToken,
+          },
+          () => undefined,
+        );
+      }
       session = null;
       snapshot = null;
       playerState = null;
@@ -1396,7 +1428,12 @@ function renderPlayer(root: HTMLElement): void {
       render();
       return;
     }
-    join(session.roomCode, session.name, session.avatar, document.createElement('p'));
+    join(
+      session.roomCode,
+      session.name,
+      session.avatar,
+      activeNotice ?? document.createElement('p'),
+    );
   });
 
   socket.on('disconnect', () => {

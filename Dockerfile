@@ -16,6 +16,7 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 RUN pnpm build
+RUN pnpm prune --prod
 
 FROM node:22-alpine AS runtime
 

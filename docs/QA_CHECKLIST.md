@@ -38,6 +38,8 @@ This checklist covers the physical and network tests that cannot be completed fr
 - [ ] Let a Groupthink input deadline expire and confirm the room advances to results.
 - [ ] Let a Hot Take input or voting deadline expire and confirm the room advances to the next expected phase.
 - [ ] Confirm an already-submitted answer cannot be submitted twice after a reconnect or reload.
+- [ ] Leave a room, then join a different room from the same browser tab; confirm the first room marks the player offline and no longer sends private updates.
+- [ ] Reconnect the same player from a second browser; confirm the first socket is disconnected and cannot submit actions.
 
 ## Slow and intermittent Wi-Fi
 
@@ -46,6 +48,7 @@ This checklist covers the physical and network tests that cannot be completed fr
 - [ ] Briefly disable Wi-Fi during Hot Take voting, restore it, and confirm the vote controls reflect the latest state.
 - [ ] Confirm stale actions show an actionable error and do not corrupt the room state.
 - [ ] Confirm the host and display remain authoritative when a player is temporarily offline.
+- [ ] Submit an answer or vote just after the displayed deadline while network throttling is enabled; confirm the server rejects it.
 
 ## Display and accessibility polish
 

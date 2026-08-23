@@ -84,9 +84,9 @@ Avoid using `latest` for a game-night server.
 ## 5. Backup and recovery
 
 The active room state is intentionally in memory in the current release, so a container restart
-ends an active game. The `/data` mount is the durable boundary for the SQLite database and custom
-content planned for the next persistence slice. Back up the entire dataset, not just a guessed
-filename:
+ends an active game. The current image does not write application data to `/data`; the mount is
+reserved for the planned SQLite database and custom content persistence slice. A dataset backup
+therefore does not restore an active game yet:
 
 ```bash
 tar -czf /mnt/tank/backups/room-riot-$(date +%Y%m%d).tar.gz \

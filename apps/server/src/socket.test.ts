@@ -188,10 +188,102 @@ test('supports twelve concurrent players and reconnecting a player session', asy
   }
 });
 
+test('ignores events without acknowledgements without crashing the server', async () => {
+  const roomManager = new RoomManager();
+  const httpServer = createServer(createRequestHandler({ version: 'test' }, { roomManager }));
+  const realtimeServer = attachRealtimeServer(httpServer, roomManager);
+  const client = await listenForClient(httpServer);
+
+  try {
+    client.emit('host:create-room', {});
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const created = await emitWithAck<HostCreateSuccess>(client, 'host:create-room', {});
+    assertSuccess(created);
+  } finally {
+    client.disconnect();
+    realtimeServer.close();
+    roomManager.close();
+    httpServer.close();
+    await once(httpServer, 'close');
+  }
+});
+
+test('leaves a room cleanly and revokes a superseded player socket', async () => {
+  const roomManager = new RoomManager();
+  const httpServer = createServer(createRequestHandler({ version: 'test' }, { roomManager }));
+  const realtimeServer = attachRealtimeServer(httpServer, roomManager);
+  httpServer.listen(0, '127.0.0.1');
+  await once(httpServer, 'listening');
+  const address = httpServer.address();
+  if (!address || typeof address === 'string') throw new Error('Test server did not bind.');
+  const url = `http://127.0.0.1:${address.port}`;
+  const clients: ClientSocket[] = [];
+
+  try {
+    const host = await connectClient(url);
+    const player = await connectClient(url);
+    clients.push(host, player);
+    const created = await emitWithAck<HostCreateSuccess>(host, 'host:create-room', {});
+    assertSuccess(created);
+    const joined = await emitWithAck<PlayerJoinSuccess>(player, 'player:join', {
+      roomCode: created.roomCode,
+      name: 'Alex',
+      avatar: '😎',
+    });
+    assertSuccess(joined);
+
+    const disconnected = waitForRoomState(
+      host,
+      (snapshot) => snapshot.state.players[0]?.status === 'disconnected',
+    );
+    const left = await emitWithAck<{ roomCode: string }>(player, 'player:leave', {
+      roomCode: created.roomCode,
+      playerToken: joined.playerToken,
+    });
+    assertSuccess(left);
+    await disconnected;
+
+    const rejoined = await emitWithAck<PlayerJoinSuccess>(player, 'player:join', {
+      roomCode: created.roomCode,
+      name: 'Alex',
+      avatar: '😎',
+      playerToken: joined.playerToken,
+    });
+    assertSuccess(rejoined);
+    assert.equal(rejoined.playerId, joined.playerId);
+
+    const replacement = await connectClient(url);
+    clients.push(replacement);
+    const replaced = await emitWithAck<PlayerJoinSuccess>(replacement, 'player:join', {
+      roomCode: created.roomCode,
+      name: 'Alex',
+      avatar: '😎',
+      playerToken: joined.playerToken,
+    });
+    assertSuccess(replaced);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(player.connected, false);
+  } finally {
+    clients.forEach((client) => client.disconnect());
+    realtimeServer.close();
+    roomManager.close();
+    httpServer.close();
+    await once(httpServer, 'close');
+  }
+});
+
 async function connectClient(url: string): Promise<ClientSocket> {
   const client = createClient(url, { transports: ['websocket'] });
   await waitForClientEvent(client, 'connect');
   return client;
+}
+
+async function listenForClient(httpServer: ReturnType<typeof createServer>): Promise<ClientSocket> {
+  httpServer.listen(0, '127.0.0.1');
+  await once(httpServer, 'listening');
+  const address = httpServer.address();
+  if (!address || typeof address === 'string') throw new Error('Test server did not bind.');
+  return connectClient(`http://127.0.0.1:${address.port}`);
 }
 
 function waitForClientEvent(client: ClientSocket, event: 'connect' | 'room:state'): Promise<void> {

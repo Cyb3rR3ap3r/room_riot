@@ -27,6 +27,9 @@ export const GameIdSchema = z
   .regex(/^[a-z][a-z0-9-]{1,31}$/, 'Game IDs must be lowercase kebab-case.');
 export type GameId = z.infer<typeof GameIdSchema>;
 
+export const SupportedGameIdSchema = z.enum(['groupthink', 'hot-take']);
+export type SupportedGameId = z.infer<typeof SupportedGameIdSchema>;
+
 export const RoomPhaseSchema = z.enum([
   'lobby',
   'intro',
@@ -54,7 +57,7 @@ export type RoomSettings = z.infer<typeof RoomSettingsSchema>;
 
 export const CreateRoomRequestSchema = z
   .object({
-    gameId: GameIdSchema.optional(),
+    gameId: SupportedGameIdSchema.optional(),
     settings: RoomSettingsSchema.partial().optional(),
   })
   .strict();
@@ -93,7 +96,7 @@ export const HostStartGameRequestSchema = z
   .object({
     roomCode: RoomCodeSchema,
     hostToken: SessionTokenSchema,
-    gameId: GameIdSchema,
+    gameId: SupportedGameIdSchema,
   })
   .strict();
 
@@ -107,6 +110,15 @@ export const HostRoomActionRequestSchema = z
   .strict();
 
 export type HostRoomActionRequest = z.infer<typeof HostRoomActionRequestSchema>;
+
+export const PlayerLeaveRoomRequestSchema = z
+  .object({
+    roomCode: RoomCodeSchema,
+    playerToken: SessionTokenSchema,
+  })
+  .strict();
+
+export type PlayerLeaveRoomRequest = z.infer<typeof PlayerLeaveRoomRequestSchema>;
 
 export const PlayerSubmitAnswerRequestSchema = z
   .object({
@@ -129,13 +141,14 @@ export const PlayerCastVoteRequestSchema = z
 
 export type PlayerCastVoteRequest = z.infer<typeof PlayerCastVoteRequestSchema>;
 
-export const ClientActionSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('host_start_game') }).strict(),
-  z.object({ type: z.literal('host_next_round') }).strict(),
-  z.object({ type: z.literal('submit_answer'), answer: z.string().trim().max(500) }).strict(),
-  z.object({ type: z.literal('cast_vote'), targetPlayerId: PlayerIdSchema }).strict(),
-]);
+export interface EventError {
+  readonly ok: false;
+  readonly error: {
+    readonly code: string;
+    readonly message: string;
+  };
+}
 
-export type ClientAction = z.infer<typeof ClientActionSchema>;
+export type EventResponse<T extends object> = ({ readonly ok: true } & T) | EventError;
 
 export const DEFAULT_ROOM_SETTINGS: RoomSettings = RoomSettingsSchema.parse({});

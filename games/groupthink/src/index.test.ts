@@ -66,3 +66,15 @@ test('does not expose answers before results are revealed', () => {
   const results = revealGroupthink(session);
   assert.equal(results.inputDeadlineAt, null);
 });
+
+test('cycles to the correct prompt after the prompt deck is exhausted', () => {
+  let session = createGroupthinkSession(prompts, 4);
+  const sequence = [session.prompt.id];
+  for (let round = 1; round < 4; round += 1) {
+    session = submitGroupthinkAnswer(session, 'p1', `answer-${round}`);
+    session = revealGroupthink(session);
+    session = advanceGroupthinkRound(session, prompts);
+    sequence.push(session.prompt.id);
+  }
+  assert.deepEqual(sequence, ['one', 'two', 'one', 'two']);
+});

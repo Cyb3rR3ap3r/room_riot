@@ -91,3 +91,35 @@ test('advances to the next prompt and completes after the final round', () => {
   session = advanceHotTakeRound(session, prompts, 5_000, 30_000);
   assert.equal(session.status, 'complete');
 });
+
+test('cycles to the correct prompt after the prompt deck is exhausted', () => {
+  let session = createHotTakeSession(prompts, 4);
+  const sequence = [session.prompt.id];
+  for (let round = 1; round < 4; round += 1) {
+    const targeted = session.prompt.kind === 'player-targeted';
+    session = submitHotTakeAnswer(
+      session,
+      'p1',
+      targeted ? 'p2' : 'take',
+      targeted ? 'p2' : undefined,
+      playerIds,
+    );
+    session = revealHotTakeAnswers(session);
+    session = revealHotTakeVotes(session);
+    session = advanceHotTakeRound(session, prompts);
+    sequence.push(session.prompt.id);
+  }
+  assert.deepEqual(sequence, ['open', 'target', 'open', 'target']);
+});
+
+test('rejects votes submitted after the voting deadline', () => {
+  let session = createHotTakeSession([prompts[0]!], 1, 0, 10);
+  session = submitHotTakeAnswer(session, 'p1', 'a', undefined, playerIds, 1);
+  session = submitHotTakeAnswer(session, 'p2', 'b', undefined, playerIds, 1);
+  session = revealHotTakeAnswers(session, 2, 10);
+
+  assert.throws(
+    () => submitHotTakeVote(session, 'p1', session.answers.p2!.entryId, 13),
+    /voting deadline/i,
+  );
+});

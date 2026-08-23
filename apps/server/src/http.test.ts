@@ -1,5 +1,6 @@
 import { once } from 'node:events';
 import { createServer } from 'node:http';
+import { connect as connectTcp } from 'node:net';
 import assert from 'node:assert/strict';
 import test, { afterEach } from 'node:test';
 import { dirname, resolve } from 'node:path';
@@ -56,6 +57,31 @@ test('health endpoint returns a JSON 404 for unknown routes', async () => {
   });
 });
 
+test('returns a safe response for malformed Host headers', async () => {
+  const server = createServer(createRequestHandler({ version: 'test-version' }));
+  servers.push(server);
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Test server did not bind.');
+
+  const response = await new Promise<string>((resolve, reject) => {
+    const client = connectTcp(address.port, '127.0.0.1', () => {
+      client.write('GET /missing HTTP/1.1\r\nHost: [\r\nConnection: close\r\n\r\n');
+    });
+    let body = '';
+    client.setEncoding('utf8');
+    client.on('data', (chunk: string) => {
+      body += chunk;
+    });
+    client.once('end', () => resolve(body));
+    client.once('error', reject);
+  });
+
+  assert.match(response, /^HTTP\/1\.1 404/);
+});
+
 test('builds game-specific player paths with a generic fallback', () => {
   assert.equal(buildJoinPath('ABCD', 'groupthink'), '/play/groupthink?room=ABCD');
   assert.equal(buildJoinPath('WXYZ', 'hot-take'), '/play/hot-take?room=WXYZ');
@@ -78,6 +104,9 @@ test('serves the browser shell and an offline QR code for a room', async () => {
 
   const pageResponse = await fetch(`http://127.0.0.1:${address.port}/play`);
   assert.equal(pageResponse.status, 200);
+  assert.equal(pageResponse.headers.get('x-content-type-options'), 'nosniff');
+  assert.match(pageResponse.headers.get('content-security-policy') ?? '', /default-src 'self'/);
+  assert.equal(pageResponse.headers.get('cache-control'), 'no-cache');
   assert.match(await pageResponse.text(), /socket\.io\/socket\.io\.js/);
 
   for (const pagePath of [
@@ -117,6 +146,7 @@ test('serves the browser shell and an offline QR code for a room', async () => {
     );
     assert.equal(assetResponse.status, 200);
     assert.match(assetResponse.headers.get('content-type') ?? '', /image\/png/);
+    assert.match(assetResponse.headers.get('cache-control') ?? '', /max-age/);
     assert.ok((await assetResponse.arrayBuffer()).byteLength > 1_000);
   }
 
