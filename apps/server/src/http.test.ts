@@ -95,7 +95,15 @@ test('serves the browser shell and an offline QR code for a room', async () => {
   assert.equal(protocolScriptResponse.status, 200);
   assert.match(await protocolScriptResponse.text(), /isSuccess/);
 
-  for (const assetName of ['room-riot-logo.png', 'groupthink-icon.png', 'hot-take-icon.png']) {
+  for (const assetName of [
+    'room-riot-logo.png',
+    'groupthink-icon.png',
+    'hot-take-icon.png',
+    'groupthink-lab-bg-v2.png',
+    'groupthink-reactor-v2.png',
+    'hot-take-stage-bg-v2.png',
+    'hot-take-podium-v2.png',
+  ]) {
     const assetResponse: Response = await fetch(
       `http://127.0.0.1:${address.port}/assets/${assetName}`,
     );

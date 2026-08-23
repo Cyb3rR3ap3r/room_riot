@@ -170,10 +170,13 @@ export class RoomManager {
     const roomCode = this.createRoomCode();
     const hostToken = SessionTokenSchema.parse(randomUUID());
     const settings = normalizeSettings(request.settings);
-    const state = createInitialRoomState({
+    const initialState = createInitialRoomState({
       roomCode,
       ...(settings ? { settings } : {}),
     });
+    const state: RoomState = request.gameId
+      ? { ...initialState, gameId: request.gameId }
+      : initialState;
 
     this.rooms.set(roomCode, {
       state,

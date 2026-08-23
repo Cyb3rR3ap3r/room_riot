@@ -70,6 +70,10 @@ interface GameDefinition {
   readonly rounds: string;
   readonly pace: string;
   readonly icon: string;
+  readonly background: string;
+  readonly stageArt: string;
+  readonly controlRoom: string;
+  readonly audience: string;
 }
 
 interface GamePicker {
@@ -87,6 +91,10 @@ const GAME_CATALOG: readonly GameDefinition[] = [
     rounds: '5 rounds',
     pace: 'Fast · social',
     icon: '/assets/groupthink-icon.png',
+    background: '/assets/groupthink-lab-bg-v2.png',
+    stageArt: '/assets/groupthink-reactor-v2.png',
+    controlRoom: 'Consensus Lab',
+    audience: 'connected minds',
   },
   {
     id: 'hot-take',
@@ -97,6 +105,10 @@ const GAME_CATALOG: readonly GameDefinition[] = [
     rounds: '5 rounds',
     pace: 'Anonymous · spicy',
     icon: '/assets/hot-take-icon.png',
+    background: '/assets/hot-take-stage-bg-v2.png',
+    stageArt: '/assets/hot-take-podium-v2.png',
+    controlRoom: 'Live Heat Control',
+    audience: 'the audience',
   },
 ];
 
@@ -116,7 +128,7 @@ function buildDisplayRoute(gameId: SupportedGameId, roomCode: string): string {
 
 interface SoundController {
   readonly button: HTMLButtonElement;
-  phaseChanged(phase: RoomPhase): void;
+  phaseChanged(phase: RoomPhase, gameId?: SupportedGameId | null): void;
 }
 
 function createPage(
@@ -201,8 +213,9 @@ function createSoundController(): SoundController {
   let enabled = false;
   let context: AudioContext | null = null;
   let previousPhase: RoomPhase | null = null;
+  let activeGame: SupportedGameId = 'groupthink';
 
-  const button = createButton('Enable Sound');
+  const button = createButton('Enable game audio');
   button.className = 'secondary';
   button.addEventListener('click', () => {
     const AudioContextConstructor = window.AudioContext;
@@ -215,24 +228,70 @@ function createSoundController(): SoundController {
     context ??= new AudioContextConstructor();
     void context.resume();
     enabled = true;
-    button.textContent = 'Sound Enabled';
+    button.textContent = activeGame === 'groupthink' ? 'Lab audio on' : 'Stage audio on';
   });
+
+  const playTone = (
+    frequency: number,
+    offset: number,
+    duration: number,
+    type: OscillatorType,
+    volume: number,
+  ): void => {
+    if (!context) return;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const start = context.currentTime + offset;
+    oscillator.frequency.setValueAtTime(frequency, start);
+    oscillator.type = type;
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(volume, start + 0.018);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start(start);
+    oscillator.stop(start + duration + 0.02);
+  };
+
+  const playCue = (phase: RoomPhase): void => {
+    if (activeGame === 'groupthink') {
+      const notes =
+        phase === 'winner'
+          ? [523, 659, 784, 1047]
+          : phase === 'results'
+            ? [440, 554, 659]
+            : phase === 'input'
+              ? [392, 523]
+              : [330, 392];
+      notes.forEach((frequency, index) =>
+        playTone(frequency, index * 0.09, 0.28, index % 2 ? 'triangle' : 'sine', 0.065),
+      );
+      return;
+    }
+
+    const notes =
+      phase === 'winner'
+        ? [220, 330, 440, 660]
+        : phase === 'results'
+          ? [196, 294, 494]
+          : phase === 'voting'
+            ? [260, 390, 520]
+            : [174, 261];
+    notes.forEach((frequency, index) =>
+      playTone(frequency, index * 0.065, 0.2, index === 0 ? 'sawtooth' : 'square', 0.035),
+    );
+  };
 
   return {
     button,
-    phaseChanged(phase) {
+    phaseChanged(phase, gameId) {
+      if (gameId) {
+        activeGame = gameId;
+        if (!enabled) {
+          button.textContent = gameId === 'groupthink' ? 'Enable lab audio' : 'Enable stage audio';
+        }
+      }
       if (previousPhase && previousPhase !== phase && enabled && context) {
-        const frequency = phase === 'winner' ? 880 : phase === 'results' ? 660 : 520;
-        const oscillator = context.createOscillator();
-        const gain = context.createGain();
-        oscillator.frequency.value = frequency;
-        oscillator.type = 'sine';
-        gain.gain.setValueAtTime(0.0001, context.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.08, context.currentTime + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.22);
-        oscillator.connect(gain).connect(context.destination);
-        oscillator.start();
-        oscillator.stop(context.currentTime + 0.24);
+        playCue(phase);
       }
       previousPhase = phase;
     },
@@ -290,27 +349,6 @@ function createGameArtwork(game: GameDefinition, className: string): HTMLImageEl
   image.alt = `${game.label} game icon`;
   image.loading = 'lazy';
   return image;
-}
-
-function appendGameIdentity(container: HTMLElement, gameId: string, kicker = 'Now playing'): void {
-  const game = getGameDefinition(gameId);
-  const identity = document.createElement('div');
-  identity.className = `game-identity game-${game.id}`;
-  identity.append(createGameArtwork(game, 'game-art game-art-small'));
-
-  const copy = document.createElement('div');
-  copy.className = 'game-identity-copy';
-  const label = document.createElement('span');
-  label.className = 'game-kicker';
-  label.textContent = kicker;
-  const title = document.createElement('strong');
-  title.textContent = game.label;
-  const subtitle = document.createElement('span');
-  subtitle.className = 'muted';
-  subtitle.textContent = game.kicker;
-  copy.append(label, title, subtitle);
-  identity.append(copy);
-  container.append(identity);
 }
 
 function createAvatarSelect(value = AVATARS[0] ?? '😎'): HTMLSelectElement {
@@ -411,35 +449,6 @@ function createGamePicker(
   };
 }
 
-function createPlayerList(container: HTMLElement, state: PublicRoomState): void {
-  container.replaceChildren();
-  const heading = document.createElement('h2');
-  heading.textContent = `Players (${state.players.length}/${state.settings.maxPlayers})`;
-  container.append(heading);
-
-  if (state.players.length === 0) {
-    const empty = document.createElement('p');
-    empty.className = 'muted';
-    empty.textContent = 'Waiting for the room to fill up.';
-    container.append(empty);
-    return;
-  }
-
-  const list = document.createElement('ul');
-  list.className = 'player-list';
-  state.players.forEach((player) => {
-    const item = document.createElement('li');
-    const identity = document.createElement('span');
-    identity.textContent = `${player.avatar} ${player.name}`;
-    const status = document.createElement('span');
-    status.className = player.status === 'connected' ? 'connected' : 'muted';
-    status.textContent = player.status === 'connected' ? 'READY' : 'OFFLINE';
-    item.append(identity, status);
-    list.append(item);
-  });
-  container.append(list);
-}
-
 function appendGroupthinkResults(container: HTMLElement, game: GroupthinkPublicView): void {
   if (game.groups.length === 0) return;
 
@@ -536,11 +545,6 @@ function updateCountdown(element: HTMLElement): void {
   element.textContent = `${prefix} · ${remainingSeconds}s left`;
 }
 
-function appendGameStatus(container: HTMLElement, snapshot: RoomSnapshot): void {
-  if (snapshot.game?.id === 'groupthink') appendGroupthinkStatus(container, snapshot);
-  if (snapshot.game?.id === 'hot-take') appendHotTakeStatus(container, snapshot);
-}
-
 function appendHotTakeEntries(
   container: HTMLElement,
   entries: readonly HotTakeEntryView[],
@@ -577,6 +581,235 @@ function isGroupthinkPlayerView(state: PlayerGameView | null): state is Groupthi
 
 function isHotTakePlayerView(state: PlayerGameView | null): state is HotTakePlayerView {
   return state?.id === 'hot-take';
+}
+
+function createStageArtwork(gameId: SupportedGameId, className = ''): HTMLImageElement {
+  const game = getGameDefinition(gameId);
+  const image = document.createElement('img');
+  image.className = `stage-art ${className}`.trim();
+  image.src = game.stageArt;
+  image.alt =
+    gameId === 'groupthink' ? 'Consensus reactor illustration' : 'Hot Take stage illustration';
+  return image;
+}
+
+function createProgressMeter(value: number, total: number, label: string): HTMLElement {
+  const meter = document.createElement('div');
+  meter.className = 'experience-meter';
+  const copy = document.createElement('div');
+  const title = document.createElement('span');
+  title.textContent = label;
+  const count = document.createElement('strong');
+  count.textContent = `${value}/${total}`;
+  copy.append(title, count);
+  const track = document.createElement('div');
+  track.className = 'experience-meter-track';
+  const fill = document.createElement('span');
+  fill.style.width = `${total > 0 ? Math.min(100, Math.round((value / total) * 100)) : 0}%`;
+  track.append(fill);
+  meter.append(copy, track);
+  return meter;
+}
+
+function createRoomPass(roomCode: string, gameId: SupportedGameId): HTMLElement {
+  const game = getGameDefinition(gameId);
+  const panel = document.createElement('aside');
+  panel.className = gameId === 'groupthink' ? 'lab-room-pass' : 'heat-room-pass';
+  const eyebrow = document.createElement('span');
+  eyebrow.className = 'experience-eyebrow';
+  eyebrow.textContent = gameId === 'groupthink' ? 'Mind link active' : 'Backstage access';
+  const label = document.createElement('span');
+  label.className = 'room-pass-label';
+  label.textContent = 'Join at this address';
+  const address = document.createElement('strong');
+  address.className = 'join-address';
+  address.textContent = `${window.location.host}/play`;
+  const code = document.createElement('strong');
+  code.className = 'room-code';
+  code.textContent = roomCode;
+  const qr = document.createElement('img');
+  qr.className = 'qr';
+  qr.alt = `QR code to join ${game.label}`;
+  qr.src = `/api/rooms/${encodeURIComponent(roomCode)}/qr.svg`;
+  panel.append(eyebrow, label, address, code, qr);
+  return panel;
+}
+
+function createExperienceRoster(state: PublicRoomState, gameId: SupportedGameId): HTMLElement {
+  const roster = document.createElement('aside');
+  roster.className = gameId === 'groupthink' ? 'mind-roster' : 'audience-roster';
+  const heading = document.createElement('div');
+  heading.className = 'experience-section-title';
+  const title = document.createElement('h2');
+  title.textContent = gameId === 'groupthink' ? 'Connected minds' : 'Tonight’s audience';
+  const count = document.createElement('span');
+  count.textContent = `${state.players.length}/${state.settings.maxPlayers}`;
+  heading.append(title, count);
+  roster.append(heading);
+
+  const list = document.createElement('ul');
+  list.className = gameId === 'groupthink' ? 'mind-grid' : 'audience-grid';
+  if (state.players.length === 0) {
+    const empty = document.createElement('li');
+    empty.className = 'experience-empty';
+    empty.textContent = gameId === 'groupthink' ? 'Scanning for minds…' : 'Doors are open…';
+    list.append(empty);
+  } else {
+    state.players.forEach((player, index) => {
+      const item = document.createElement('li');
+      item.className = player.status === 'connected' ? 'is-connected' : 'is-offline';
+      const avatar = document.createElement('span');
+      avatar.className = 'roster-avatar';
+      avatar.textContent = player.avatar;
+      const identity = document.createElement('span');
+      const name = document.createElement('strong');
+      name.textContent = player.name;
+      const score = document.createElement('small');
+      score.textContent = state.phase === 'lobby' ? `Signal ${index + 1}` : `${player.score} pts`;
+      identity.append(name, score);
+      item.append(avatar, identity);
+      list.append(item);
+    });
+  }
+  roster.append(list);
+  return roster;
+}
+
+function createExperienceTopbar(
+  gameId: SupportedGameId,
+  roomCode: string,
+  phase: RoomPhase,
+): HTMLElement {
+  const game = getGameDefinition(gameId);
+  const bar = document.createElement('div');
+  bar.className = 'experience-topbar';
+  const identity = document.createElement('div');
+  identity.className = 'experience-title';
+  identity.append(createGameArtwork(game, 'experience-logo'));
+  const copy = document.createElement('div');
+  const eyebrow = document.createElement('span');
+  eyebrow.className = 'experience-eyebrow';
+  eyebrow.textContent = game.controlRoom;
+  const title = document.createElement('strong');
+  title.textContent = game.label;
+  copy.append(eyebrow, title);
+  identity.append(copy);
+  const status = document.createElement('div');
+  status.className = 'experience-live-status';
+  status.innerHTML = `<span aria-hidden="true"></span><strong>${phase}</strong><small>${roomCode}</small>`;
+  bar.append(identity, status);
+  return bar;
+}
+
+function createGameStage(snapshot: RoomSnapshot, gameId: SupportedGameId): HTMLElement {
+  const state = snapshot.state;
+  const game = snapshot.game;
+  const stage = document.createElement('main');
+  stage.className = gameId === 'groupthink' ? 'consensus-stage' : 'heat-stage';
+
+  const artWrap = document.createElement('div');
+  artWrap.className = 'stage-art-wrap';
+  artWrap.append(createStageArtwork(gameId));
+  const stageCopy = document.createElement('div');
+  stageCopy.className = 'stage-copy';
+  const cue = document.createElement('span');
+  cue.className = 'experience-eyebrow';
+  cue.textContent =
+    gameId === 'groupthink'
+      ? state.phase === 'lobby'
+        ? 'Calibrating the consensus reactor'
+        : 'Consensus reactor online'
+      : state.phase === 'lobby'
+        ? 'Pre-show'
+        : state.phase === 'voting'
+          ? 'The vote is live'
+          : 'Live on the Hot Take stage';
+  const title = document.createElement('h2');
+  title.textContent =
+    state.phase === 'lobby'
+      ? gameId === 'groupthink'
+        ? 'Bring every brain into the loop.'
+        : 'Get the room ready to bring the heat.'
+      : game?.prompt || (gameId === 'groupthink' ? 'Think alike.' : 'Make it spicy.');
+  stageCopy.append(cue, title);
+
+  if (game?.id === 'groupthink') {
+    stageCopy.append(createProgressMeter(game.submittedCount, game.totalPlayers, 'Mind sync'));
+    if (state.phase === 'results' || state.phase === 'winner') {
+      const results = document.createElement('section');
+      results.className = 'thought-clusters';
+      appendGroupthinkResults(results, game);
+      stageCopy.append(results);
+    }
+  } else if (game?.id === 'hot-take') {
+    stageCopy.append(
+      createProgressMeter(
+        game.submittedCount,
+        game.totalPlayers,
+        state.phase === 'voting' ? 'Takes on stage' : 'Heat building',
+      ),
+    );
+    if (state.phase === 'voting' || state.phase === 'results' || state.phase === 'winner') {
+      const entries = document.createElement('section');
+      entries.className = 'take-wall';
+      appendHotTakeEntries(
+        entries,
+        game.entries,
+        state.phase === 'results' || state.phase === 'winner'
+          ? 'The room has spoken'
+          : 'Anonymous takes',
+      );
+      stageCopy.append(entries);
+    }
+  }
+
+  if (state.phase === 'winner') {
+    const scores = document.createElement('section');
+    scores.className = 'experience-scoreboard';
+    appendScoreboard(scores, state);
+    stageCopy.append(scores);
+  }
+  stage.append(artWrap, stageCopy);
+  return stage;
+}
+
+function createHostExperience(snapshot: RoomSnapshot, session: HostSession): HTMLElement {
+  const gameId = getGameDefinition(snapshot.game?.id ?? snapshot.state.gameId ?? session.gameId).id;
+  const shell = document.createElement('section');
+  shell.className = `experience-shell host-experience ${gameId === 'groupthink' ? 'consensus-lab' : 'live-heat'}`;
+  shell.append(createExperienceTopbar(gameId, session.roomCode, snapshot.state.phase));
+  const grid = document.createElement('div');
+  grid.className = 'experience-grid';
+  grid.append(
+    createRoomPass(session.roomCode, gameId),
+    createGameStage(snapshot, gameId),
+    createExperienceRoster(snapshot.state, gameId),
+  );
+  shell.append(grid);
+  return shell;
+}
+
+function createDisplayExperience(snapshot: RoomSnapshot, sound: SoundController): HTMLElement {
+  const gameId = getGameDefinition(snapshot.game?.id ?? snapshot.state.gameId).id;
+  const shell = document.createElement('section');
+  shell.className = `experience-shell display-experience ${gameId === 'groupthink' ? 'consensus-lab' : 'live-heat'}`;
+  shell.append(createExperienceTopbar(gameId, snapshot.state.roomCode, snapshot.state.phase));
+
+  const grid = document.createElement('div');
+  grid.className = 'experience-grid';
+  const roomPass = createRoomPass(snapshot.state.roomCode, gameId);
+  roomPass.classList.add('display-room-pass');
+  const audio = document.createElement('div');
+  audio.className = 'display-audio-control';
+  audio.append(sound.button);
+  roomPass.append(audio);
+  grid.append(
+    roomPass,
+    createGameStage(snapshot, gameId),
+    createExperienceRoster(snapshot.state, gameId),
+  );
+  shell.append(grid);
+  return shell;
 }
 
 function renderHost(root: HTMLElement): void {
@@ -657,53 +890,20 @@ function renderHost(root: HTMLElement): void {
     }
 
     const state = snapshot.state;
-    setGameTheme(root, state.gameId ?? session.gameId);
-    const details = document.createElement('div');
-    details.className = 'card room-details';
-    const code = document.createElement('strong');
-    code.className = 'room-code';
-    code.textContent = session.roomCode;
-    const joinUrl = `${window.location.origin}/play?room=${encodeURIComponent(session.roomCode)}`;
-    const joinText = document.createElement('p');
-    joinText.textContent = joinUrl;
-    const qr = document.createElement('img');
-    qr.className = 'qr';
-    qr.alt = 'QR code for joining the room';
-    qr.src = `/api/rooms/${encodeURIComponent(session.roomCode)}/qr.svg`;
-    details.append(code, qr, joinText);
-    page.content.append(details);
-
-    const gameCard = document.createElement('div');
-    const activeGame = snapshot.game?.id ?? state.gameId ?? session.gameId;
-    gameCard.className = `card phase-card phase-${state.phase} game-${getGameDefinition(activeGame).id}`;
-    if (snapshot.game) appendGameIdentity(gameCard, snapshot.game.id);
-    if (snapshot.game) appendGameStatus(gameCard, snapshot);
-    if (snapshot.game?.id === 'groupthink' && state.phase !== 'input') {
-      appendGroupthinkResults(gameCard, snapshot.game);
-    }
-    if (snapshot.game?.id === 'hot-take' && state.phase !== 'input') {
-      appendHotTakeEntries(
-        gameCard,
-        snapshot.game.entries,
-        state.phase === 'results' || state.phase === 'winner' ? 'Vote results' : undefined,
-      );
-    }
-    if (state.phase === 'winner') appendScoreboard(gameCard, state);
-    page.content.append(gameCard);
-
-    const players = document.createElement('div');
-    players.className = 'card';
-    createPlayerList(players, state);
-    page.content.append(players);
+    const activeGame = getGameDefinition(snapshot.game?.id ?? state.gameId ?? session.gameId).id;
+    setGameTheme(root, activeGame);
+    sound.phaseChanged(state.phase, activeGame);
+    page.content.append(createHostExperience(snapshot, session));
 
     const controls = document.createElement('div');
     controls.className = 'actions';
     const displayLink = document.createElement('a');
     displayLink.className = 'button secondary';
-    displayLink.href = `/display?room=${encodeURIComponent(session.roomCode)}`;
+    displayLink.href = buildDisplayRoute(activeGame, session.roomCode);
     displayLink.target = '_blank';
     displayLink.rel = 'noreferrer';
     displayLink.textContent = 'Open Display';
+    controls.className = `actions experience-controls ${activeGame === 'groupthink' ? 'lab-controls' : 'heat-controls'}`;
     controls.append(displayLink);
     controls.append(sound.button);
 
@@ -731,7 +931,7 @@ function renderHost(root: HTMLElement): void {
       controls.append(start);
     } else if (state.phase === 'input') {
       const reveal = createButton(
-        session.gameId === 'hot-take' ? 'Reveal Answers' : 'Reveal Results',
+        session.gameId === 'hot-take' ? 'Put the Takes on Stage' : 'Open the Thought Clusters',
       );
       reveal.addEventListener('click', () => {
         const request: HostRoomActionRequest = {
@@ -749,7 +949,7 @@ function renderHost(root: HTMLElement): void {
       });
       controls.append(reveal);
     } else if (state.phase === 'voting') {
-      const reveal = createButton('Reveal Votes');
+      const reveal = createButton('Reveal the Hottest Take');
       reveal.addEventListener('click', () => {
         const request: HostRoomActionRequest = {
           roomCode: session?.roomCode ?? '',
@@ -766,7 +966,9 @@ function renderHost(root: HTMLElement): void {
       });
       controls.append(reveal);
     } else if (state.phase === 'results') {
-      const next = createButton('Score Round');
+      const next = createButton(
+        session.gameId === 'hot-take' ? 'Turn Up the Next Round' : 'Sync the Next Round',
+      );
       next.addEventListener('click', () => {
         const request: HostRoomActionRequest = {
           roomCode: session?.roomCode ?? '',
@@ -929,23 +1131,41 @@ function renderPlayer(root: HTMLElement): void {
     const state = snapshot?.state;
     const status = document.createElement('div');
     const activeGame = snapshot?.game?.id ?? state?.gameId;
-    status.className = `card center phase-card phase-${state?.phase ?? 'lobby'}${
-      activeGame ? ` game-${getGameDefinition(activeGame).id}` : ''
+    const controllerGame = activeGame ? getGameDefinition(activeGame).id : null;
+    status.className = `controller-shell phase-${state?.phase ?? 'lobby'} ${
+      controllerGame === 'hot-take' ? 'live-heat-controller' : 'consensus-controller'
     }`;
-    if (activeGame) appendGameIdentity(status, activeGame, 'Your game');
+    if (controllerGame) {
+      const controllerHeader = createExperienceTopbar(
+        controllerGame,
+        session.roomCode,
+        state?.phase ?? 'lobby',
+      );
+      controllerHeader.classList.add('controller-topbar');
+      status.append(controllerHeader);
+      const controllerArt = createStageArtwork(controllerGame, 'controller-art');
+      status.append(controllerArt);
+    }
     const statusTitle = document.createElement('h2');
-    statusTitle.textContent = state?.phase === 'lobby' ? 'You’re in.' : 'Game in progress';
+    statusTitle.textContent =
+      state?.phase === 'lobby'
+        ? controllerGame === 'hot-take'
+          ? 'Your backstage pass is live.'
+          : 'Your mind is in the loop.'
+        : controllerGame === 'hot-take'
+          ? 'The stage is yours.'
+          : 'Send a thought to the reactor.';
     status.append(statusTitle);
 
     if (snapshot?.game?.id === 'groupthink' && isGroupthinkPlayerView(playerState)) {
       appendGroupthinkStatus(status, snapshot);
       if (state?.phase === 'input' && !playerState.hasSubmitted) {
         const form = document.createElement('form');
-        form.className = 'answer-form';
+        form.className = 'answer-form mind-answer-form';
         const input = createTextInput();
         input.placeholder = 'Type your answer…';
         input.maxLength = 500;
-        const submit = createButton('Submit Answer', 'submit');
+        const submit = createButton('Lock In My Thought', 'submit');
         form.append(input, submit);
         form.addEventListener('submit', (event) => {
           event.preventDefault();
@@ -984,7 +1204,7 @@ function renderPlayer(root: HTMLElement): void {
       appendHotTakeStatus(status, snapshot);
       if (state?.phase === 'input' && !playerState.hasSubmitted) {
         const form = document.createElement('form');
-        form.className = 'answer-form';
+        form.className = 'answer-form heat-answer-form';
         let textInput: HTMLInputElement | null = null;
         let targetSelect: HTMLSelectElement | null = null;
         if (playerState.promptKind === 'player-targeted') {
@@ -1004,7 +1224,7 @@ function renderPlayer(root: HTMLElement): void {
           textInput.maxLength = 500;
           form.append(textInput);
         }
-        const submit = createButton('Submit Take', 'submit');
+        const submit = createButton('Drop My Take', 'submit');
         form.append(submit);
         form.addEventListener('submit', (event) => {
           event.preventDefault();
@@ -1037,25 +1257,43 @@ function renderPlayer(root: HTMLElement): void {
         status.append(waiting);
       } else if (state?.phase === 'voting' && !playerState.hasVoted) {
         const form = document.createElement('form');
-        form.className = 'answer-form';
-        const select = document.createElement('select');
-        playerState.entries.forEach((entry) => {
-          const option = document.createElement('option');
-          option.value = entry.entryId;
-          option.textContent = entry.answer;
-          select.append(option);
+        form.className = 'answer-form heat-answer-form vote-card-form';
+        const legend = document.createElement('h3');
+        legend.textContent = 'Which take deserves the spotlight?';
+        const choices = document.createElement('div');
+        choices.className = 'vote-card-grid';
+        let selectedEntryId = '';
+        playerState.entries.forEach((entry, index) => {
+          const choice = document.createElement('button');
+          choice.type = 'button';
+          choice.className = 'vote-card';
+          choice.setAttribute('aria-pressed', 'false');
+          const number = document.createElement('span');
+          number.textContent = `TAKE ${index + 1}`;
+          const answer = document.createElement('strong');
+          answer.textContent = entry.answer;
+          choice.append(number, answer);
+          choice.addEventListener('click', () => {
+            selectedEntryId = entry.entryId;
+            choices.querySelectorAll<HTMLButtonElement>('.vote-card').forEach((card) => {
+              card.setAttribute('aria-pressed', String(card === choice));
+            });
+          });
+          choices.append(choice);
         });
-        form.append(createField('Vote for an answer', select));
-        const submit = createButton('Cast Vote', 'submit');
-        form.append(submit);
+        const submit = createButton('Send It to the Top', 'submit');
+        form.append(legend, choices, submit);
         form.addEventListener('submit', (event) => {
           event.preventDefault();
-          if (!session || !select.value) return;
+          if (!session || !selectedEntryId) {
+            setNotice(page.notice, 'Pick a take before voting.', true);
+            return;
+          }
           submit.disabled = true;
           const request: PlayerCastVoteRequest = {
             roomCode: session.roomCode,
             playerToken: session.playerToken,
-            entryId: select.value,
+            entryId: selectedEntryId,
           };
           socket.emit('player:cast-vote', request, (response: PlayerAnswerResponse) => {
             submit.disabled = false;
@@ -1096,10 +1334,12 @@ function renderPlayer(root: HTMLElement): void {
     page.content.append(status);
 
     if (snapshot) {
-      const players = document.createElement('div');
-      players.className = 'card';
-      createPlayerList(players, snapshot.state);
-      page.content.append(players);
+      const roomStrip = createExperienceRoster(
+        snapshot.state,
+        getGameDefinition(snapshot.game?.id ?? snapshot.state.gameId).id,
+      );
+      roomStrip.classList.add('controller-roster');
+      page.content.append(roomStrip);
     }
 
     const leave = createButton('Leave Room');
@@ -1199,43 +1439,9 @@ function renderDisplay(root: HTMLElement): void {
     }
 
     const state = snapshot.state;
-    const hero = document.createElement('div');
-    hero.className = `card center phase-card phase-${state.phase}${
-      activeGame ? ` game-${getGameDefinition(activeGame).id}` : ''
-    }`;
-    if (activeGame) appendGameIdentity(hero, activeGame, 'On the big screen');
-    const code = document.createElement('strong');
-    code.className = 'room-code';
-    code.textContent = state.roomCode;
-    const qr = document.createElement('img');
-    qr.className = 'qr';
-    qr.alt = 'QR code for joining the room';
-    qr.src = `/api/rooms/${encodeURIComponent(state.roomCode)}/qr.svg`;
-    hero.append(code, qr, sound.button);
-    sound.phaseChanged(state.phase);
-    if (snapshot.game) appendGameStatus(hero, snapshot);
-    page.content.append(hero);
-
-    if (snapshot.game && state.phase !== 'input') {
-      const results = document.createElement('div');
-      results.className = 'card';
-      if (snapshot.game.id === 'groupthink') {
-        appendGroupthinkResults(results, snapshot.game);
-      } else if (snapshot.game.id === 'hot-take') {
-        appendHotTakeEntries(
-          results,
-          snapshot.game.entries,
-          state.phase === 'results' || state.phase === 'winner' ? 'Vote results' : undefined,
-        );
-      }
-      if (state.phase === 'winner') appendScoreboard(results, state);
-      page.content.append(results);
-    }
-
-    const players = document.createElement('div');
-    players.className = 'card';
-    createPlayerList(players, state);
-    page.content.append(players);
+    const displayGame = getGameDefinition(activeGame).id;
+    sound.phaseChanged(state.phase, displayGame);
+    page.content.append(createDisplayExperience(snapshot, sound));
   };
 
   socket.on('connect', () => {

@@ -14,6 +14,15 @@ test('creates a room with a valid host token and lobby state', () => {
   assert.equal(room.snapshot.state.settings.maxPlayers, 12);
 });
 
+test('publishes the selected game while the room is in the lobby', () => {
+  const manager = new RoomManager();
+  const room = manager.createRoom({ gameId: 'hot-take' });
+
+  assert.equal(room.snapshot.state.phase, 'lobby');
+  assert.equal(room.snapshot.state.gameId, 'hot-take');
+  assert.equal(room.snapshot.game, null);
+});
+
 test('joins a player and reconnects them with the same identity', () => {
   const manager = new RoomManager();
   const room = manager.createRoom({});

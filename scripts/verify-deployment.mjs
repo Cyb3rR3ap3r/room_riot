@@ -46,7 +46,15 @@ const checks = [
     path: '/protocol.js',
     validate: async (response) => response.ok && (await response.text()).includes('isSuccess'),
   },
-  ...['room-riot-logo.png', 'groupthink-icon.png', 'hot-take-icon.png'].map((assetName) => ({
+  ...[
+    'room-riot-logo.png',
+    'groupthink-icon.png',
+    'hot-take-icon.png',
+    'groupthink-lab-bg-v2.png',
+    'groupthink-reactor-v2.png',
+    'hot-take-stage-bg-v2.png',
+    'hot-take-podium-v2.png',
+  ].map((assetName) => ({
     path: `/assets/${assetName}`,
     validate: async (response) =>
       response.ok && (response.headers.get('content-type') ?? '').includes('image/png'),
