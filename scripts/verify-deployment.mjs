@@ -21,6 +21,18 @@ const checks = [
     validate: async (response) =>
       response.ok && (await response.text()).toLowerCase().includes('room riot'),
   },
+  ...['groupthink', 'hot-take'].flatMap((gameId) => [
+    {
+      path: `/host/${gameId}`,
+      validate: async (response) =>
+        response.ok && (await response.text()).toLowerCase().includes('room riot'),
+    },
+    {
+      path: `/display/${gameId}`,
+      validate: async (response) =>
+        response.ok && (await response.text()).toLowerCase().includes('room riot'),
+    },
+  ]),
   {
     path: '/play',
     validate: async (response) =>

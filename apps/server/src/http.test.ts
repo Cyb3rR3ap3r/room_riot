@@ -74,6 +74,19 @@ test('serves the browser shell and an offline QR code for a room', async () => {
   assert.equal(pageResponse.status, 200);
   assert.match(await pageResponse.text(), /socket\.io\/socket\.io\.js/);
 
+  for (const pagePath of [
+    '/host/groupthink',
+    '/host/hot-take',
+    '/display/groupthink',
+    '/display/hot-take',
+  ]) {
+    const gamePageResponse: Response = await fetch(`http://127.0.0.1:${address.port}${pagePath}`);
+    assert.equal(gamePageResponse.status, 200);
+    const gamePageHtml = await gamePageResponse.text();
+    assert.match(gamePageHtml, /Room Riot/);
+    assert.match(gamePageHtml, /src="\/main\.js"/);
+  }
+
   const mainScriptResponse = await fetch(`http://127.0.0.1:${address.port}/main.js`);
   assert.equal(mainScriptResponse.status, 200);
   assert.match(await mainScriptResponse.text(), /protocol\.js/);

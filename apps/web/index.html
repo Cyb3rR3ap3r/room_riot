@@ -169,11 +169,20 @@
         width: min(18rem, 67vw);
       }
 
+      .brand.game-brand {
+        width: min(9rem, 30vw);
+      }
+
       .brand-logo {
         display: block;
         width: 100%;
         height: auto;
         filter: drop-shadow(0 0.7rem 1.15rem rgba(0, 0, 0, 0.42));
+      }
+
+      .brand-logo.game-logo {
+        aspect-ratio: 1;
+        object-fit: contain;
       }
 
       h1,
@@ -728,6 +737,10 @@
         width: min(23rem, 60vw);
       }
 
+      .display-page .brand.game-brand {
+        width: min(11rem, 28vw);
+      }
+
       .display-page .content {
         grid-template-columns: minmax(0, 1.35fr) minmax(18rem, 0.65fr);
         align-items: start;
@@ -862,6 +875,6 @@
   <body>
     <main id="app"></main>
     <script src="/socket.io/socket.io.js"></script>
-    <script type="module" src="./main.js"></script>
+    <script type="module" src="/main.js"></script>
   </body>
 </html>

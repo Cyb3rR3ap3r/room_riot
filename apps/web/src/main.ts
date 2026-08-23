@@ -39,7 +39,7 @@ const PLAYER_STORAGE_KEY = 'room-riot-player-session';
 interface HostSession {
   readonly roomCode: RoomCode;
   readonly hostToken: SessionToken;
-  readonly gameId: string;
+  readonly gameId: SupportedGameId;
 }
 
 interface PlayerSession {
@@ -53,6 +53,8 @@ interface PlayerSession {
 interface PageParts {
   readonly content: HTMLElement;
   readonly notice: HTMLElement;
+  readonly brand: HTMLElement;
+  readonly brandLogo: HTMLImageElement;
 }
 
 type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting';
@@ -98,15 +100,34 @@ const GAME_CATALOG: readonly GameDefinition[] = [
   },
 ];
 
+function getGameFromPathname(pathname = window.location.pathname): SupportedGameId | null {
+  const match = pathname.match(/^\/(?:host|display)\/(groupthink|hot-take)$/);
+  const gameId = match?.[1];
+  return gameId === 'groupthink' || gameId === 'hot-take' ? gameId : null;
+}
+
+function buildHostRoute(gameId: SupportedGameId): string {
+  return `/host/${gameId}`;
+}
+
+function buildDisplayRoute(gameId: SupportedGameId, roomCode: string): string {
+  return `/display/${gameId}?room=${encodeURIComponent(roomCode)}`;
+}
+
 interface SoundController {
   readonly button: HTMLButtonElement;
   phaseChanged(phase: RoomPhase): void;
 }
 
-function createPage(root: HTMLElement, titleText: string, subtitleText: string): PageParts {
+function createPage(
+  root: HTMLElement,
+  titleText: string,
+  subtitleText: string,
+  gameId: string | null = null,
+): PageParts {
   root.replaceChildren();
   const pageKind =
-    window.location.pathname === routes.host
+    window.location.pathname === routes.host || window.location.pathname.startsWith('/host/')
       ? 'host-page'
       : window.location.pathname === routes.play
         ? 'player-page'
@@ -120,8 +141,6 @@ function createPage(root: HTMLElement, titleText: string, subtitleText: string):
   title.className = 'brand';
   const logo = document.createElement('img');
   logo.className = 'brand-logo';
-  logo.src = '/assets/room-riot-logo.png';
-  logo.alt = 'Room Riot';
   title.append(logo);
 
   const heading = document.createElement('h1');
@@ -140,9 +159,27 @@ function createPage(root: HTMLElement, titleText: string, subtitleText: string):
 
   const content = document.createElement('section');
   content.className = 'content';
+  const page = { content, notice, brand: title, brandLogo: logo };
   root.append(header, notice, content);
+  updatePageBrand(page, gameId);
 
-  return { content, notice };
+  return page;
+}
+
+function updatePageBrand(page: PageParts, gameId: string | null | undefined): void {
+  if (!gameId) {
+    page.brand.classList.remove('game-brand');
+    page.brandLogo.classList.remove('game-logo');
+    page.brandLogo.src = '/assets/room-riot-logo.png';
+    page.brandLogo.alt = 'Room Riot';
+    return;
+  }
+
+  const game = getGameDefinition(gameId);
+  page.brand.classList.add('game-brand');
+  page.brandLogo.classList.add('game-logo');
+  page.brandLogo.src = game.icon;
+  page.brandLogo.alt = `${game.label} logo`;
 }
 
 function renderConnectionNotice(page: PageParts, status: ConnectionStatus): void {
@@ -288,7 +325,10 @@ function createAvatarSelect(value = AVATARS[0] ?? '😎'): HTMLSelectElement {
   return select;
 }
 
-function createGamePicker(value = 'groupthink'): GamePicker {
+function createGamePicker(
+  value = 'groupthink',
+  onSelect?: (game: GameDefinition) => void,
+): GamePicker {
   let selected = getGameDefinition(value);
   const wrapper = document.createElement('section');
   wrapper.className = 'game-picker';
@@ -348,6 +388,7 @@ function createGamePicker(value = 'groupthink'): GamePicker {
         button.setAttribute('aria-pressed', String(button === option));
       });
       renderDetail();
+      onSelect?.(game);
     });
 
     option.append(createGameArtwork(game, 'game-art game-art-option'));
@@ -546,21 +587,31 @@ function renderHost(root: HTMLElement): void {
   let snapshot: RoomSnapshot | null = null;
 
   const render = (): void => {
+    const routeGameId = getGameFromPathname();
     const page = createPage(
       root,
       session ? `Room ${session.roomCode}` : 'Start a Riot',
       session
         ? 'Share the display with the room and let everyone join.'
         : 'Create a room to begin.',
+      session?.gameId ?? routeGameId,
     );
     renderConnectionNotice(page, connectionStatus);
-    setGameTheme(root, session?.gameId ?? snapshot?.state.gameId);
+    setGameTheme(root, session?.gameId ?? snapshot?.state.gameId ?? routeGameId);
     if (snapshot) sound.phaseChanged(snapshot.state.phase);
+
+    if (session && window.location.pathname === routes.host) {
+      window.history.replaceState(null, '', buildHostRoute(session.gameId));
+    }
 
     if (!session) {
       const form = document.createElement('form');
       form.className = 'card form game-launcher';
-      const gamePicker = createGamePicker();
+      const gamePicker = createGamePicker(routeGameId ?? 'groupthink', (game) => {
+        window.history.replaceState(null, '', buildHostRoute(game.id));
+        setGameTheme(root, game.id);
+        updatePageBrand(page, game.id);
+      });
       form.append(gamePicker.element);
       const actions = document.createElement('div');
       actions.className = 'actions game-launcher-actions';
@@ -587,6 +638,7 @@ function renderHost(root: HTMLElement): void {
             hostToken: response.hostToken,
             gameId,
           };
+          window.history.replaceState(null, '', buildHostRoute(gameId));
           snapshot = response.snapshot;
           writeStorage(HOST_STORAGE_KEY, session);
           render();
@@ -838,6 +890,7 @@ function renderPlayer(root: HTMLElement): void {
       session
         ? 'Keep this page open and watch the big screen.'
         : 'Enter the code shown on the display.',
+      snapshot?.game?.id ?? snapshot?.state.gameId,
     );
     renderConnectionNotice(page, connectionStatus);
     setGameTheme(root, snapshot?.state.gameId);
@@ -1099,20 +1152,36 @@ function renderPlayer(root: HTMLElement): void {
 
 function renderDisplay(root: HTMLElement): void {
   const roomCode = new URLSearchParams(window.location.search).get('room')?.toUpperCase() ?? '';
+  const routeGameId = getGameFromPathname();
   const socket = window.io();
   const sound = createSoundController();
   let connectionStatus: ConnectionStatus = 'connecting';
   let snapshot: RoomSnapshot | null = null;
   const page = createPage(
     root,
-    roomCode ? `Room ${roomCode}` : 'Display',
+    roomCode
+      ? `Room ${roomCode}`
+      : routeGameId
+        ? `${getGameDefinition(routeGameId).label} Display`
+        : 'Display',
     roomCode ? 'Players, grab your phones.' : 'Open this page with a room code to watch a lobby.',
+    routeGameId,
   );
   root.classList.add('display-page');
 
   const render = (): void => {
     page.content.replaceChildren();
     renderConnectionNotice(page, connectionStatus);
+    const activeGame = snapshot?.game?.id ?? snapshot?.state.gameId ?? routeGameId;
+    setGameTheme(root, activeGame);
+    updatePageBrand(page, activeGame);
+    if (activeGame && roomCode && getGameFromPathname() !== activeGame) {
+      window.history.replaceState(
+        null,
+        '',
+        buildDisplayRoute(getGameDefinition(activeGame).id, roomCode),
+      );
+    }
     if (!roomCode) {
       const empty = document.createElement('div');
       empty.className = 'card center';
@@ -1130,9 +1199,7 @@ function renderDisplay(root: HTMLElement): void {
     }
 
     const state = snapshot.state;
-    setGameTheme(root, snapshot.game?.id ?? state.gameId);
     const hero = document.createElement('div');
-    const activeGame = snapshot.game?.id ?? state.gameId;
     hero.className = `card center phase-card phase-${state.phase}${
       activeGame ? ` game-${getGameDefinition(activeGame).id}` : ''
     }`;
@@ -1230,7 +1297,10 @@ if (typeof document !== 'undefined') {
   if (target) {
     if (!window.io) {
       target.textContent = 'Realtime client failed to load.';
-    } else if (window.location.pathname === routes.host) {
+    } else if (
+      window.location.pathname === routes.host ||
+      window.location.pathname.startsWith('/host/')
+    ) {
       renderHost(target);
     } else if (window.location.pathname === routes.play) {
       renderPlayer(target);

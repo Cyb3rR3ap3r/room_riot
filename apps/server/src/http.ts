@@ -57,7 +57,16 @@ export function createRequestHandler(metadata: ServerMetadata, options: HttpOpti
     }
 
     if (request.method === 'GET' && options.webRoot) {
-      const pagePaths = new Set(['/', '/display', '/host', '/play']);
+      const pagePaths = new Set([
+        '/',
+        '/display',
+        '/display/groupthink',
+        '/display/hot-take',
+        '/host',
+        '/host/groupthink',
+        '/host/hot-take',
+        '/play',
+      ]);
       if (pagePaths.has(requestUrl.pathname)) {
         serveFile(response, resolve(options.webRoot, 'index.html'), 'text/html; charset=utf-8');
         return;
