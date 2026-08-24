@@ -1827,6 +1827,57 @@
         }
       }
 
+      /* Shared-screen display mode: keep the entire experience inside the viewport. */
+      .display-page[data-game-id] {
+        display: flex;
+        flex-direction: column;
+        height: 100dvh;
+        max-height: 100dvh;
+        min-height: 0;
+        overflow: hidden;
+        padding-block: max(0.45rem, env(safe-area-inset-top))
+          max(0.45rem, env(safe-area-inset-bottom));
+      }
+
+      .display-page[data-game-id] > .notice {
+        flex: 0 0 auto;
+      }
+
+      .display-page[data-game-id] > .content {
+        min-height: 0;
+        flex: 1 1 auto;
+        overflow: hidden;
+      }
+
+      .display-page[data-game-id] .display-experience {
+        --display-scale: 1;
+        width: calc(100% / var(--display-scale));
+        height: 100%;
+        min-height: 0;
+        max-height: none;
+        margin-inline: auto;
+        overflow: visible;
+        transform: scale(var(--display-scale));
+        transform-origin: top center;
+      }
+
+      .display-page[data-game-id] .display-experience .experience-grid {
+        min-height: 0;
+        height: calc(100% - 5.5rem);
+        overflow: visible;
+      }
+
+      .display-page[data-game-id] .display-experience .consensus-stage,
+      .display-page[data-game-id] .display-experience .heat-stage,
+      .display-page[data-game-id] .display-experience .stage-copy,
+      .display-page[data-game-id] .display-experience .mind-roster,
+      .display-page[data-game-id] .display-experience .audience-roster,
+      .display-page[data-game-id] .display-experience .lab-room-pass,
+      .display-page[data-game-id] .display-experience .heat-room-pass {
+        min-height: 0;
+        overflow: visible;
+      }
+
       @media (prefers-reduced-motion: reduce) {
         *,
         *::before,

@@ -117,8 +117,9 @@ export function createGroupthinkSession(
   now = Date.now(),
   inputDurationMs = GROUPTHINK_INPUT_DURATION_MS,
   randomizePrompts = false,
+  avoidFirstPromptId?: string,
 ): GroupthinkSessionState {
-  const orderedPrompts = randomizePrompts ? shufflePrompts(prompts) : prompts;
+  const orderedPrompts = orderPrompts(prompts, randomizePrompts, avoidFirstPromptId);
   const firstPrompt = orderedPrompts[0];
   if (!firstPrompt) throw new Error('Groupthink requires at least one prompt.');
   if (!Number.isInteger(totalRounds) || totalRounds < 1) {
@@ -257,6 +258,24 @@ function shufflePrompts(prompts: readonly GroupthinkPrompt[]): readonly Groupthi
     }
   }
   return shuffled;
+}
+
+function orderPrompts(
+  prompts: readonly GroupthinkPrompt[],
+  randomizePrompts: boolean,
+  avoidFirstPromptId?: string,
+): readonly GroupthinkPrompt[] {
+  const ordered = randomizePrompts ? [...shufflePrompts(prompts)] : [...prompts];
+  if (randomizePrompts && ordered.length > 1 && ordered[0]?.id === avoidFirstPromptId) {
+    const replacementIndex = 1;
+    const first = ordered[0];
+    const replacement = ordered[replacementIndex];
+    if (first && replacement) {
+      ordered[0] = replacement;
+      ordered[replacementIndex] = first;
+    }
+  }
+  return ordered;
 }
 
 export function getGroupthinkPublicView(

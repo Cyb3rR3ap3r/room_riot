@@ -23,6 +23,67 @@ test('publishes the selected game while the room is in the lobby', () => {
   assert.equal(room.snapshot.game, null);
 });
 
+test('supports a room-specific AI remix prompt deck', () => {
+  const manager = new RoomManager({ randomizePrompts: false });
+  const firstRoom = manager.createRoom({
+    gameId: 'groupthink',
+    settings: { promptMode: 'ai', roundCount: 3 },
+  });
+  const secondRoom = manager.createRoom({
+    gameId: 'groupthink',
+    settings: { promptMode: 'ai', roundCount: 3 },
+  });
+
+  const first = manager.startGame(firstRoom.roomCode, firstRoom.hostToken, 'groupthink');
+  const second = manager.startGame(secondRoom.roomCode, secondRoom.hostToken, 'groupthink');
+
+  assert.equal(first.state.settings.promptMode, 'ai');
+  assert.equal(second.state.settings.promptMode, 'ai');
+  assert.ok(first.game?.id === 'groupthink' && first.game.prompt.length > 0);
+  assert.ok(second.game?.id === 'groupthink' && second.game.prompt.length > 0);
+  assert.notEqual(
+    first.game?.id === 'groupthink' ? first.game.promptId : '',
+    second.game?.id === 'groupthink' ? second.game.promptId : '',
+  );
+  manager.close();
+});
+
+test('uses the same AI remix setting for Hot Take', () => {
+  const manager = new RoomManager();
+  const room = manager.createRoom({
+    gameId: 'hot-take',
+    settings: { promptMode: 'ai', roundCount: 2 },
+  });
+  manager.joinRoom({ roomCode: room.roomCode, name: 'Alex', avatar: '😎' });
+  manager.joinRoom({ roomCode: room.roomCode, name: 'Blair', avatar: '👽' });
+  manager.joinRoom({ roomCode: room.roomCode, name: 'Casey', avatar: '🤖' });
+
+  const started = manager.startGame(room.roomCode, room.hostToken, 'hot-take');
+  assert.equal(started.state.settings.promptMode, 'ai');
+  assert.equal(started.game?.id, 'hot-take');
+  if (started.game?.id === 'hot-take') {
+    assert.ok(started.game.promptId.startsWith('ai-hot-take-'));
+    assert.ok(started.game.prompt.length > 0);
+  }
+  manager.close();
+});
+
+test('does not reuse the previous curated opening prompt', () => {
+  const manager = new RoomManager();
+  const firstRoom = manager.createRoom({ gameId: 'groupthink' });
+  const secondRoom = manager.createRoom({ gameId: 'groupthink' });
+
+  const first = manager.startGame(firstRoom.roomCode, firstRoom.hostToken, 'groupthink');
+  const second = manager.startGame(secondRoom.roomCode, secondRoom.hostToken, 'groupthink');
+
+  assert.equal(first.game?.id, 'groupthink');
+  assert.equal(second.game?.id, 'groupthink');
+  if (first.game?.id === 'groupthink' && second.game?.id === 'groupthink') {
+    assert.notEqual(first.game.promptId, second.game.promptId);
+  }
+  manager.close();
+});
+
 test('joins a player and reconnects them with the same identity', () => {
   const manager = new RoomManager();
   const room = manager.createRoom({});

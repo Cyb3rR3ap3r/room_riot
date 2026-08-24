@@ -45,11 +45,16 @@ export type RoomPhase = z.infer<typeof RoomPhaseSchema>;
 export const ContentModeSchema = z.enum(['family', 'standard', 'after-dark']);
 export type ContentMode = z.infer<typeof ContentModeSchema>;
 
+/** Controls whether a room uses the curated prompt packs or the local AI remix generator. */
+export const PromptModeSchema = z.enum(['default', 'ai']);
+export type PromptMode = z.infer<typeof PromptModeSchema>;
+
 export const RoomSettingsSchema = z
   .object({
     maxPlayers: z.number().int().min(2).max(32).default(12),
     roundCount: z.number().int().min(1).max(20).default(5),
     contentMode: ContentModeSchema.default('standard'),
+    promptMode: PromptModeSchema.default('default'),
   })
   .strict();
 

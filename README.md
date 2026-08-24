@@ -36,3 +36,5 @@ pnpm dev:server
 The health endpoint is available at `http://localhost:3000/healthz`. Open `/host` to create a room, `/display?room=CODE` on the shared screen, and `/play?room=CODE` on player phones.
 
 Groupthink uses a 60-second server-owned answer deadline. Hot Take uses a 60-second answer deadline followed by a 45-second voting deadline. The host can reveal either stage early, then score the round and advance until the final scoreboard.
+
+When creating a room, the host can choose the curated prompt deck or the AI remix deck. Curated prompts are shuffled per game; AI remix creates a fresh, larger local deck for that room, so both modes work without an internet connection or an API key. The shared display uses the available viewport height and scales dense answer/result states to keep the full experience visible on a TV.

@@ -117,8 +117,9 @@ export function createHotTakeSession(
   now = Date.now(),
   inputDurationMs = HOT_TAKE_INPUT_DURATION_MS,
   randomizePrompts = false,
+  avoidFirstPromptId?: string,
 ): HotTakeSessionState {
-  const orderedPrompts = randomizePrompts ? shufflePrompts(prompts) : prompts;
+  const orderedPrompts = orderPrompts(prompts, randomizePrompts, avoidFirstPromptId);
   const firstPrompt = orderedPrompts[0];
   if (!firstPrompt) throw new Error('Hot Take requires at least one prompt.');
   if (!Number.isInteger(totalRounds) || totalRounds < 1) {
@@ -347,6 +348,24 @@ function shufflePrompts(prompts: readonly HotTakePrompt[]): readonly HotTakeProm
     }
   }
   return shuffled;
+}
+
+function orderPrompts(
+  prompts: readonly HotTakePrompt[],
+  randomizePrompts: boolean,
+  avoidFirstPromptId?: string,
+): readonly HotTakePrompt[] {
+  const ordered = randomizePrompts ? [...shufflePrompts(prompts)] : [...prompts];
+  if (randomizePrompts && ordered.length > 1 && ordered[0]?.id === avoidFirstPromptId) {
+    const replacementIndex = 1;
+    const first = ordered[0];
+    const replacement = ordered[replacementIndex];
+    if (first && replacement) {
+      ordered[0] = replacement;
+      ordered[replacementIndex] = first;
+    }
+  }
+  return ordered;
 }
 
 export function getHotTakePublicView(

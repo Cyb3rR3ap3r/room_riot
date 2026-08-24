@@ -7,6 +7,7 @@ import type {
   JoinRoomRequest,
   PlayerCastVoteRequest,
   PlayerSubmitAnswerRequest,
+  PromptMode,
   RoomPhase,
   RoomCode,
   SessionToken,
@@ -363,6 +364,23 @@ function createAvatarSelect(value = AVATARS[0] ?? '😎'): HTMLSelectElement {
     option.value = avatar;
     option.textContent = avatar;
     option.selected = avatar === value;
+    select.append(option);
+  });
+  return select;
+}
+
+function createPromptModeSelect(value: PromptMode = 'default'): HTMLSelectElement {
+  const select = document.createElement('select');
+  select.name = 'prompt-mode';
+  const options: readonly { value: PromptMode; label: string }[] = [
+    { value: 'default', label: 'Curated prompt deck (recommended)' },
+    { value: 'ai', label: 'AI remix (local, always available)' },
+  ];
+  options.forEach(({ value: optionValue, label }) => {
+    const option = document.createElement('option');
+    option.value = optionValue;
+    option.textContent = label;
+    option.selected = optionValue === value;
     select.append(option);
   });
   return select;
@@ -817,6 +835,36 @@ function createDisplayExperience(snapshot: RoomSnapshot, sound: SoundController)
   return shell;
 }
 
+function fitDisplayExperience(root: HTMLElement): void {
+  const experience = root.querySelector<HTMLElement>('.display-experience');
+  const content = root.querySelector<HTMLElement>(':scope > .content');
+  if (!experience || !content) return;
+
+  const grid = experience.querySelector<HTMLElement>('.experience-grid');
+  const topbar = experience.querySelector<HTMLElement>('.experience-topbar');
+  if (!grid || !topbar) return;
+
+  // Measure at scale 1. The grid's scrollHeight captures answer walls and rosters
+  // that would otherwise be clipped by the viewport's overflow guard.
+  experience.style.setProperty('--display-scale', '1');
+  const experienceRect = experience.getBoundingClientRect();
+  let requiredWidth = Math.max(experience.scrollWidth, grid.scrollWidth, 1);
+  let requiredHeight = Math.max(
+    experience.scrollHeight,
+    topbar.offsetHeight + grid.scrollHeight,
+    1,
+  );
+  experience.querySelectorAll<HTMLElement>('*').forEach((element) => {
+    const rect = element.getBoundingClientRect();
+    requiredWidth = Math.max(requiredWidth, element.scrollWidth, rect.right - experienceRect.left);
+    requiredHeight = Math.max(requiredHeight, rect.top - experienceRect.top + element.scrollHeight);
+  });
+  const availableWidth = Math.max(content.clientWidth, 1);
+  const availableHeight = Math.max(content.clientHeight, 1);
+  const scale = Math.min(1, availableWidth / requiredWidth, availableHeight / requiredHeight);
+  experience.style.setProperty('--display-scale', scale.toFixed(4));
+}
+
 function renderHost(root: HTMLElement): void {
   const socket = window.io();
   const sound = createSoundController();
@@ -851,6 +899,14 @@ function renderHost(root: HTMLElement): void {
         updatePageBrand(page, game.id);
       });
       form.append(gamePicker.element);
+      const promptMode = createPromptModeSelect();
+      const promptModeField = createField('Question source', promptMode);
+      const promptModeHint = document.createElement('small');
+      promptModeHint.className = 'muted';
+      promptModeHint.textContent =
+        'AI remix creates a fresh shuffled deck from local prompt ingredients, so it works offline on the big screen.';
+      promptModeField.append(promptModeHint);
+      form.append(promptModeField);
       const actions = document.createElement('div');
       actions.className = 'actions game-launcher-actions';
       const submit = createButton('Create Game', 'submit');
@@ -863,7 +919,12 @@ function renderHost(root: HTMLElement): void {
         const gameId = gamePicker.getValue();
         const request: CreateRoomRequest = {
           gameId,
-          settings: { maxPlayers: 12, roundCount: 5, contentMode: 'standard' },
+          settings: {
+            maxPlayers: 12,
+            roundCount: 5,
+            contentMode: 'standard',
+            promptMode: promptMode.value as PromptMode,
+          },
         };
         socket.emit('host:create-room', request, (response: HostCreateResponse) => {
           submit.disabled = false;
@@ -1481,6 +1542,14 @@ function renderDisplay(root: HTMLElement): void {
     routeGameId,
   );
   root.classList.add('display-page');
+  const fit = (): void => {
+    window.requestAnimationFrame(() => fitDisplayExperience(root));
+  };
+  window.addEventListener('resize', fit, { passive: true });
+  if ('ResizeObserver' in window) {
+    const observer = new ResizeObserver(fit);
+    observer.observe(root);
+  }
 
   const render = (): void => {
     page.content.replaceChildren();
@@ -1515,6 +1584,7 @@ function renderDisplay(root: HTMLElement): void {
     const displayGame = getGameDefinition(activeGame).id;
     sound.phaseChanged(state.phase, displayGame);
     page.content.append(createDisplayExperience(snapshot, sound));
+    fit();
   };
 
   socket.on('connect', () => {

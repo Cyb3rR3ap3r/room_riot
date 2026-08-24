@@ -12,6 +12,7 @@ import type {
   ContentMode,
   JoinRoomRequest,
   PlayerId,
+  PromptMode,
   RoomCode,
   RoomSettings,
   SessionToken,
@@ -66,6 +67,7 @@ import {
   toPublicRoomState,
 } from '@room-riot/game-engine';
 import type { PublicRoomState, RoomState } from '@room-riot/game-engine';
+import { generateGroupthinkPrompts, generateHotTakePrompts } from './prompt-generator.js';
 
 const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const ROOM_CODE_LENGTH = 4;
@@ -78,6 +80,8 @@ interface RoomSession {
   state: RoomState;
   groupthink?: GroupthinkSessionState;
   hotTake?: HotTakeSessionState;
+  groupthinkPrompts?: readonly GroupthinkPrompt[];
+  hotTakePrompts?: readonly HotTakePrompt[];
   readonly hostToken: SessionToken;
   lastActivityAt: number;
   hostSocketId?: string;
@@ -139,6 +143,8 @@ export class RoomManager {
   private readonly socketBindings = new Map<string, SocketBinding>();
   private readonly groupthinkPrompts = new Map<ContentMode, readonly GroupthinkPrompt[]>();
   private readonly hotTakePrompts = new Map<ContentMode, readonly HotTakePrompt[]>();
+  private readonly lastGroupthinkPromptIds = new Map<ContentMode, string>();
+  private readonly lastHotTakePromptIds = new Map<ContentMode, string>();
   private readonly inputTimers = new Map<RoomCode, ReturnType<typeof setTimeout>>();
   private readonly snapshotListeners = new Set<RoomSnapshotListener>();
   private readonly groupthinkInputDurationMs: number;
@@ -287,26 +293,54 @@ export class RoomManager {
     session.state = setGame(session.state, gameId);
     if (session.state.gameId === GROUPTHINK_GAME_ID) {
       delete session.hotTake;
-      const prompts = this.getGroupthinkPrompts(session.state.settings.contentMode);
+      delete session.hotTakePrompts;
+      const prompts = this.getGroupthinkPrompts(
+        session.state.settings.contentMode,
+        session.state.settings.promptMode,
+      );
+      session.groupthinkPrompts = prompts;
       session.groupthink = createGroupthinkSession(
         prompts,
         session.state.settings.roundCount,
         Date.now(),
         this.groupthinkInputDurationMs,
         this.randomizePrompts,
+        this.randomizePrompts
+          ? this.lastGroupthinkPromptIds.get(session.state.settings.contentMode)
+          : undefined,
       );
+      if (this.randomizePrompts) {
+        this.lastGroupthinkPromptIds.set(
+          session.state.settings.contentMode,
+          session.groupthink.prompt.id,
+        );
+      }
       session.state = setPhase(session.state, 'input');
       this.scheduleGroupthinkDeadline(roomCode, session);
     } else if (session.state.gameId === HOT_TAKE_GAME_ID) {
       delete session.groupthink;
-      const prompts = this.getHotTakePrompts(session.state.settings.contentMode);
+      delete session.groupthinkPrompts;
+      const prompts = this.getHotTakePrompts(
+        session.state.settings.contentMode,
+        session.state.settings.promptMode,
+      );
+      session.hotTakePrompts = prompts;
       session.hotTake = createHotTakeSession(
         prompts,
         session.state.settings.roundCount,
         Date.now(),
         this.hotTakeInputDurationMs,
         this.randomizePrompts,
+        this.randomizePrompts
+          ? this.lastHotTakePromptIds.get(session.state.settings.contentMode)
+          : undefined,
       );
+      if (this.randomizePrompts) {
+        this.lastHotTakePromptIds.set(
+          session.state.settings.contentMode,
+          session.hotTake.prompt.id,
+        );
+      }
       session.state = setPhase(session.state, 'input');
       this.scheduleHotTakeDeadline(roomCode, session);
     } else {
@@ -634,7 +668,11 @@ export class RoomManager {
     session.state = addPlayerScores(session.state, game.roundScores);
     session.groupthink = advanceGroupthinkRound(
       game,
-      this.getGroupthinkPrompts(session.state.settings.contentMode),
+      session.groupthinkPrompts ??
+        this.getGroupthinkPrompts(
+          session.state.settings.contentMode,
+          session.state.settings.promptMode,
+        ),
       Date.now(),
       this.groupthinkInputDurationMs,
     );
@@ -665,7 +703,11 @@ export class RoomManager {
     session.state = addPlayerScores(session.state, session.hotTake.roundScores);
     session.hotTake = advanceHotTakeRound(
       session.hotTake,
-      this.getHotTakePrompts(session.state.settings.contentMode),
+      session.hotTakePrompts ??
+        this.getHotTakePrompts(
+          session.state.settings.contentMode,
+          session.state.settings.promptMode,
+        ),
       Date.now(),
       this.hotTakeInputDurationMs,
     );
@@ -887,7 +929,11 @@ export class RoomManager {
     return null;
   }
 
-  private getGroupthinkPrompts(contentMode: ContentMode): readonly GroupthinkPrompt[] {
+  private getGroupthinkPrompts(
+    contentMode: ContentMode,
+    promptMode: PromptMode = 'default',
+  ): readonly GroupthinkPrompt[] {
+    if (promptMode === 'ai') return generateGroupthinkPrompts(contentMode);
     const cached = this.groupthinkPrompts.get(contentMode);
     if (cached) return cached;
     const prompts = loadGroupthinkPrompts(contentMode);
@@ -895,7 +941,11 @@ export class RoomManager {
     return prompts;
   }
 
-  private getHotTakePrompts(contentMode: ContentMode): readonly HotTakePrompt[] {
+  private getHotTakePrompts(
+    contentMode: ContentMode,
+    promptMode: PromptMode = 'default',
+  ): readonly HotTakePrompt[] {
+    if (promptMode === 'ai') return generateHotTakePrompts(contentMode);
     const cached = this.hotTakePrompts.get(contentMode);
     if (cached) return cached;
     const prompts = loadHotTakePrompts(contentMode);
@@ -927,6 +977,7 @@ function normalizeSettings(
   if (settings.maxPlayers !== undefined) normalized.maxPlayers = settings.maxPlayers;
   if (settings.roundCount !== undefined) normalized.roundCount = settings.roundCount;
   if (settings.contentMode !== undefined) normalized.contentMode = settings.contentMode;
+  if (settings.promptMode !== undefined) normalized.promptMode = settings.promptMode;
   return normalized;
 }
 
