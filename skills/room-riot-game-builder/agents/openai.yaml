@@ -1,0 +1,4 @@
+interface:
+  display_name: "Room Riot Game Builder"
+  short_description: "Build unique Room Riot games end to end"
+  default_prompt: "Use $room-riot-game-builder to add a new Room Riot game with unique mechanics, art, prompts, UI, server integration, and tests."

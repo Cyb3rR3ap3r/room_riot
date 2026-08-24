@@ -7,6 +7,7 @@ import {
   allPlayersSubmitted,
   createGroupthinkSession,
   getGroupthinkPublicView,
+  loadGroupthinkPrompts,
   normalizeAnswer,
   revealGroupthink,
   submitGroupthinkAnswer,
@@ -16,6 +17,15 @@ const prompts = [
   { id: 'one', text: 'Name something people lose.' },
   { id: 'two', text: 'Name a bad first date location.' },
 ];
+
+test('loads at least 100 unique curated prompts for every content mode', () => {
+  (['family', 'standard', 'after-dark'] as const).forEach((contentMode) => {
+    const loaded = loadGroupthinkPrompts(contentMode);
+    assert.ok(loaded.length >= 100);
+    assert.equal(new Set(loaded.map((prompt) => prompt.id)).size, loaded.length);
+    assert.equal(new Set(loaded.map((prompt) => prompt.text)).size, loaded.length);
+  });
+});
 
 test('normalizes harmless formatting differences', () => {
   assert.equal(normalizeAnswer('  Phone! '), 'phone');

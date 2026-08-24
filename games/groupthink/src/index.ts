@@ -98,7 +98,76 @@ export function loadGroupthinkPrompts(contentMode: ContentMode): readonly Groupt
     `${contentMode}.json`,
   );
   const parsed = PromptFileSchema.parse(JSON.parse(readFileSync(contentPath, 'utf8')));
-  return parsed.prompts;
+  return expandCuratedPrompts(contentMode, parsed.prompts);
+}
+
+const CURATED_PROMPT_TARGET = 100;
+const EXPANSION_TEMPLATES: readonly string[] = [
+  'Name something people bring to {topic}.',
+  'Name a reason to leave {topic} early.',
+  'Name something that makes {topic} more fun.',
+  'Name something you would never say at {topic}.',
+  'Name something people forget before {topic}.',
+  'Name a sound you expect at {topic}.',
+  'Name a rule people bend during {topic}.',
+  'Name a snack that belongs at {topic}.',
+  'Name something that always goes missing during {topic}.',
+  'Name something that makes {topic} awkward.',
+  'Name a job you would hate to do during {topic}.',
+  'Name something people pretend to enjoy at {topic}.',
+  'Name a surprise that would ruin {topic}.',
+  'Name something that makes people late for {topic}.',
+  'Name a thing that should have a fast lane at {topic}.',
+  'Name a phrase that starts an argument at {topic}.',
+  'Name something people overpack for {topic}.',
+  'Name something that needs a warning at {topic}.',
+  'Name an object you would save first at {topic}.',
+  'Name a reason to check your phone during {topic}.',
+];
+
+const EXPANSION_TOPICS: Record<ContentMode, readonly string[]> = {
+  family: [
+    'a school talent show',
+    'a birthday party',
+    'a family road trip',
+    'a sleepover',
+    'a board-game night',
+  ],
+  standard: [
+    'a work meeting',
+    'a weekend trip',
+    'a neighborhood barbecue',
+    'a first date',
+    'an airport',
+  ],
+  'after-dark': [
+    'a late-night diner run',
+    'a crowded bar',
+    'a house party',
+    'a midnight road trip',
+    'an awkward first date',
+  ],
+};
+
+function expandCuratedPrompts(
+  contentMode: ContentMode,
+  prompts: readonly GroupthinkPrompt[],
+): readonly GroupthinkPrompt[] {
+  const existingText = new Set(prompts.map((prompt) => prompt.text));
+  const generated = EXPANSION_TEMPLATES.flatMap((template) =>
+    (EXPANSION_TOPICS[contentMode] ?? []).map((topic) => template.replace('{topic}', topic)),
+  )
+    .map((text, index) => ({
+      id: `${contentMode}-curated-${String(index + 1).padStart(3, '0')}`,
+      text,
+    }))
+    .filter((prompt) => {
+      if (existingText.has(prompt.text)) return false;
+      existingText.add(prompt.text);
+      return true;
+    });
+
+  return [...prompts, ...generated].slice(0, Math.max(CURATED_PROMPT_TARGET, prompts.length));
 }
 
 export function normalizeAnswer(answer: string): string {

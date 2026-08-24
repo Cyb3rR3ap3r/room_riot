@@ -1,5 +1,6 @@
 import type {
   CreateRoomRequest,
+  ContentMode,
   DisplayWatchRequest,
   HostReconnectRequest,
   HostRoomActionRequest,
@@ -375,6 +376,24 @@ function createPromptModeSelect(value: PromptMode = 'default'): HTMLSelectElemen
   const options: readonly { value: PromptMode; label: string }[] = [
     { value: 'default', label: 'Curated prompt deck (recommended)' },
     { value: 'ai', label: 'AI remix (local, always available)' },
+  ];
+  options.forEach(({ value: optionValue, label }) => {
+    const option = document.createElement('option');
+    option.value = optionValue;
+    option.textContent = label;
+    option.selected = optionValue === value;
+    select.append(option);
+  });
+  return select;
+}
+
+function createContentModeSelect(value: ContentMode = 'standard'): HTMLSelectElement {
+  const select = document.createElement('select');
+  select.name = 'content-mode';
+  const options: readonly { value: ContentMode; label: string }[] = [
+    { value: 'family', label: 'Family-friendly' },
+    { value: 'standard', label: 'Standard' },
+    { value: 'after-dark', label: 'After dark' },
   ];
   options.forEach(({ value: optionValue, label }) => {
     const option = document.createElement('option');
@@ -899,6 +918,8 @@ function renderHost(root: HTMLElement): void {
         updatePageBrand(page, game.id);
       });
       form.append(gamePicker.element);
+      const contentMode = createContentModeSelect();
+      form.append(createField('Content mode', contentMode));
       const promptMode = createPromptModeSelect();
       const promptModeField = createField('Question source', promptMode);
       const promptModeHint = document.createElement('small');
@@ -922,7 +943,7 @@ function renderHost(root: HTMLElement): void {
           settings: {
             maxPlayers: 12,
             roundCount: 5,
-            contentMode: 'standard',
+            contentMode: contentMode.value as ContentMode,
             promptMode: promptMode.value as PromptMode,
           },
         };

@@ -1,7 +1,9 @@
 import { randomInt, randomUUID } from 'node:crypto';
 
 import type { ContentMode } from '@room-riot/contracts';
+import { loadGroupthinkPrompts } from '@room-riot/groupthink';
 import type { GroupthinkPrompt } from '@room-riot/groupthink';
+import { loadHotTakePrompts } from '@room-riot/hot-take';
 import type { HotTakePrompt } from '@room-riot/hot-take';
 
 /**
@@ -14,9 +16,15 @@ import type { HotTakePrompt } from '@room-riot/hot-take';
  */
 export function generateGroupthinkPrompts(
   contentMode: ContentMode,
-  count = 40,
+  count = 100,
 ): readonly GroupthinkPrompt[] {
-  const candidates = shuffle([...GROUPTHINK_PROMPTS, ...(MODE_PROMPTS[contentMode] ?? [])]);
+  const candidates = shuffle(
+    uniqueTexts([
+      ...GROUPTHINK_PROMPTS,
+      ...(MODE_PROMPTS[contentMode] ?? []),
+      ...loadGroupthinkPrompts(contentMode).map((prompt) => prompt.text),
+    ]),
+  );
   return candidates.slice(0, Math.max(1, Math.min(count, candidates.length))).map((text) => ({
     id: `ai-groupthink-${randomUUID()}`,
     text,
@@ -25,14 +33,24 @@ export function generateGroupthinkPrompts(
 
 export function generateHotTakePrompts(
   contentMode: ContentMode,
-  count = 40,
+  count = 100,
 ): readonly HotTakePrompt[] {
-  const candidates = shuffle([...HOT_TAKE_PROMPTS, ...(MODE_HOT_TAKE_PROMPTS[contentMode] ?? [])]);
+  const candidateByText = new Map<string, { text: string; kind: HotTakePrompt['kind'] }>();
+  [
+    ...HOT_TAKE_PROMPTS,
+    ...(MODE_HOT_TAKE_PROMPTS[contentMode] ?? []),
+    ...loadHotTakePrompts(contentMode),
+  ].forEach((prompt) => candidateByText.set(prompt.text, prompt));
+  const candidates = shuffle([...candidateByText.values()]);
   return candidates.slice(0, Math.max(1, Math.min(count, candidates.length))).map((prompt) => ({
     id: `ai-hot-take-${randomUUID()}`,
     text: prompt.text,
     kind: prompt.kind,
   }));
+}
+
+function uniqueTexts(texts: readonly string[]): string[] {
+  return [...new Set(texts)];
 }
 
 function shuffle<T>(items: T[]): T[] {

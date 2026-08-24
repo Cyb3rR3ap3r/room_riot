@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { generateGroupthinkPrompts, generateHotTakePrompts } from './prompt-generator.js';
 import { RoomManager, RoomManagerError } from './room-manager.js';
 
 test('creates a room with a valid host token and lobby state', () => {
@@ -66,6 +67,17 @@ test('uses the same AI remix setting for Hot Take', () => {
     assert.ok(started.game.prompt.length > 0);
   }
   manager.close();
+});
+
+test('AI remix creates at least 100 unique prompts for every content mode', () => {
+  (['family', 'standard', 'after-dark'] as const).forEach((contentMode) => {
+    const groupthink = generateGroupthinkPrompts(contentMode);
+    const hotTake = generateHotTakePrompts(contentMode);
+    assert.ok(groupthink.length >= 100);
+    assert.ok(hotTake.length >= 100);
+    assert.equal(new Set(groupthink.map((prompt) => prompt.id)).size, groupthink.length);
+    assert.equal(new Set(hotTake.map((prompt) => prompt.id)).size, hotTake.length);
+  });
 });
 
 test('does not reuse the previous curated opening prompt', () => {

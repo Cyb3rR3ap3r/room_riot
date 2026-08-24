@@ -9,6 +9,7 @@ import {
   createHotTakeSession,
   getHotTakePlayerView,
   getHotTakePublicView,
+  loadHotTakePrompts,
   revealHotTakeAnswers,
   revealHotTakeVotes,
   submitHotTakeAnswer,
@@ -21,6 +22,15 @@ const prompts = [
 ];
 const playerIds = ['p1', 'p2', 'p3'];
 const playerNames = { p1: 'Alex', p2: 'Blair', p3: 'Casey' };
+
+test('loads at least 100 unique curated prompts for every content mode', () => {
+  (['family', 'standard', 'after-dark'] as const).forEach((contentMode) => {
+    const loaded = loadHotTakePrompts(contentMode);
+    assert.ok(loaded.length >= 100);
+    assert.equal(new Set(loaded.map((prompt) => prompt.id)).size, loaded.length);
+    assert.equal(new Set(loaded.map((prompt) => prompt.text)).size, loaded.length);
+  });
+});
 
 test('runs anonymous answers through voting and server-side scoring', () => {
   let session = createHotTakeSession(prompts, 1, 1_000, 30_000);

@@ -108,7 +108,71 @@ export function loadHotTakePrompts(contentMode: ContentMode): readonly HotTakePr
     `${contentMode}.json`,
   );
   const parsed = PromptFileSchema.parse(JSON.parse(readFileSync(contentPath, 'utf8')));
-  return parsed.prompts;
+  return expandCuratedPrompts(contentMode, parsed.prompts);
+}
+
+const CURATED_PROMPT_TARGET = 100;
+const EXPANSION_TEMPLATES: readonly string[] = [
+  'What is the most overrated {topic}?',
+  'What {topic} trend needs to disappear?',
+  'What is the worst thing to bring to {topic}?',
+  'What rule about {topic} should be retired?',
+  'What is the most suspicious {topic} choice?',
+  'What {topic} is secretly more fun than people admit?',
+  'What is the most annoying part of {topic}?',
+  'What would improve {topic} overnight?',
+  'What {topic} belongs in a museum?',
+  'What is the worst excuse involving {topic}?',
+  'What {topic} tradition should end?',
+  'What {topic} deserves a warning label?',
+  'What is the most overrated way to celebrate {topic}?',
+  'What {topic} has the worst fan club?',
+  'What is the strangest acceptable opinion about {topic}?',
+  'What {topic} should be replaced by a four-day weekend?',
+  'What is the worst possible theme for {topic}?',
+  'What {topic} is only good because of the marketing?',
+  'What {topic} causes the most unnecessary arguments?',
+  'What is the most dramatic way to avoid {topic}?',
+];
+
+const EXPANSION_TOPICS: Record<ContentMode, readonly string[]> = {
+  family: ['school lunch', 'a board game', 'a cartoon', 'a birthday party', 'a family road trip'],
+  standard: [
+    'fast food',
+    'a streaming show',
+    'an office meeting',
+    'a tourist attraction',
+    'social media',
+  ],
+  'after-dark': [
+    'a first date',
+    'a late-night text',
+    'a bar order',
+    'a party trend',
+    'a relationship rule',
+  ],
+};
+
+function expandCuratedPrompts(
+  contentMode: ContentMode,
+  prompts: readonly HotTakePrompt[],
+): readonly HotTakePrompt[] {
+  const existingText = new Set(prompts.map((prompt) => prompt.text));
+  const generated = EXPANSION_TEMPLATES.flatMap((template) =>
+    (EXPANSION_TOPICS[contentMode] ?? []).map((topic) => template.replace('{topic}', topic)),
+  )
+    .map((text, index) => ({
+      id: `${contentMode}-curated-${String(index + 1).padStart(3, '0')}`,
+      text,
+      kind: 'open' as const,
+    }))
+    .filter((prompt) => {
+      if (existingText.has(prompt.text)) return false;
+      existingText.add(prompt.text);
+      return true;
+    });
+
+  return [...prompts, ...generated].slice(0, Math.max(CURATED_PROMPT_TARGET, prompts.length));
 }
 
 export function createHotTakeSession(
