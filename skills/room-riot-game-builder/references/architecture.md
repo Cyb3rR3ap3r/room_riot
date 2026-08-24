@@ -28,7 +28,9 @@ Use this as a map, then verify details against the current source before editing
 5. Register a complete catalog entry and render every state needed by host, player, display, results, and winner experiences. Avoid leaking private answers in public snapshots.
 6. Add page paths and QR join-path handling in `apps/server/src/http.ts`; add the same host/display/player routes and every new asset to `scripts/verify-deployment.mjs`.
 7. Add display-first CSS and exact asset paths. Keep the shared display viewport-safe and readable from a distance.
-8. Add the game to root and app TypeScript project references and any package dependency/build wiring, then add focused tests. Search all references to an existing game ID to find registrations that are easy to miss.
+8. Add the game to root and app TypeScript project references, app `package.json` dependencies, and the workspace lockfile. Confirm the web asset-copy build includes the new files (the current pipeline copies the asset directory wholesale).
+9. Update `Dockerfile` in both places required by the workspace build: copy the game manifest before dependency installation, then copy its package manifest, production `node_modules`, compiled `dist`, and content pack into the runtime stage.
+10. Add focused tests. Search all references to an existing game ID to find registrations that are easy to miss.
 
 ## Conventions to preserve
 
@@ -38,6 +40,7 @@ Use this as a map, then verify details against the current source before editing
 - Content modes are `family`, `standard`, and `after-dark`; prompt source can be `default` or `ai` where supported. A new game must explicitly route these settings instead of silently hard-coding one mode.
 - Prefer stable IDs and deterministic selection/shuffling so a round can be reproduced for debugging without repeating the same opening prompt every game.
 - Keep game-specific styles namespaced. A shared-display layout must tolerate long text, dense scores, small player counts, and 16:9 TV viewports without accidental page scrolling.
+- Keep the workspace-aware production install in the Docker build. A non-recursive `pnpm prune --prod` can remove production links required by app or game packages.
 
 ## Verification commands
 
@@ -47,9 +50,9 @@ Use the scripts exposed by the current root `package.json`; names can change, so
 pnpm typecheck
 pnpm test
 pnpm lint
-pnpm format:check
+pnpm format
 pnpm build
 pnpm verify:deployment
 ```
 
-Run the new package's focused tests and the bundled content validator before the full suite. If Docker, a browser, or an external AI service is unavailable, report exactly which check could not be run.
+Run the new package's focused tests and the bundled content validator with `--require-integration` before the full suite. The format command checks repository Markdown and YAML as well as source code. Run the deployment verifier against a freshly built compiled server. If Docker, a browser, or an external AI service is unavailable, report exactly which check could not be run.

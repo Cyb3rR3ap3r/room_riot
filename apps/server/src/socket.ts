@@ -10,6 +10,7 @@ import {
   HostStartGameRequestSchema,
   JoinRoomRequestSchema,
   PlayerLeaveRoomRequestSchema,
+  PlayerSubmitDrawingRequestSchema,
   PlayerSubmitAlibiRequestSchema,
   PlayerCastVoteRequestSchema,
   PlayerSubmitAnswerRequestSchema,
@@ -22,6 +23,7 @@ import type {
   HostStartGameRequest,
   JoinRoomRequest,
   PlayerLeaveRoomRequest,
+  PlayerSubmitDrawingRequest,
   PlayerSubmitAlibiRequest,
   PlayerCastVoteRequest,
   PlayerSubmitAnswerRequest,
@@ -81,6 +83,10 @@ export interface ClientToServerEvents {
   'player:join': (payload: JoinRoomRequest, ack: EventAck<PlayerJoinSuccess>) => void;
   'player:submit-answer': (
     payload: PlayerSubmitAnswerRequest,
+    ack: EventAck<PlayerAnswerSuccess>,
+  ) => void;
+  'player:submit-drawing': (
+    payload: PlayerSubmitDrawingRequest,
     ack: EventAck<PlayerAnswerSuccess>,
   ) => void;
   'player:submit-alibi': (
@@ -276,6 +282,21 @@ export function attachRealtimeServer(httpServer: HttpServer, roomManager: RoomMa
           request.answer,
           request.targetPlayerId,
         );
+        broadcastRoomSnapshot(request.roomCode, update.snapshot);
+        return {
+          roomCode: request.roomCode,
+          snapshot: update.snapshot,
+          playerState: update.playerState,
+        };
+      });
+    });
+
+    socket.on('player:submit-drawing', (payload, ack) => {
+      respond(ack, () => {
+        const request = PlayerSubmitDrawingRequestSchema.parse(payload);
+        const playerId = roomManager.getPlayerIdForToken(request.roomCode, request.playerToken);
+        roomManager.assertPlayerSocket(request.roomCode, playerId, socket.id);
+        const update = roomManager.submitDrawing(request.roomCode, playerId, request.drawing);
         broadcastRoomSnapshot(request.roomCode, update.snapshot);
         return {
           roomCode: request.roomCode,

@@ -1,0 +1,62 @@
+{
+  "prompts": [
+    {
+      "id": "after-dark-001",
+      "text": "A cupid working the late shift at a terrible singles mixer."
+    },
+    { "id": "after-dark-002", "text": "A vampire composing an overly dramatic midnight text." },
+    { "id": "after-dark-003", "text": "A raccoon sneaking away from a party with all the snacks." },
+    { "id": "after-dark-004", "text": "A fortune teller spotting three red flags at once." },
+    { "id": "after-dark-005", "text": "A pirate waking up beside a mysterious karaoke trophy." },
+    { "id": "after-dark-006", "text": "A ghost being ignored on a very awkward date." },
+    { "id": "after-dark-007", "text": "A mermaid attempting to flirt at a rooftop bar." },
+    { "id": "after-dark-008", "text": "A werewolf explaining the claw marks after a wild night." },
+    {
+      "id": "after-dark-009",
+      "text": "A detective investigating a suspicious late-night delivery."
+    },
+    {
+      "id": "after-dark-010",
+      "text": "A devil offering extremely questionable relationship advice."
+    },
+    {
+      "id": "after-dark-011",
+      "text": "An angel pretending not to recognize someone from last weekend."
+    },
+    {
+      "id": "after-dark-012",
+      "text": "A bartender judging an unbelievably complicated drink order."
+    },
+    {
+      "id": "after-dark-013",
+      "text": "A superhero making a dramatic escape through a bathroom window."
+    },
+    {
+      "id": "after-dark-014",
+      "text": "A wizard casting a spell to erase an embarrassing group message."
+    },
+    { "id": "after-dark-015", "text": "A zombie trying to look alive in a dating profile photo." },
+    { "id": "after-dark-016", "text": "A knight arriving at the wrong themed party." },
+    { "id": "after-dark-017", "text": "A spy hiding from an ex behind a decorative plant." },
+    {
+      "id": "after-dark-018",
+      "text": "A glamorous alien misunderstanding the idea of casual drinks."
+    },
+    { "id": "after-dark-019", "text": "A clown delivering a painfully serious breakup speech." },
+    {
+      "id": "after-dark-020",
+      "text": "A time traveler warning their past self about a second date."
+    },
+    { "id": "after-dark-021", "text": "A dragon protecting a pile of unread dating messages." },
+    { "id": "after-dark-022", "text": "A monster attempting a quiet walk home at sunrise." },
+    { "id": "after-dark-023", "text": "A cowboy losing a dance-off at a neon nightclub." },
+    {
+      "id": "after-dark-024",
+      "text": "A fortune cookie giving wildly inappropriate romantic advice."
+    },
+    {
+      "id": "after-dark-025",
+      "text": "A skeleton trying to explain a suspicious glitter explosion."
+    }
+  ]
+}

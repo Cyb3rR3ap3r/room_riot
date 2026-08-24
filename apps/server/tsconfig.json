@@ -13,6 +13,7 @@
     { "path": "../../packages/game-engine" },
     { "path": "../../games/groupthink" },
     { "path": "../../games/hot-take" },
-    { "path": "../../games/suspect" }
+    { "path": "../../games/suspect" },
+    { "path": "../../games/drawn-out" }
   ]
 }

@@ -10,6 +10,7 @@ import {
 import type {
   CreateRoomRequest,
   ContentMode,
+  DrawingData,
   JoinRoomRequest,
   PlayerId,
   PromptMode,
@@ -17,6 +18,27 @@ import type {
   RoomSettings,
   SessionToken,
 } from '@room-riot/contracts';
+import {
+  DRAWN_OUT_GAME_ID,
+  DRAWN_OUT_GUESS_DURATION_MS,
+  DRAWN_OUT_TURN_DURATION_MS,
+  advanceDrawnOutRound,
+  createDrawnOutSession,
+  expireDrawnOutStep,
+  getDrawnOutPlayerView,
+  getDrawnOutPublicView,
+  loadDrawnOutPrompts,
+  revealDrawnOutStep,
+  submitDrawnOutDrawing,
+  submitDrawnOutText,
+  submitDrawnOutVote,
+} from '@room-riot/drawn-out';
+import type {
+  DrawnOutPlayerView,
+  DrawnOutPrompt,
+  DrawnOutPublicView,
+  DrawnOutSessionState,
+} from '@room-riot/drawn-out';
 import {
   GROUPTHINK_GAME_ID,
   GROUPTHINK_INPUT_DURATION_MS,
@@ -93,6 +115,7 @@ import {
 } from '@room-riot/game-engine';
 import type { PublicRoomState, RoomState } from '@room-riot/game-engine';
 import {
+  generateDrawnOutPrompts,
   generateGroupthinkPrompts,
   generateHotTakePrompts,
   generateSuspectPrompts,
@@ -110,9 +133,11 @@ interface RoomSession {
   groupthink?: GroupthinkSessionState;
   hotTake?: HotTakeSessionState;
   suspect?: SuspectSessionState;
+  drawnOut?: DrawnOutSessionState;
   groupthinkPrompts?: readonly GroupthinkPrompt[];
   hotTakePrompts?: readonly HotTakePrompt[];
   suspectPrompts?: readonly SuspectPrompt[];
+  drawnOutPrompts?: readonly DrawnOutPrompt[];
   readonly hostToken: SessionToken;
   lastActivityAt: number;
   hostSocketId?: string;
@@ -144,8 +169,10 @@ export interface JoinedRoom {
   readonly playerState: PlayerGameView | null;
 }
 
-export type PublicGameView = GroupthinkPublicView | HotTakePublicView | SuspectPublicView;
-export type PlayerGameView = GroupthinkPlayerView | HotTakePlayerView | SuspectPlayerView;
+export type PublicGameView =
+  GroupthinkPublicView | HotTakePublicView | SuspectPublicView | DrawnOutPublicView;
+export type PlayerGameView =
+  GroupthinkPlayerView | HotTakePlayerView | SuspectPlayerView | DrawnOutPlayerView;
 
 export interface RoomSnapshot {
   readonly state: PublicRoomState;
@@ -164,6 +191,8 @@ export interface RoomManagerOptions {
   readonly suspectInputDurationMs?: number;
   readonly suspectAlibiDurationMs?: number;
   readonly suspectVotingDurationMs?: number;
+  readonly drawnOutTurnDurationMs?: number;
+  readonly drawnOutGuessDurationMs?: number;
   readonly maxRooms?: number;
   readonly roomIdleTtlMs?: number;
   readonly cleanupIntervalMs?: number;
@@ -178,9 +207,11 @@ export class RoomManager {
   private readonly groupthinkPrompts = new Map<ContentMode, readonly GroupthinkPrompt[]>();
   private readonly hotTakePrompts = new Map<ContentMode, readonly HotTakePrompt[]>();
   private readonly suspectPrompts = new Map<ContentMode, readonly SuspectPrompt[]>();
+  private readonly drawnOutPrompts = new Map<ContentMode, readonly DrawnOutPrompt[]>();
   private readonly lastGroupthinkPromptIds = new Map<ContentMode, string>();
   private readonly lastHotTakePromptIds = new Map<ContentMode, string>();
   private readonly lastSuspectPromptIds = new Map<ContentMode, string>();
+  private readonly lastDrawnOutPromptIds = new Map<ContentMode, string>();
   private readonly inputTimers = new Map<RoomCode, ReturnType<typeof setTimeout>>();
   private readonly snapshotListeners = new Set<RoomSnapshotListener>();
   private readonly groupthinkInputDurationMs: number;
@@ -189,6 +220,8 @@ export class RoomManager {
   private readonly suspectInputDurationMs: number;
   private readonly suspectAlibiDurationMs: number;
   private readonly suspectVotingDurationMs: number;
+  private readonly drawnOutTurnDurationMs: number;
+  private readonly drawnOutGuessDurationMs: number;
   private readonly maxRooms: number;
   private readonly roomIdleTtlMs: number;
   private readonly cleanupTimer: ReturnType<typeof setInterval>;
@@ -202,6 +235,8 @@ export class RoomManager {
     const suspectInputDurationMs = options.suspectInputDurationMs ?? SUSPECT_INPUT_DURATION_MS;
     const suspectAlibiDurationMs = options.suspectAlibiDurationMs ?? SUSPECT_ALIBI_DURATION_MS;
     const suspectVotingDurationMs = options.suspectVotingDurationMs ?? SUSPECT_VOTING_DURATION_MS;
+    const drawnOutTurnDurationMs = options.drawnOutTurnDurationMs ?? DRAWN_OUT_TURN_DURATION_MS;
+    const drawnOutGuessDurationMs = options.drawnOutGuessDurationMs ?? DRAWN_OUT_GUESS_DURATION_MS;
     const maxRooms = options.maxRooms ?? 1_000;
     const roomIdleTtlMs = options.roomIdleTtlMs ?? 6 * 60 * 60 * 1_000;
     const cleanupIntervalMs = options.cleanupIntervalMs ?? 60_000;
@@ -219,6 +254,10 @@ export class RoomManager {
       suspectAlibiDurationMs < 1 ||
       !Number.isInteger(suspectVotingDurationMs) ||
       suspectVotingDurationMs < 1 ||
+      !Number.isInteger(drawnOutTurnDurationMs) ||
+      drawnOutTurnDurationMs < 1 ||
+      !Number.isInteger(drawnOutGuessDurationMs) ||
+      drawnOutGuessDurationMs < 1 ||
       !Number.isInteger(maxRooms) ||
       maxRooms < 1 ||
       !Number.isInteger(roomIdleTtlMs) ||
@@ -234,6 +273,8 @@ export class RoomManager {
     this.suspectInputDurationMs = suspectInputDurationMs;
     this.suspectAlibiDurationMs = suspectAlibiDurationMs;
     this.suspectVotingDurationMs = suspectVotingDurationMs;
+    this.drawnOutTurnDurationMs = drawnOutTurnDurationMs;
+    this.drawnOutGuessDurationMs = drawnOutGuessDurationMs;
     this.maxRooms = maxRooms;
     this.roomIdleTtlMs = roomIdleTtlMs;
     this.randomizePrompts = randomizePrompts;
@@ -338,7 +379,8 @@ export class RoomManager {
     if (
       gameId !== GROUPTHINK_GAME_ID &&
       gameId !== HOT_TAKE_GAME_ID &&
-      gameId !== SUSPECT_GAME_ID
+      gameId !== SUSPECT_GAME_ID &&
+      gameId !== DRAWN_OUT_GAME_ID
     ) {
       throw new RoomManagerError('INVALID_STATE', 'That game is not available.');
     }
@@ -348,7 +390,18 @@ export class RoomManager {
     if (gameId === SUSPECT_GAME_ID && Object.keys(session.state.players).length < 4) {
       throw new RoomManagerError('INVALID_STATE', 'Suspect requires at least four players.');
     }
+    if (gameId === DRAWN_OUT_GAME_ID && Object.keys(session.state.players).length < 3) {
+      throw new RoomManagerError('INVALID_STATE', 'Drawn Out requires at least three players.');
+    }
     session.state = setGame(session.state, gameId);
+    delete session.groupthink;
+    delete session.groupthinkPrompts;
+    delete session.hotTake;
+    delete session.hotTakePrompts;
+    delete session.suspect;
+    delete session.suspectPrompts;
+    delete session.drawnOut;
+    delete session.drawnOutPrompts;
     if (session.state.gameId === GROUPTHINK_GAME_ID) {
       delete session.hotTake;
       delete session.hotTakePrompts;
@@ -434,6 +487,33 @@ export class RoomManager {
         session.suspect.status === 'voting' ? 'voting' : 'input',
       );
       this.scheduleSuspectDeadline(roomCode, session);
+    } else if (session.state.gameId === DRAWN_OUT_GAME_ID) {
+      const prompts = this.getDrawnOutPrompts(
+        session.state.settings.contentMode,
+        session.state.settings.promptMode,
+      );
+      const playerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
+      session.drawnOutPrompts = prompts;
+      session.drawnOut = createDrawnOutSession(
+        prompts,
+        playerIds,
+        session.state.settings.drawnOutMode,
+        session.state.settings.roundCount,
+        Date.now(),
+        this.drawnOutTurnDurationMs,
+        this.randomizePrompts,
+        this.randomizePrompts
+          ? this.lastDrawnOutPromptIds.get(session.state.settings.contentMode)
+          : undefined,
+      );
+      if (this.randomizePrompts) {
+        this.lastDrawnOutPromptIds.set(
+          session.state.settings.contentMode,
+          session.drawnOut.prompt.id,
+        );
+      }
+      session.state = setPhase(session.state, drawnOutRoomPhase(session.drawnOut.status));
+      this.scheduleDrawnOutDeadline(roomCode, session);
     } else {
       delete session.groupthink;
       delete session.hotTake;
@@ -655,7 +735,57 @@ export class RoomManager {
       return this.submitSuspectAnswer(roomCodeInput, playerId, answer);
     }
 
+    if (session.state.gameId === DRAWN_OUT_GAME_ID) {
+      if (targetPlayerId) {
+        throw new RoomManagerError('INVALID_STATE', 'Drawn Out text does not accept a target.');
+      }
+      const game = this.requireDrawnOut(session);
+      session.drawnOut = submitDrawnOutText(
+        game,
+        playerId,
+        answer,
+        Date.now(),
+        this.drawnOutTurnDurationMs,
+      );
+      session.state = setPhase(session.state, drawnOutRoomPhase(session.drawnOut.status));
+      if (session.drawnOut.status === 'results') this.clearGameDeadline(session.state.roomCode);
+      else this.scheduleDrawnOutDeadline(session.state.roomCode, session);
+      return {
+        snapshot: this.getSnapshot(session),
+        playerState: this.getPrivatePlayerState(session, playerId),
+      };
+    }
+
     throw new RoomManagerError('INVALID_STATE', 'This room is not running a playable game.');
+  }
+
+  submitDrawing(
+    roomCodeInput: string,
+    playerIdInput: string,
+    drawing: DrawingData,
+  ): PlayerGameUpdate {
+    const session = this.requireRoom(roomCodeInput);
+    this.expireGameIfNeeded(session);
+    const playerId = PlayerIdSchemaFromInput(playerIdInput);
+    if (!session.state.players[playerId]) {
+      throw new RoomManagerError('UNAUTHORIZED', 'Player session is not part of this room.');
+    }
+    const game = this.requireDrawnOut(session);
+    session.drawnOut = submitDrawnOutDrawing(
+      game,
+      playerId,
+      drawing,
+      Date.now(),
+      this.drawnOutTurnDurationMs,
+      this.drawnOutGuessDurationMs,
+    );
+    session.state = setPhase(session.state, drawnOutRoomPhase(session.drawnOut.status));
+    if (session.drawnOut.status === 'results') this.clearGameDeadline(session.state.roomCode);
+    else this.scheduleDrawnOutDeadline(session.state.roomCode, session);
+    return {
+      snapshot: this.getSnapshot(session),
+      playerState: this.getPrivatePlayerState(session, playerId),
+    };
   }
 
   submitSuspectAnswer(
@@ -762,6 +892,18 @@ export class RoomManager {
     if (session.state.gameId === SUSPECT_GAME_ID) {
       return this.castSuspectVote(roomCodeInput, playerId, entryId);
     }
+    if (session.state.gameId === DRAWN_OUT_GAME_ID) {
+      const game = this.requireDrawnOut(session);
+      const targetPlayerId = PlayerIdSchemaFromInput(entryId);
+      session.drawnOut = submitDrawnOutVote(game, playerId, targetPlayerId, Date.now());
+      session.state = setPhase(session.state, drawnOutRoomPhase(session.drawnOut.status));
+      if (session.drawnOut.status === 'results') this.clearGameDeadline(session.state.roomCode);
+      else this.scheduleDrawnOutDeadline(session.state.roomCode, session);
+      return {
+        snapshot: this.getSnapshot(session),
+        playerState: this.getPrivatePlayerState(session, playerId),
+      };
+    }
     const game = this.requireHotTake(session);
     const playerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
     session.hotTake = submitHotTakeVote(game, playerId, entryId, Date.now());
@@ -846,6 +988,20 @@ export class RoomManager {
       throw new RoomManagerError('INVALID_STATE', 'This Suspect round is not waiting for results.');
     }
 
+    if (session.state.gameId === DRAWN_OUT_GAME_ID) {
+      const game = this.requireDrawnOut(session);
+      session.drawnOut = revealDrawnOutStep(
+        game,
+        Date.now(),
+        this.drawnOutTurnDurationMs,
+        this.drawnOutGuessDurationMs,
+      );
+      session.state = setPhase(session.state, drawnOutRoomPhase(session.drawnOut.status));
+      if (session.drawnOut.status === 'results') this.clearGameDeadline(session.state.roomCode);
+      else this.scheduleDrawnOutDeadline(session.state.roomCode, session);
+      return this.getSnapshot(session);
+    }
+
     if (session.state.gameId !== HOT_TAKE_GAME_ID || !session.hotTake) {
       throw new RoomManagerError('INVALID_STATE', 'This room is not running a playable game.');
     }
@@ -915,6 +1071,9 @@ export class RoomManager {
     if (session.state.gameId === SUSPECT_GAME_ID) {
       return this.advanceSuspect(roomCodeInput, hostTokenInput);
     }
+    if (session.state.gameId === DRAWN_OUT_GAME_ID) {
+      return this.advanceDrawnOut(roomCodeInput, hostTokenInput);
+    }
     if (session.state.gameId !== HOT_TAKE_GAME_ID || !session.hotTake) {
       throw new RoomManagerError('INVALID_STATE', 'This room is not running a playable game.');
     }
@@ -977,12 +1136,50 @@ export class RoomManager {
     return this.getSnapshot(session);
   }
 
+  private advanceDrawnOut(roomCodeInput: string, hostTokenInput: string): RoomSnapshot {
+    const session = this.requireAuthorizedSession(roomCodeInput, hostTokenInput);
+    const game = this.requireDrawnOut(session);
+    if (session.state.phase !== 'results') {
+      throw new RoomManagerError('INVALID_STATE', 'Results must be revealed before advancing.');
+    }
+    session.state = addPlayerScores(session.state, game.roundScores);
+    session.drawnOut = advanceDrawnOutRound(
+      game,
+      session.drawnOutPrompts ??
+        this.getDrawnOutPrompts(
+          session.state.settings.contentMode,
+          session.state.settings.promptMode,
+        ),
+      Date.now(),
+      this.drawnOutTurnDurationMs,
+    );
+    session.state = setPhase(session.state, drawnOutRoomPhase(session.drawnOut.status));
+    if (session.drawnOut.status === 'complete') this.clearGameDeadline(session.state.roomCode);
+    else this.scheduleDrawnOutDeadline(session.state.roomCode, session);
+    return this.getSnapshot(session);
+  }
+
   private expireGameIfNeeded(session: RoomSession, now = Date.now()): void {
     if (session.groupthink?.status === 'input' && session.groupthink.inputDeadlineAt !== null) {
       if (now >= session.groupthink.inputDeadlineAt) {
         session.groupthink = revealGroupthink(session.groupthink);
         session.state = setPhase(session.state, 'results', now);
         this.clearGameDeadline(session.state.roomCode);
+      }
+      return;
+    }
+
+    if (session.drawnOut?.deadlineAt !== null && session.drawnOut?.deadlineAt !== undefined) {
+      if (now >= session.drawnOut.deadlineAt) {
+        session.drawnOut = expireDrawnOutStep(
+          session.drawnOut,
+          now,
+          this.drawnOutTurnDurationMs,
+          this.drawnOutGuessDurationMs,
+        );
+        session.state = setPhase(session.state, drawnOutRoomPhase(session.drawnOut.status), now);
+        if (session.drawnOut.status === 'results') this.clearGameDeadline(session.state.roomCode);
+        else this.scheduleDrawnOutDeadline(session.state.roomCode, session);
       }
       return;
     }
@@ -1195,6 +1392,44 @@ export class RoomManager {
     this.inputTimers.set(roomCode, timer);
   }
 
+  private scheduleDrawnOutDeadline(roomCode: RoomCode, session: RoomSession): void {
+    this.clearGameDeadline(roomCode);
+    const deadlineAt = session.drawnOut?.deadlineAt;
+    if (
+      !deadlineAt ||
+      !session.drawnOut ||
+      ['results', 'complete'].includes(session.drawnOut.status)
+    ) {
+      return;
+    }
+    const status = session.drawnOut.status;
+    const timer = setTimeout(
+      () => {
+        const current = this.rooms.get(roomCode);
+        if (
+          !current ||
+          current.drawnOut?.status !== status ||
+          current.drawnOut.deadlineAt !== deadlineAt
+        ) {
+          return;
+        }
+        current.drawnOut = expireDrawnOutStep(
+          current.drawnOut,
+          Date.now(),
+          this.drawnOutTurnDurationMs,
+          this.drawnOutGuessDurationMs,
+        );
+        current.state = setPhase(current.state, drawnOutRoomPhase(current.drawnOut.status));
+        if (current.drawnOut.status === 'results') this.inputTimers.delete(roomCode);
+        else this.scheduleDrawnOutDeadline(roomCode, current);
+        this.notifySnapshotListeners(roomCode, this.getSnapshot(current));
+      },
+      Math.max(0, deadlineAt - Date.now()),
+    );
+    timer.unref?.();
+    this.inputTimers.set(roomCode, timer);
+  }
+
   private clearGameDeadline(roomCode: RoomCode): void {
     const timer = this.inputTimers.get(roomCode);
     if (!timer) return;
@@ -1261,6 +1496,13 @@ export class RoomManager {
     return session.suspect;
   }
 
+  private requireDrawnOut(session: RoomSession): DrawnOutSessionState {
+    if (session.state.gameId !== DRAWN_OUT_GAME_ID || !session.drawnOut) {
+      throw new RoomManagerError('INVALID_STATE', 'This room is not running Drawn Out.');
+    }
+    return session.drawnOut;
+  }
+
   private getSnapshot(session: RoomSession): RoomSnapshot {
     const playerNames = Object.fromEntries(
       Object.values(session.state.players).map((player) => [player.id, player.name]),
@@ -1278,7 +1520,9 @@ export class RoomManager {
               )
             : session.suspect && session.state.gameId === SUSPECT_GAME_ID
               ? getSuspectPublicView(session.suspect, Object.keys(session.state.players).length)
-              : null,
+              : session.drawnOut && session.state.gameId === DRAWN_OUT_GAME_ID
+                ? getDrawnOutPublicView(session.drawnOut, Object.keys(session.state.players).length)
+                : null,
     };
   }
 
@@ -1295,6 +1539,9 @@ export class RoomManager {
     if (session.suspect && session.state.gameId === SUSPECT_GAME_ID) {
       const playerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
       return getSuspectPlayerView(session.suspect, playerId, playerIds);
+    }
+    if (session.drawnOut && session.state.gameId === DRAWN_OUT_GAME_ID) {
+      return getDrawnOutPlayerView(session.drawnOut, playerId);
     }
     return null;
   }
@@ -1335,6 +1582,18 @@ export class RoomManager {
     return prompts;
   }
 
+  private getDrawnOutPrompts(
+    contentMode: ContentMode,
+    promptMode: PromptMode = 'default',
+  ): readonly DrawnOutPrompt[] {
+    if (promptMode === 'ai') return generateDrawnOutPrompts(contentMode);
+    const cached = this.drawnOutPrompts.get(contentMode);
+    if (cached) return cached;
+    const prompts = loadDrawnOutPrompts(contentMode);
+    this.drawnOutPrompts.set(contentMode, prompts);
+    return prompts;
+  }
+
   private createRoomCode(): RoomCode {
     for (let attempt = 0; attempt < 20; attempt += 1) {
       let candidate = '';
@@ -1360,7 +1619,17 @@ function normalizeSettings(
   if (settings.roundCount !== undefined) normalized.roundCount = settings.roundCount;
   if (settings.contentMode !== undefined) normalized.contentMode = settings.contentMode;
   if (settings.promptMode !== undefined) normalized.promptMode = settings.promptMode;
+  if (settings.drawnOutMode !== undefined) normalized.drawnOutMode = settings.drawnOutMode;
   return normalized;
+}
+
+function drawnOutRoomPhase(
+  status: DrawnOutSessionState['status'],
+): 'input' | 'voting' | 'results' | 'winner' {
+  if (status === 'guessing' || status === 'fake-voting') return 'voting';
+  if (status === 'results') return 'results';
+  if (status === 'complete') return 'winner';
+  return 'input';
 }
 
 function PlayerIdSchemaFromUuid(): PlayerId {

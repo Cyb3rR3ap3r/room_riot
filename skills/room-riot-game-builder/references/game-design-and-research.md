@@ -31,11 +31,9 @@ Each prompt needs a stable ID, non-empty text, a distinct answer shape, and word
 
 If using deterministic expansion, keep the source templates and topic vocabulary game-owned, mode-aware, and non-repeating after normalization. Expansion is a content system, not AI generation; label it accurately. Add a focused runtime test that loads every mode, asserts the target count, and checks generated IDs/text (and kinds where relevant) for uniqueness. If an AI source is offered, validate and deduplicate its output, cap length, filter unsafe material, and fall back to a curated pack when generation fails or times out.
 
-## Original art and display QA
+## Art and display QA
 
-Use ImageGen for new raster art when bitmap assets are appropriate. Define a small visual system (palette, typography treatment, shapes, contrast, and mood) that is distinct from existing games. Generate an icon/logo, a shared-display stage or hero image, and a background/texture as needed; use transparent backgrounds for foreground marks. Inspect the generated files, keep dimensions appropriate to their actual render size, add accessible labels, and wire the exact paths used by the web build.
-
-Design for a shared 16:9 display first: long prompts must wrap, scores must remain legible from a distance, and dense result states must fit without page scrolling. Test narrow and wide desktop viewports, player names of realistic maximum length, long prompt text, ties, empty states, and reconnects.
+Follow [art-direction.md](art-direction.md). New games must share Room Riot's neon-comic rendering language while retaining game-specific motifs, palette emphasis, and composition. Design for a shared 16:9 display first: long prompts must wrap, scores must remain legible from a distance, and dense result states must fit without page scrolling. Test narrow and wide desktop viewports, player names of realistic maximum length, long prompt text, ties, empty states, and reconnects.
 
 ## Content QA checklist
 
@@ -45,3 +43,4 @@ Design for a shared 16:9 display first: long prompts must wrap, scores must rema
 - Prompt kinds, answer limits, and target references are valid.
 - Sampling does not repeat the first prompt on every new session.
 - Generated content is bounded, deduplicated, moderated, and has a deterministic curated fallback.
+- UI labels distinguish curated content, deterministic local remixing, and remote AI generation truthfully.

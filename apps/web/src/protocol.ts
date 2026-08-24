@@ -8,22 +8,26 @@ import type {
   JoinRoomRequest,
   PlayerCastVoteRequest,
   PlayerLeaveRoomRequest,
+  PlayerSubmitDrawingRequest,
   PlayerSubmitAnswerRequest,
   PlayerSubmitAlibiRequest,
   RoomCode,
   SessionToken,
 } from '@room-riot/contracts';
 import type { PublicRoomState } from '@room-riot/game-engine';
+import type { DrawnOutPlayerView, DrawnOutPublicView } from '@room-riot/drawn-out';
 import type { GroupthinkPlayerView, GroupthinkPublicView } from '@room-riot/groupthink';
 import type { HotTakePlayerView, HotTakePublicView } from '@room-riot/hot-take';
 import type { SuspectPlayerView, SuspectPublicView } from '@room-riot/suspect';
 
 export interface RoomSnapshot {
   readonly state: PublicRoomState;
-  readonly game: GroupthinkPublicView | HotTakePublicView | SuspectPublicView | null;
+  readonly game:
+    GroupthinkPublicView | HotTakePublicView | SuspectPublicView | DrawnOutPublicView | null;
 }
 
-export type PlayerGameView = GroupthinkPlayerView | HotTakePlayerView | SuspectPlayerView;
+export type PlayerGameView =
+  GroupthinkPlayerView | HotTakePlayerView | SuspectPlayerView | DrawnOutPlayerView;
 
 export interface HostCreateSuccess {
   readonly roomCode: RoomCode;
@@ -110,6 +114,11 @@ export interface SocketLike {
   emit(
     event: 'player:submit-answer',
     payload: PlayerSubmitAnswerRequest,
+    ack: (response: PlayerAnswerResponse) => void,
+  ): this;
+  emit(
+    event: 'player:submit-drawing',
+    payload: PlayerSubmitDrawingRequest,
     ack: (response: PlayerAnswerResponse) => void,
   ): this;
   emit(

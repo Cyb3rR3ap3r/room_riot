@@ -86,6 +86,7 @@ test('builds game-specific player paths with a generic fallback', () => {
   assert.equal(buildJoinPath('ABCD', 'groupthink'), '/play/groupthink?room=ABCD');
   assert.equal(buildJoinPath('WXYZ', 'hot-take'), '/play/hot-take?room=WXYZ');
   assert.equal(buildJoinPath('RAGE', 'suspect'), '/play/suspect?room=RAGE');
+  assert.equal(buildJoinPath('ARTS', 'drawn-out'), '/play/drawn-out?room=ARTS');
   assert.equal(buildJoinPath('RAGE', null), '/play?room=RAGE');
 });
 
@@ -120,6 +121,9 @@ test('serves the browser shell and an offline QR code for a room', async () => {
     '/play/groupthink',
     '/play/hot-take',
     '/play/suspect',
+    '/host/drawn-out',
+    '/display/drawn-out',
+    '/play/drawn-out',
   ]) {
     const gamePageResponse: Response = await fetch(`http://127.0.0.1:${address.port}${pagePath}`);
     assert.equal(gamePageResponse.status, 200);
@@ -147,6 +151,9 @@ test('serves the browser shell and an offline QR code for a room', async () => {
     'suspect-icon-v2.png',
     'suspect-bg-v2.png',
     'suspect-stage-v2.png',
+    'drawn-out-icon-v2.png',
+    'drawn-out-bg-v2.png',
+    'drawn-out-stage-v2.png',
   ]) {
     const assetResponse: Response = await fetch(
       `http://127.0.0.1:${address.port}/assets/${assetName}`,

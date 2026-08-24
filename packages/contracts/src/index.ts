@@ -27,8 +27,11 @@ export const GameIdSchema = z
   .regex(/^[a-z][a-z0-9-]{1,31}$/, 'Game IDs must be lowercase kebab-case.');
 export type GameId = z.infer<typeof GameIdSchema>;
 
-export const SupportedGameIdSchema = z.enum(['groupthink', 'hot-take', 'suspect']);
+export const SupportedGameIdSchema = z.enum(['groupthink', 'hot-take', 'suspect', 'drawn-out']);
 export type SupportedGameId = z.infer<typeof SupportedGameIdSchema>;
+
+export const DrawnOutModeSchema = z.enum(['classic', 'telephone', 'fake-artist']);
+export type DrawnOutMode = z.infer<typeof DrawnOutModeSchema>;
 
 export const RoomPhaseSchema = z.enum([
   'lobby',
@@ -56,6 +59,7 @@ export const RoomSettingsSchema = z
     roundCount: z.number().int().min(1).max(20).default(5),
     contentMode: ContentModeSchema.default('standard'),
     promptMode: PromptModeSchema.default('default'),
+    drawnOutMode: DrawnOutModeSchema.default('classic'),
   })
   .strict();
 
@@ -136,6 +140,42 @@ export const PlayerSubmitAnswerRequestSchema = z
   .strict();
 
 export type PlayerSubmitAnswerRequest = z.infer<typeof PlayerSubmitAnswerRequestSchema>;
+
+export const DrawingPointSchema = z
+  .object({
+    x: z.number().finite().min(0).max(1),
+    y: z.number().finite().min(0).max(1),
+  })
+  .strict();
+
+export const DrawingStrokeSchema = z
+  .object({
+    color: z.string().regex(/^#[0-9a-f]{6}$/i),
+    width: z.number().finite().min(0.002).max(0.08),
+    points: z.array(DrawingPointSchema).min(1).max(256),
+  })
+  .strict();
+
+export const DrawingDataSchema = z
+  .object({
+    strokes: z.array(DrawingStrokeSchema).max(160),
+  })
+  .strict();
+
+export type DrawingData = z.infer<typeof DrawingDataSchema>;
+
+export const PlayerSubmitDrawingRequestSchema = z
+  .object({
+    roomCode: RoomCodeSchema,
+    playerToken: SessionTokenSchema,
+    drawing: DrawingDataSchema.refine(
+      (drawing) => drawing.strokes.length <= 16,
+      'A drawing turn can contain at most 16 strokes.',
+    ),
+  })
+  .strict();
+
+export type PlayerSubmitDrawingRequest = z.infer<typeof PlayerSubmitDrawingRequestSchema>;
 
 export const PlayerSubmitAlibiRequestSchema = z
   .object({

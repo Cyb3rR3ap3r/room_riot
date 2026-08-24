@@ -1,0 +1,29 @@
+{
+  "prompts": [
+    { "id": "standard-001", "text": "A vampire arguing with a self-checkout machine." },
+    { "id": "standard-002", "text": "A raccoon giving a motivational speech beside a dumpster." },
+    { "id": "standard-003", "text": "A detective investigating who ate the office leftovers." },
+    { "id": "standard-004", "text": "A mermaid stuck in an awkward video meeting." },
+    { "id": "standard-005", "text": "A cowboy assembling furniture without instructions." },
+    { "id": "standard-006", "text": "A time traveler attempting to return a toaster." },
+    { "id": "standard-007", "text": "A mime trapped in a very loud coffee shop." },
+    { "id": "standard-008", "text": "A zombie politely waiting at the motor vehicle office." },
+    { "id": "standard-009", "text": "A spy whose secret gadget is an air fryer." },
+    { "id": "standard-010", "text": "A witch trying to cancel a gym membership." },
+    { "id": "standard-011", "text": "A shark interviewing for a desk job." },
+    { "id": "standard-012", "text": "A clown giving extremely serious tax advice." },
+    { "id": "standard-013", "text": "A knight fighting the office printer jam." },
+    { "id": "standard-014", "text": "An astronaut hiding snacks from mission control." },
+    { "id": "standard-015", "text": "A fortune teller surprised by an unexpected delivery." },
+    { "id": "standard-016", "text": "A werewolf shopping for noise-canceling headphones." },
+    { "id": "standard-017", "text": "A giant attempting to use a tiny public restroom." },
+    { "id": "standard-018", "text": "A magician explaining a parking ticket to a pigeon." },
+    { "id": "standard-019", "text": "A haunted refrigerator demanding better groceries." },
+    { "id": "standard-020", "text": "A superhero stuck on hold with customer service." },
+    { "id": "standard-021", "text": "A pirate trying to parallel park a shopping cart." },
+    { "id": "standard-022", "text": "A fancy chef preparing instant noodles for a food critic." },
+    { "id": "standard-023", "text": "A nervous monster attending a neighborhood barbecue." },
+    { "id": "standard-024", "text": "A medieval king losing an argument with a smart speaker." },
+    { "id": "standard-025", "text": "A secret agent attempting to fold a fitted sheet." }
+  ]
+}

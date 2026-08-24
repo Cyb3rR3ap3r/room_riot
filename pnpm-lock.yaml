@@ -32,6 +32,9 @@ importers:
       '@room-riot/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@room-riot/drawn-out':
+        specifier: workspace:*
+        version: link:../../games/drawn-out
       '@room-riot/game-engine':
         specifier: workspace:*
         version: link:../../packages/game-engine
@@ -63,6 +66,9 @@ importers:
       '@room-riot/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@room-riot/drawn-out':
+        specifier: workspace:*
+        version: link:../../games/drawn-out
       '@room-riot/game-engine':
         specifier: workspace:*
         version: link:../../packages/game-engine
@@ -75,6 +81,15 @@ importers:
       '@room-riot/suspect':
         specifier: workspace:*
         version: link:../../games/suspect
+
+  games/drawn-out:
+    dependencies:
+      '@room-riot/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      zod:
+        specifier: ^3.25.0
+        version: 3.25.76
 
   games/groupthink:
     dependencies:

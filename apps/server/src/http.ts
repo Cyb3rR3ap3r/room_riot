@@ -79,14 +79,17 @@ export function createRequestHandler(metadata: ServerMetadata, options: HttpOpti
         '/display/groupthink',
         '/display/hot-take',
         '/display/suspect',
+        '/display/drawn-out',
         '/host',
         '/host/groupthink',
         '/host/hot-take',
         '/host/suspect',
+        '/host/drawn-out',
         '/play',
         '/play/groupthink',
         '/play/hot-take',
         '/play/suspect',
+        '/play/drawn-out',
       ]);
       if (pagePaths.has(requestUrl.pathname)) {
         void serveFile(
@@ -170,7 +173,12 @@ async function writeQrCode(response: ServerResponse, joinUrl: string): Promise<v
 
 export function buildJoinPath(roomCode: string, gameId: string | null): string {
   const gamePath =
-    gameId === 'groupthink' || gameId === 'hot-take' || gameId === 'suspect' ? `/${gameId}` : '';
+    gameId === 'groupthink' ||
+    gameId === 'hot-take' ||
+    gameId === 'suspect' ||
+    gameId === 'drawn-out'
+      ? `/${gameId}`
+      : '';
   return `/play${gamePath}?room=${encodeURIComponent(roomCode)}`;
 }
 

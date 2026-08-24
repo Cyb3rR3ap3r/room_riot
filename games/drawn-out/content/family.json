@@ -1,0 +1,29 @@
+{
+  "prompts": [
+    { "id": "family-001", "text": "A raccoon running a tiny pancake restaurant." },
+    { "id": "family-002", "text": "A dinosaur trying to fit into a school bus seat." },
+    { "id": "family-003", "text": "A penguin building a sandcastle in winter clothes." },
+    { "id": "family-004", "text": "A robot learning to jump rope." },
+    { "id": "family-005", "text": "A llama winning a spelling bee by accident." },
+    { "id": "family-006", "text": "A pirate whose treasure chest is full of socks." },
+    { "id": "family-007", "text": "A cat teaching a goldfish how to climb a tree." },
+    { "id": "family-008", "text": "A superhero whose only power is perfect toast." },
+    { "id": "family-009", "text": "A snowman ordering a smoothie on a hot day." },
+    { "id": "family-010", "text": "A dragon afraid of birthday candles." },
+    { "id": "family-011", "text": "A hamster driving a monster truck to the library." },
+    { "id": "family-012", "text": "A wizard whose wand only makes bubbles." },
+    { "id": "family-013", "text": "A chicken presenting the weather forecast." },
+    { "id": "family-014", "text": "A bear attempting ballet in roller skates." },
+    { "id": "family-015", "text": "A very serious meeting of stuffed animals." },
+    { "id": "family-016", "text": "A turtle late for a rocket launch." },
+    { "id": "family-017", "text": "A ghost nervous about entering a haunted house." },
+    { "id": "family-018", "text": "An octopus trying to untangle holiday lights." },
+    { "id": "family-019", "text": "A frog opening an umbrella underwater." },
+    { "id": "family-020", "text": "A puppy disguising itself as the school principal." },
+    { "id": "family-021", "text": "A giraffe attempting to hide behind a mailbox." },
+    { "id": "family-022", "text": "A family of ducks lost inside a grocery store." },
+    { "id": "family-023", "text": "A knight battling a vacuum cleaner." },
+    { "id": "family-024", "text": "A squirrel guarding the world's last cookie." },
+    { "id": "family-025", "text": "An alien trying to understand a playground slide." }
+  ]
+}

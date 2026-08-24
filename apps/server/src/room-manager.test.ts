@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { generateGroupthinkPrompts, generateHotTakePrompts } from './prompt-generator.js';
+import {
+  generateDrawnOutPrompts,
+  generateGroupthinkPrompts,
+  generateHotTakePrompts,
+} from './prompt-generator.js';
 import { RoomManager, RoomManagerError } from './room-manager.js';
 
 test('creates a room with a valid host token and lobby state', () => {
@@ -73,10 +77,13 @@ test('AI remix creates at least 100 unique prompts for every content mode', () =
   (['family', 'standard', 'after-dark'] as const).forEach((contentMode) => {
     const groupthink = generateGroupthinkPrompts(contentMode);
     const hotTake = generateHotTakePrompts(contentMode);
+    const drawnOut = generateDrawnOutPrompts(contentMode);
     assert.ok(groupthink.length >= 100);
     assert.ok(hotTake.length >= 100);
+    assert.ok(drawnOut.length >= 100);
     assert.equal(new Set(groupthink.map((prompt) => prompt.id)).size, groupthink.length);
     assert.equal(new Set(hotTake.map((prompt) => prompt.id)).size, hotTake.length);
+    assert.equal(new Set(drawnOut.map((prompt) => prompt.id)).size, drawnOut.length);
   });
 });
 
@@ -332,6 +339,52 @@ test('runs Suspect through private answers, accusations, and scoring', () => {
   assert.equal(winner.state.phase, 'winner');
   assert.equal(
     winner.state.players.find((player) => player.id === players[1]!.playerId)?.score,
+    100,
+  );
+  manager.close();
+});
+
+test('runs Drawn Out Classic through drawing, guesses, and winner scoring', () => {
+  const manager = new RoomManager({ randomizePrompts: false });
+  const room = manager.createRoom({
+    gameId: 'drawn-out',
+    settings: { roundCount: 1, drawnOutMode: 'classic', contentMode: 'family' },
+  });
+  const players = [
+    manager.joinRoom({ roomCode: room.roomCode, name: 'Alex', avatar: '😎' }),
+    manager.joinRoom({ roomCode: room.roomCode, name: 'Blair', avatar: '👽' }),
+    manager.joinRoom({ roomCode: room.roomCode, name: 'Casey', avatar: '🤖' }),
+  ];
+  const started = manager.startGame(room.roomCode, room.hostToken, 'drawn-out');
+  assert.equal(started.state.phase, 'input');
+  assert.equal(started.game?.id, 'drawn-out');
+  if (started.game?.id !== 'drawn-out') throw new Error('Expected Drawn Out state.');
+  assert.equal(started.game.prompt, null);
+  const artistId = started.game.artistPlayerId!;
+  const artist = players.find((player) => player.playerId === artistId)!;
+  const drawing = {
+    strokes: [
+      {
+        color: '#ff2ea6',
+        width: 0.012,
+        points: [
+          { x: 0.1, y: 0.1 },
+          { x: 0.8, y: 0.8 },
+        ],
+      },
+    ],
+  };
+  const guessing = manager.submitDrawing(room.roomCode, artist.playerId, drawing);
+  assert.equal(guessing.snapshot.state.phase, 'voting');
+  const guessers = players.filter((player) => player.playerId !== artistId);
+  manager.submitAnswer(room.roomCode, guessers[0]!.playerId, 'raccoon pancake restaurant');
+  const results = manager.submitAnswer(room.roomCode, guessers[1]!.playerId, 'sleepy airplane');
+  assert.equal(results.snapshot.state.phase, 'results');
+  assert.equal(results.snapshot.game?.id, 'drawn-out');
+  const winner = manager.advanceRound(room.roomCode, room.hostToken);
+  assert.equal(winner.state.phase, 'winner');
+  assert.equal(
+    winner.state.players.find((player) => player.id === guessers[0]!.playerId)?.score,
     100,
   );
   manager.close();

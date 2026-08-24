@@ -1,6 +1,8 @@
 import type {
   CreateRoomRequest,
   ContentMode,
+  DrawingData,
+  DrawnOutMode,
   DisplayWatchRequest,
   HostReconnectRequest,
   HostRoomActionRequest,
@@ -9,12 +11,18 @@ import type {
   PlayerCastVoteRequest,
   PlayerSubmitAnswerRequest,
   PlayerSubmitAlibiRequest,
+  PlayerSubmitDrawingRequest,
   PromptMode,
   RoomPhase,
   RoomCode,
   SessionToken,
 } from '@room-riot/contracts';
 import type { PublicRoomState } from '@room-riot/game-engine';
+import type {
+  DrawnOutChainEntry,
+  DrawnOutPlayerView,
+  DrawnOutPublicView,
+} from '@room-riot/drawn-out';
 import type { GroupthinkPlayerView, GroupthinkPublicView } from '@room-riot/groupthink';
 import type { HotTakeEntryView, HotTakePlayerView } from '@room-riot/hot-take';
 import type { SuspectPlayerView, SuspectPublicView } from '@room-riot/suspect';
@@ -63,7 +71,7 @@ interface PageParts {
 
 type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting';
 
-type SupportedGameId = 'groupthink' | 'hot-take' | 'suspect';
+type SupportedGameId = 'groupthink' | 'hot-take' | 'suspect' | 'drawn-out';
 
 interface GameDefinition {
   readonly id: SupportedGameId;
@@ -128,12 +136,33 @@ const GAME_CATALOG: readonly GameDefinition[] = [
     controlRoom: 'Case File Control',
     audience: 'the jury',
   },
+  {
+    id: 'drawn-out',
+    label: 'Drawn Out',
+    kicker: 'Art was a mistake',
+    description: 'Draw ridiculous prompts, decode ruined art, or hide as the fake artist.',
+    players: '3–10 players',
+    rounds: '5 rounds',
+    pace: 'Drawing · chaotic',
+    icon: '/assets/drawn-out-icon-v2.png',
+    background: '/assets/drawn-out-bg-v2.png',
+    stageArt: '/assets/drawn-out-stage-v2.png',
+    controlRoom: 'Sketch Disaster Control',
+    audience: 'the art critics',
+  },
 ];
 
 function getGameFromPathname(pathname = window.location.pathname): SupportedGameId | null {
-  const match = pathname.match(/^\/(?:host|display|play)\/(groupthink|hot-take|suspect)$/);
+  const match = pathname.match(
+    /^\/(?:host|display|play)\/(groupthink|hot-take|suspect|drawn-out)$/,
+  );
   const gameId = match?.[1];
-  return gameId === 'groupthink' || gameId === 'hot-take' || gameId === 'suspect' ? gameId : null;
+  return gameId === 'groupthink' ||
+    gameId === 'hot-take' ||
+    gameId === 'suspect' ||
+    gameId === 'drawn-out'
+    ? gameId
+    : null;
 }
 
 function buildHostRoute(gameId: SupportedGameId): string {
@@ -256,7 +285,9 @@ function createSoundController(): SoundController {
         ? 'Lab audio on'
         : activeGame === 'hot-take'
           ? 'Stage audio on'
-          : 'Case audio on';
+          : activeGame === 'suspect'
+            ? 'Case audio on'
+            : 'Sketch audio on';
   });
 
   const playTone = (
@@ -334,7 +365,9 @@ function createSoundController(): SoundController {
               ? 'Enable lab audio'
               : gameId === 'hot-take'
                 ? 'Enable stage audio'
-                : 'Enable case audio';
+                : gameId === 'suspect'
+                  ? 'Enable case audio'
+                  : 'Enable sketch audio';
         }
       }
       if (previousPhase && previousPhase !== phase && enabled && context) {
@@ -376,12 +409,132 @@ function createTextInput(value = ''): HTMLInputElement {
   return input;
 }
 
+interface DrawingPad {
+  readonly element: HTMLElement;
+  readonly getDrawing: () => DrawingData;
+}
+
+function paintDrawing(canvas: HTMLCanvasElement, drawing: DrawingData | null): void {
+  const context = canvas.getContext('2d');
+  if (!context) return;
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = '#fffdf4';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  if (!drawing) return;
+  context.lineCap = 'round';
+  context.lineJoin = 'round';
+  drawing.strokes.forEach((stroke) => {
+    const first = stroke.points[0];
+    if (!first) return;
+    context.beginPath();
+    context.strokeStyle = stroke.color;
+    context.lineWidth = Math.max(1, stroke.width * canvas.width);
+    context.moveTo(first.x * canvas.width, first.y * canvas.height);
+    stroke.points
+      .slice(1)
+      .forEach((point) => context.lineTo(point.x * canvas.width, point.y * canvas.height));
+    context.stroke();
+  });
+}
+
+function createDrawingPreview(drawing: DrawingData | null, className = ''): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = 720;
+  canvas.height = 480;
+  canvas.className = `drawing-canvas drawing-preview ${className}`.trim();
+  canvas.setAttribute('aria-label', 'Submitted drawing');
+  paintDrawing(canvas, drawing);
+  return canvas;
+}
+
+function createDrawingPad(existing: DrawingData | null = null): DrawingPad {
+  const wrapper = document.createElement('section');
+  wrapper.className = 'drawing-pad';
+  const canvas = createDrawingPreview(existing);
+  canvas.classList.add('drawing-input');
+  canvas.setAttribute('aria-label', 'Drawing canvas');
+  const strokes: DrawingData['strokes'][number][] = [];
+  let activeStroke: DrawingData['strokes'][number] | null = null;
+  let color = '#151022';
+  let width = 0.012;
+
+  const position = (event: PointerEvent): { x: number; y: number } => {
+    const bounds = canvas.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)),
+      y: Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height)),
+    };
+  };
+  canvas.addEventListener('pointerdown', (event) => {
+    if (strokes.length >= 16) return;
+    canvas.setPointerCapture(event.pointerId);
+    activeStroke = { color, width, points: [position(event)] };
+    strokes.push(activeStroke);
+  });
+  canvas.addEventListener('pointermove', (event) => {
+    if (!activeStroke || !canvas.hasPointerCapture(event.pointerId)) return;
+    if (activeStroke.points.length >= 256) return;
+    activeStroke.points.push(position(event));
+    paintDrawing(canvas, { strokes: [...(existing?.strokes ?? []), ...strokes] });
+  });
+  const endStroke = (event: PointerEvent): void => {
+    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+    activeStroke = null;
+  };
+  canvas.addEventListener('pointerup', endStroke);
+  canvas.addEventListener('pointercancel', endStroke);
+
+  const toolbar = document.createElement('div');
+  toolbar.className = 'drawing-toolbar';
+  ['#151022', '#ff2ea6', '#12bce8', '#8ee600', '#ffb000', '#7c3cff'].forEach((swatch, index) => {
+    const button = createButton('');
+    button.className = 'drawing-swatch';
+    button.style.background = swatch;
+    button.setAttribute('aria-label', `Drawing color ${index + 1}`);
+    button.setAttribute('aria-pressed', String(swatch === color));
+    button.addEventListener('click', () => {
+      color = swatch;
+      toolbar
+        .querySelectorAll<HTMLButtonElement>('.drawing-swatch')
+        .forEach((candidate) =>
+          candidate.setAttribute('aria-pressed', String(candidate === button)),
+        );
+    });
+    toolbar.append(button);
+  });
+  const size = document.createElement('select');
+  size.setAttribute('aria-label', 'Brush size');
+  size.innerHTML =
+    '<option value="0.007">Thin</option><option value="0.012" selected>Medium</option><option value="0.022">Chunky</option>';
+  size.addEventListener('change', () => {
+    width = Number(size.value);
+  });
+  const undo = createButton('Undo');
+  undo.className = 'secondary';
+  undo.addEventListener('click', () => {
+    strokes.pop();
+    paintDrawing(canvas, { strokes: [...(existing?.strokes ?? []), ...strokes] });
+  });
+  const clear = createButton('Clear');
+  clear.className = 'secondary';
+  clear.addEventListener('click', () => {
+    strokes.splice(0);
+    paintDrawing(canvas, existing);
+  });
+  toolbar.append(size, undo, clear);
+  wrapper.append(canvas, toolbar);
+  return {
+    element: wrapper,
+    getDrawing: () => ({ strokes }),
+  };
+}
+
 function getGameDefinition(gameId: string | null | undefined): GameDefinition {
   return GAME_CATALOG.find((game) => game.id === gameId) ?? GAME_CATALOG[0]!;
 }
 
 function setGameTheme(root: HTMLElement, gameId: string | null | undefined): void {
-  root.classList.remove('game-groupthink', 'game-hot-take', 'game-suspect');
+  root.classList.remove('game-groupthink', 'game-hot-take', 'game-suspect', 'game-drawn-out');
   if (!gameId) {
     delete root.dataset.gameId;
     return;
@@ -437,6 +590,24 @@ function createContentModeSelect(value: ContentMode = 'standard'): HTMLSelectEle
     { value: 'family', label: 'Family-friendly' },
     { value: 'standard', label: 'Standard' },
     { value: 'after-dark', label: 'After dark' },
+  ];
+  options.forEach(({ value: optionValue, label }) => {
+    const option = document.createElement('option');
+    option.value = optionValue;
+    option.textContent = label;
+    option.selected = optionValue === value;
+    select.append(option);
+  });
+  return select;
+}
+
+function createDrawnOutModeSelect(value: DrawnOutMode = 'classic'): HTMLSelectElement {
+  const select = document.createElement('select');
+  select.name = 'drawn-out-mode';
+  const options: readonly { value: DrawnOutMode; label: string }[] = [
+    { value: 'classic', label: 'Classic — draw, then guess' },
+    { value: 'telephone', label: 'Telephone — draw and describe chain' },
+    { value: 'fake-artist', label: 'Fake Artist — blend in without the prompt' },
   ];
   options.forEach(({ value: optionValue, label }) => {
     const option = document.createElement('option');
@@ -740,6 +911,94 @@ function appendSuspectResults(
   }
 }
 
+function drawnOutModeLabel(mode: DrawnOutMode): string {
+  return mode === 'classic' ? 'Classic' : mode === 'telephone' ? 'Telephone' : 'Fake Artist';
+}
+
+function appendDrawnOutStatus(container: HTMLElement, game: DrawnOutPublicView): void {
+  const phaseText =
+    game.status === 'drawing'
+      ? 'Featured artist is drawing'
+      : game.status === 'guessing'
+        ? `${game.submittedCount}/${Math.max(0, game.totalPlayers - 1)} guesses locked`
+        : game.status === 'telephone'
+          ? `Chain link ${Math.min(game.submittedCount + 1, game.totalPlayers)}/${game.totalPlayers}`
+          : game.status === 'fake-drawing'
+            ? 'Shared sketch in progress'
+            : game.status === 'fake-voting'
+              ? `${game.submittedCount}/${game.totalPlayers} votes locked`
+              : 'The damage is done';
+  const progress = document.createElement('span');
+  progress.className = 'pill';
+  progress.dataset.deadlineAt = game.deadlineAt ? String(game.deadlineAt) : '';
+  progress.dataset.countdownPrefix = `Round ${game.roundNumber}/${game.totalRounds} · ${drawnOutModeLabel(game.mode)} · ${phaseText}`;
+  progress.textContent = progress.dataset.countdownPrefix;
+  if (game.deadlineAt) updateCountdown(progress);
+  container.append(progress);
+}
+
+function appendDrawnOutResults(
+  container: HTMLElement,
+  game: DrawnOutPublicView,
+  state: PublicRoomState,
+): void {
+  const prompt = document.createElement('p');
+  prompt.className = 'drawn-out-prompt-reveal';
+  prompt.textContent = `Original prompt: ${game.prompt ?? 'Mystery prompt'}`;
+  container.append(prompt);
+
+  if (game.mode === 'classic' && game.guesses.length) {
+    const list = document.createElement('ul');
+    list.className = 'answer-list drawn-out-guesses';
+    game.guesses.forEach((guess) => {
+      const player = state.players.find((candidate) => candidate.id === guess.playerId);
+      const item = document.createElement('li');
+      item.textContent = `${guess.correct ? '✓' : '×'} ${player?.name ?? 'Player'}: ${guess.text}`;
+      item.classList.toggle('connected', guess.correct);
+      list.append(item);
+    });
+    container.append(list);
+  }
+
+  if (game.mode === 'telephone' && game.chain.length) {
+    const chain = document.createElement('ol');
+    chain.className = 'drawn-out-chain';
+    game.chain.forEach((entry: DrawnOutChainEntry) => {
+      const player = state.players.find((candidate) => candidate.id === entry.playerId);
+      const item = document.createElement('li');
+      const label = document.createElement('strong');
+      label.textContent = `${player?.avatar ?? '🎨'} ${player?.name ?? 'Player'}`;
+      item.append(label);
+      if (entry.kind === 'drawing')
+        item.append(createDrawingPreview(entry.drawing, 'chain-drawing'));
+      else {
+        const text = document.createElement('span');
+        text.textContent = entry.text;
+        item.append(text);
+      }
+      chain.append(item);
+    });
+    container.append(chain);
+  }
+
+  if (game.mode === 'fake-artist' && game.fakeArtistPlayerId) {
+    const fake = state.players.find((player) => player.id === game.fakeArtistPlayerId);
+    const reveal = document.createElement('p');
+    reveal.className = 'drawn-out-fake-reveal';
+    reveal.textContent = `${fake?.avatar ?? '🖊️'} ${fake?.name ?? 'The mystery player'} was the fake artist.`;
+    container.append(reveal);
+    const votes = document.createElement('p');
+    votes.className = 'muted';
+    votes.textContent = game.votes
+      .map((vote) => {
+        const player = state.players.find((candidate) => candidate.id === vote.playerId);
+        return `${player?.name ?? 'Player'}: ${vote.count}`;
+      })
+      .join(' · ');
+    container.append(votes);
+  }
+}
+
 function isGroupthinkPlayerView(state: PlayerGameView | null): state is GroupthinkPlayerView {
   return state?.id === 'groupthink';
 }
@@ -752,6 +1011,10 @@ function isSuspectPlayerView(state: PlayerGameView | null): state is SuspectPlay
   return state?.id === 'suspect';
 }
 
+function isDrawnOutPlayerView(state: PlayerGameView | null): state is DrawnOutPlayerView {
+  return state?.id === 'drawn-out';
+}
+
 function createStageArtwork(gameId: SupportedGameId, className = ''): HTMLImageElement {
   const game = getGameDefinition(gameId);
   const image = document.createElement('img');
@@ -762,7 +1025,9 @@ function createStageArtwork(gameId: SupportedGameId, className = ''): HTMLImageE
       ? 'Consensus reactor illustration'
       : gameId === 'hot-take'
         ? 'Hot Take stage illustration'
-        : 'Suspect investigation board illustration';
+        : gameId === 'suspect'
+          ? 'Suspect investigation board illustration'
+          : 'Drawn Out chaotic sketchbook illustration';
   return image;
 }
 
@@ -792,7 +1057,9 @@ function createRoomPass(roomCode: string, gameId: SupportedGameId): HTMLElement 
       ? 'lab-room-pass'
       : gameId === 'hot-take'
         ? 'heat-room-pass'
-        : 'suspect-room-pass';
+        : gameId === 'suspect'
+          ? 'suspect-room-pass'
+          : 'drawn-out-room-pass';
   const eyebrow = document.createElement('span');
   eyebrow.className = 'experience-eyebrow';
   eyebrow.textContent =
@@ -800,7 +1067,9 @@ function createRoomPass(roomCode: string, gameId: SupportedGameId): HTMLElement 
       ? 'Mind link active'
       : gameId === 'hot-take'
         ? 'Backstage access'
-        : 'Case file active';
+        : gameId === 'suspect'
+          ? 'Case file active'
+          : 'Sketchbook open';
   const label = document.createElement('span');
   label.className = 'room-pass-label';
   label.textContent = 'Join at this address';
@@ -825,7 +1094,9 @@ function createExperienceRoster(state: PublicRoomState, gameId: SupportedGameId)
       ? 'mind-roster'
       : gameId === 'hot-take'
         ? 'audience-roster'
-        : 'jury-roster';
+        : gameId === 'suspect'
+          ? 'jury-roster'
+          : 'artist-roster';
   const heading = document.createElement('div');
   heading.className = 'experience-section-title';
   const title = document.createElement('h2');
@@ -834,7 +1105,9 @@ function createExperienceRoster(state: PublicRoomState, gameId: SupportedGameId)
       ? 'Connected minds'
       : gameId === 'hot-take'
         ? 'Tonight’s audience'
-        : 'The jury';
+        : gameId === 'suspect'
+          ? 'The jury'
+          : 'Questionable artists';
   const count = document.createElement('span');
   count.textContent = `${state.players.length}/${state.settings.maxPlayers}`;
   heading.append(title, count);
@@ -842,7 +1115,13 @@ function createExperienceRoster(state: PublicRoomState, gameId: SupportedGameId)
 
   const list = document.createElement('ul');
   list.className =
-    gameId === 'groupthink' ? 'mind-grid' : gameId === 'hot-take' ? 'audience-grid' : 'jury-grid';
+    gameId === 'groupthink'
+      ? 'mind-grid'
+      : gameId === 'hot-take'
+        ? 'audience-grid'
+        : gameId === 'suspect'
+          ? 'jury-grid'
+          : 'artist-grid';
   if (state.players.length === 0) {
     const empty = document.createElement('li');
     empty.className = 'experience-empty';
@@ -851,7 +1130,9 @@ function createExperienceRoster(state: PublicRoomState, gameId: SupportedGameId)
         ? 'Scanning for minds…'
         : gameId === 'hot-take'
           ? 'Doors are open…'
-          : 'Waiting for witnesses…';
+          : gameId === 'suspect'
+            ? 'Waiting for witnesses…'
+            : 'Waiting for bad ideas…';
     list.append(empty);
   } else {
     state.players.forEach((player, index) => {
@@ -901,6 +1182,7 @@ function createExperienceTopbar(
 }
 
 function createGameStage(snapshot: RoomSnapshot, gameId: SupportedGameId): HTMLElement {
+  if (gameId === 'drawn-out') return createDrawnOutStage(snapshot);
   const state = snapshot.state;
   const game = snapshot.game;
   const stage = document.createElement('main');
@@ -1018,11 +1300,56 @@ function createGameStage(snapshot: RoomSnapshot, gameId: SupportedGameId): HTMLE
   return stage;
 }
 
+function createDrawnOutStage(snapshot: RoomSnapshot): HTMLElement {
+  const game = snapshot.game?.id === 'drawn-out' ? snapshot.game : null;
+  const stage = document.createElement('main');
+  stage.className = 'drawn-out-stage';
+  const visual = document.createElement('div');
+  visual.className = 'drawn-out-canvas-stage';
+  if (game?.drawing) visual.append(createDrawingPreview(game.drawing, 'display-drawing'));
+  else visual.append(createStageArtwork('drawn-out'));
+
+  const copy = document.createElement('div');
+  copy.className = 'stage-copy drawn-out-stage-copy';
+  const cue = document.createElement('span');
+  cue.className = 'experience-eyebrow';
+  cue.textContent = game ? `${drawnOutModeLabel(game.mode)} mode` : 'Fresh sketchbook';
+  const title = document.createElement('h2');
+  title.textContent =
+    snapshot.state.phase === 'lobby'
+      ? 'Get your drawing finger ready.'
+      : game?.status === 'drawing'
+        ? 'The artist is making choices.'
+        : game?.status === 'guessing'
+          ? 'What was this supposed to be?'
+          : game?.status === 'telephone'
+            ? 'The chain is getting worse.'
+            : game?.status === 'fake-drawing'
+              ? 'One artist has no idea.'
+              : game?.status === 'fake-voting'
+                ? 'Spot the suspicious strokes.'
+                : 'Art was a mistake.';
+  copy.append(cue, title);
+  if (game) appendDrawnOutStatus(copy, game);
+  if (game && (game.status === 'results' || game.status === 'complete')) {
+    appendDrawnOutResults(copy, game, snapshot.state);
+  }
+  if (snapshot.state.phase === 'winner') appendScoreboard(copy, snapshot.state);
+  stage.append(visual, copy);
+  return stage;
+}
+
 function createHostExperience(snapshot: RoomSnapshot, session: HostSession): HTMLElement {
   const gameId = getGameDefinition(snapshot.game?.id ?? snapshot.state.gameId ?? session.gameId).id;
   const shell = document.createElement('section');
   shell.className = `experience-shell host-experience ${
-    gameId === 'groupthink' ? 'consensus-lab' : gameId === 'hot-take' ? 'live-heat' : 'case-room'
+    gameId === 'groupthink'
+      ? 'consensus-lab'
+      : gameId === 'hot-take'
+        ? 'live-heat'
+        : gameId === 'suspect'
+          ? 'case-room'
+          : 'sketch-studio'
   }`;
   shell.append(createExperienceTopbar(gameId, session.roomCode, snapshot.state.phase));
   const grid = document.createElement('div');
@@ -1040,7 +1367,13 @@ function createDisplayExperience(snapshot: RoomSnapshot, sound: SoundController)
   const gameId = getGameDefinition(snapshot.game?.id ?? snapshot.state.gameId).id;
   const shell = document.createElement('section');
   shell.className = `experience-shell display-experience ${
-    gameId === 'groupthink' ? 'consensus-lab' : gameId === 'hot-take' ? 'live-heat' : 'case-room'
+    gameId === 'groupthink'
+      ? 'consensus-lab'
+      : gameId === 'hot-take'
+        ? 'live-heat'
+        : gameId === 'suspect'
+          ? 'case-room'
+          : 'sketch-studio'
   }`;
   shell.append(createExperienceTopbar(gameId, snapshot.state.roomCode, snapshot.state.phase));
 
@@ -1119,14 +1452,20 @@ function renderHost(root: HTMLElement): void {
     if (!session) {
       const form = document.createElement('form');
       form.className = 'card form game-launcher';
+      let drawnOutModeField: HTMLElement | null = null;
       const gamePicker = createGamePicker(routeGameId ?? 'groupthink', (game) => {
         window.history.replaceState(null, '', buildHostRoute(game.id));
         setGameTheme(root, game.id);
         updatePageBrand(page, game.id);
+        if (drawnOutModeField) drawnOutModeField.hidden = game.id !== 'drawn-out';
       });
       form.append(gamePicker.element);
       const contentMode = createContentModeSelect();
       form.append(createField('Content mode', contentMode));
+      const drawnOutMode = createDrawnOutModeSelect();
+      drawnOutModeField = createField('Drawn Out mode', drawnOutMode);
+      drawnOutModeField.hidden = gamePicker.getValue() !== 'drawn-out';
+      form.append(drawnOutModeField);
       const promptMode = createPromptModeSelect();
       const promptModeField = createField('Question source', promptMode);
       const promptModeHint = document.createElement('small');
@@ -1148,10 +1487,11 @@ function renderHost(root: HTMLElement): void {
         const request: CreateRoomRequest = {
           gameId,
           settings: {
-            maxPlayers: 12,
+            maxPlayers: gameId === 'drawn-out' ? 10 : 12,
             roundCount: 5,
             contentMode: contentMode.value as ContentMode,
             promptMode: promptMode.value as PromptMode,
+            drawnOutMode: drawnOutMode.value as DrawnOutMode,
           },
         };
         socket.emit('host:create-room', request, (response: HostCreateResponse) => {
@@ -1208,7 +1548,9 @@ function renderHost(root: HTMLElement): void {
             ? 'Hot Take'
             : session.gameId === 'suspect'
               ? 'Suspect'
-              : 'Groupthink'
+              : session.gameId === 'drawn-out'
+                ? 'Drawn Out'
+                : 'Groupthink'
         }`,
       );
       start.disabled =
@@ -1216,7 +1558,9 @@ function renderHost(root: HTMLElement): void {
           ? state.players.length < 3
           : session.gameId === 'suspect'
             ? state.players.length < 4
-            : state.players.length < 1;
+            : session.gameId === 'drawn-out'
+              ? state.players.length < 3
+              : state.players.length < 1;
       start.addEventListener('click', () => {
         const request: HostStartGameRequest = {
           roomCode: session?.roomCode ?? '',
@@ -1239,7 +1583,9 @@ function renderHost(root: HTMLElement): void {
           ? 'Put the Takes on Stage'
           : session.gameId === 'suspect'
             ? 'Open the Case'
-            : 'Open the Thought Clusters',
+            : session.gameId === 'drawn-out'
+              ? 'Advance the Art Disaster'
+              : 'Open the Thought Clusters',
       );
       reveal.addEventListener('click', () => {
         const request: HostRoomActionRequest = {
@@ -1275,7 +1621,11 @@ function renderHost(root: HTMLElement): void {
       controls.append(reveal);
     } else if (state.phase === 'voting') {
       const reveal = createButton(
-        session.gameId === 'suspect' ? 'Reveal the Accusations' : 'Reveal the Hottest Take',
+        session.gameId === 'suspect'
+          ? 'Reveal the Accusations'
+          : session.gameId === 'drawn-out'
+            ? 'Reveal the Art Disaster'
+            : 'Reveal the Hottest Take',
       );
       reveal.addEventListener('click', () => {
         const request: HostRoomActionRequest = {
@@ -1298,7 +1648,9 @@ function renderHost(root: HTMLElement): void {
           ? 'Turn Up the Next Round'
           : session.gameId === 'suspect'
             ? 'Open the Next Case'
-            : 'Sync the Next Round',
+            : session.gameId === 'drawn-out'
+              ? 'Start the Next Sketch'
+              : 'Sync the Next Round',
       );
       next.addEventListener('click', () => {
         const request: HostRoomActionRequest = {
@@ -1474,7 +1826,9 @@ function renderPlayer(root: HTMLElement): void {
             ? 'Connect your mind'
             : routeGameId === 'hot-take'
               ? 'Claim your backstage pass'
-              : 'Join the jury';
+              : routeGameId === 'suspect'
+                ? 'Join the jury'
+                : 'Grab a marker';
         const heading = document.createElement('h1');
         heading.textContent = `Join ${game.label}`;
         const helper = document.createElement('p');
@@ -1484,7 +1838,9 @@ function renderPlayer(root: HTMLElement): void {
             ? 'Enter the room code and tune into the consensus reactor.'
             : routeGameId === 'hot-take'
               ? 'Enter the room code and step into tonight’s live audience.'
-              : 'Enter the room code and keep your answers secret.';
+              : routeGameId === 'suspect'
+                ? 'Enter the room code and keep your answers secret.'
+                : 'Enter the room code and prepare to draw something regrettable.';
         copy.append(kicker, heading, helper);
         intro.append(copy);
         form.append(intro);
@@ -1526,7 +1882,9 @@ function renderPlayer(root: HTMLElement): void {
         ? 'consensus-controller'
         : controllerGame === 'hot-take'
           ? 'live-heat-controller'
-          : 'suspect-controller'
+          : controllerGame === 'suspect'
+            ? 'suspect-controller'
+            : 'drawn-out-controller'
     }`;
     if (controllerGame) {
       const controllerHeader = createExperienceTopbar(
@@ -1546,12 +1904,16 @@ function renderPlayer(root: HTMLElement): void {
           ? 'Your mind is in the loop.'
           : controllerGame === 'hot-take'
             ? 'Your backstage pass is live.'
-            : 'Your case file is open.'
+            : controllerGame === 'suspect'
+              ? 'Your case file is open.'
+              : 'Your sketchbook is open.'
         : controllerGame === 'groupthink'
           ? 'Send a thought to the reactor.'
           : controllerGame === 'hot-take'
             ? 'The stage is yours.'
-            : 'Keep your answer secret, then make your accusation.';
+            : controllerGame === 'suspect'
+              ? 'Keep your answer secret, then make your accusation.'
+              : 'Art was a mistake. Make it worse.';
     status.append(statusTitle);
 
     if (snapshot?.game?.id === 'groupthink' && isGroupthinkPlayerView(playerState)) {
@@ -1893,6 +2255,149 @@ function renderPlayer(root: HTMLElement): void {
           suspectSnapshot.game as SuspectPublicView,
           suspectSnapshot.state,
         );
+      }
+    } else if (snapshot?.game?.id === 'drawn-out' && isDrawnOutPlayerView(playerState)) {
+      const drawnGame = snapshot.game;
+      const drawnState = snapshot.state;
+      appendDrawnOutStatus(status, drawnGame);
+      const instruction = document.createElement('p');
+      instruction.className = 'drawn-out-instruction';
+      instruction.textContent = playerState.instruction;
+      status.append(instruction);
+
+      if (playerState.isFakeArtist) {
+        const warning = document.createElement('p');
+        warning.className = 'drawn-out-fake-warning';
+        warning.textContent = 'You are the fake artist. Blend in and do not panic.';
+        status.append(warning);
+      } else if (playerState.privatePrompt) {
+        const prompt = document.createElement('p');
+        prompt.className = 'prompt drawn-out-private-prompt';
+        prompt.textContent = playerState.privatePrompt;
+        status.append(prompt);
+      }
+
+      if (playerState.task === 'draw') {
+        if (playerState.mode === 'fake-artist' && playerState.drawing) {
+          const existingLabel = document.createElement('strong');
+          existingLabel.textContent = 'Shared drawing so far';
+          status.append(
+            existingLabel,
+            createDrawingPreview(playerState.drawing, 'controller-drawing'),
+          );
+        }
+        const pad = createDrawingPad();
+        const submit = createButton('Submit My Strokes');
+        submit.addEventListener('click', () => {
+          if (!session) return;
+          const drawing = pad.getDrawing();
+          if (!drawing.strokes.length) {
+            setNotice(page.notice, 'Add at least one stroke before submitting.', true);
+            return;
+          }
+          submit.disabled = true;
+          const request: PlayerSubmitDrawingRequest = {
+            roomCode: session.roomCode,
+            playerToken: session.playerToken,
+            drawing,
+          };
+          socket.emit('player:submit-drawing', request, (response: PlayerAnswerResponse) => {
+            submit.disabled = false;
+            if (!isSuccess(response)) {
+              setNotice(page.notice, response.error.message, true);
+              return;
+            }
+            snapshot = response.snapshot;
+            playerState = response.playerState;
+            render();
+          });
+        });
+        status.append(pad.element, submit);
+      } else if (playerState.task === 'describe' || playerState.task === 'guess') {
+        if (playerState.task === 'describe' && playerState.drawing) {
+          status.append(createDrawingPreview(playerState.drawing, 'controller-drawing'));
+        }
+        if (!playerState.hasSubmitted) {
+          const form = document.createElement('form');
+          form.className = 'answer-form drawn-out-text-form';
+          const input = createTextInput();
+          input.maxLength = 180;
+          input.placeholder =
+            playerState.task === 'guess'
+              ? 'What was the original prompt?'
+              : 'Describe what you think this is…';
+          const submit = createButton(
+            playerState.task === 'guess' ? 'Lock My Guess' : 'Pass This Description',
+            'submit',
+          );
+          form.append(input, submit);
+          form.addEventListener('submit', (event) => {
+            event.preventDefault();
+            if (!session || !input.value.trim()) return;
+            submit.disabled = true;
+            const request: PlayerSubmitAnswerRequest = {
+              roomCode: session.roomCode,
+              playerToken: session.playerToken,
+              answer: input.value,
+            };
+            socket.emit('player:submit-answer', request, (response: PlayerAnswerResponse) => {
+              submit.disabled = false;
+              if (!isSuccess(response)) {
+                setNotice(page.notice, response.error.message, true);
+                return;
+              }
+              snapshot = response.snapshot;
+              playerState = response.playerState;
+              render();
+            });
+          });
+          status.append(form);
+        }
+      } else if (playerState.task === 'vote' && !playerState.hasSubmitted) {
+        const form = document.createElement('form');
+        form.className = 'answer-form drawn-out-vote-form';
+        const select = document.createElement('select');
+        playerState.candidatePlayerIds.forEach((playerId) => {
+          const player = drawnState.players.find((candidate) => candidate.id === playerId);
+          const option = document.createElement('option');
+          option.value = playerId;
+          option.textContent = `${player?.avatar ?? '🎨'} ${player?.name ?? 'Player'}`;
+          select.append(option);
+        });
+        form.append(createField('Suspicious artist', select));
+        const submit = createButton('Accuse This Artist', 'submit');
+        form.append(submit);
+        form.addEventListener('submit', (event) => {
+          event.preventDefault();
+          if (!session || !select.value) return;
+          submit.disabled = true;
+          const request: PlayerCastVoteRequest = {
+            roomCode: session.roomCode,
+            playerToken: session.playerToken,
+            entryId: select.value,
+          };
+          socket.emit('player:cast-vote', request, (response: PlayerAnswerResponse) => {
+            submit.disabled = false;
+            if (!isSuccess(response)) {
+              setNotice(page.notice, response.error.message, true);
+              return;
+            }
+            snapshot = response.snapshot;
+            playerState = response.playerState;
+            render();
+          });
+        });
+        status.append(form);
+      } else if (drawnGame.status === 'results' || drawnGame.status === 'complete') {
+        if (drawnGame.drawing) status.append(createDrawingPreview(drawnGame.drawing));
+        appendDrawnOutResults(status, drawnGame, snapshot.state);
+      } else {
+        const waiting = document.createElement('p');
+        waiting.className = 'muted';
+        waiting.textContent = playerState.hasSubmitted
+          ? 'Locked in. Watch the big screen.'
+          : 'Another artist has the marker.';
+        status.append(waiting);
       }
     } else {
       const waiting = document.createElement('p');

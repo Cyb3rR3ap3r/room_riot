@@ -14,12 +14,18 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 MODES = ("family", "standard", "after-dark")
 VALID_KINDS = {"open", "player-targeted"}
 VALID_ROUND_TYPES = {"standard", "alibi", "double-trouble", "false-accusation", "most-likely"}
 GAME_ID_RE = re.compile(r"^[a-z][a-z0-9-]{1,31}$")
+
+
+class PackResult(NamedTuple):
+    count: int
+    ids: set[str]
+    texts: set[str]
 
 
 def normalize(value: str) -> str:
@@ -76,10 +82,10 @@ def validate_pack(
     tests: Path,
     failures: list[str],
     warnings: list[str],
-) -> int:
+) -> PackResult:
     pack = read_json(path, failures)
     if pack is None:
-        return 0
+        return PackResult(0, set(), set())
     prompts = pack["prompts"]
     if len(prompts) < min_prompts:
         target = expansion_target(source)
@@ -120,7 +126,10 @@ def validate_pack(
                 failures.append(f"{label} has invalid kind {prompt['kind']!r}")
         if "roundType" in prompt:
             saw_round_type = True
-            if not isinstance(prompt["roundType"], str) or prompt["roundType"] not in VALID_ROUND_TYPES:
+            if (
+                not isinstance(prompt["roundType"], str)
+                or prompt["roundType"] not in VALID_ROUND_TYPES
+            ):
                 failures.append(f"{label} has invalid roundType {prompt['roundType']!r}")
 
     if len(ids) != len(set(ids)):
@@ -133,14 +142,24 @@ def validate_pack(
         "roundType" not in prompt for prompt in prompts if isinstance(prompt, dict)
     ):
         failures.append(f"{path}: prompts must consistently include roundType")
-    return len(prompts)
+    return PackResult(len(prompts), set(ids), set(texts))
 
 
 def validate_integration(repo_root: Path, game_id: str, failures: list[str]) -> None:
     checks = {
         "packages/contracts/src/index.ts": "contract ID",
         "apps/server/src/room-manager.ts": "server registration",
+        "apps/server/src/http.ts": "HTTP routes and assets",
+        "apps/server/package.json": "server dependency",
         "apps/web/src/main.ts": "web catalog",
+        "apps/web/src/protocol.ts": "web protocol",
+        "apps/web/package.json": "web dependency",
+        "tsconfig.json": "root project reference",
+        "apps/server/tsconfig.json": "server project reference",
+        "apps/web/tsconfig.json": "web project reference",
+        "pnpm-lock.yaml": "workspace lockfile",
+        "Dockerfile": "Docker build and runtime packaging",
+        "scripts/verify-deployment.mjs": "deployment verifier",
     }
     for relative, label in checks.items():
         path = repo_root / relative
@@ -166,6 +185,8 @@ def main() -> int:
     failures: list[str] = []
     warnings: list[str] = []
     counts: dict[str, int] = {}
+    mode_ids: dict[str, set[str]] = {}
+    mode_texts: dict[str, set[str]] = {}
     if not GAME_ID_RE.fullmatch(args.game_id):
         failures.append("game-id must match ^[a-z][a-z0-9-]{1,31}$")
     if args.min_prompts < 1:
@@ -180,7 +201,7 @@ def main() -> int:
             failures.append(f"missing required game file: {required}")
 
     for mode in MODES:
-        counts[mode] = validate_pack(
+        pack_result = validate_pack(
             game_root / "content" / f"{mode}.json",
             args.min_prompts,
             source,
@@ -188,6 +209,22 @@ def main() -> int:
             failures,
             warnings,
         )
+        counts[mode] = pack_result.count
+        mode_ids[mode] = pack_result.ids
+        mode_texts[mode] = pack_result.texts
+
+    for index, left_mode in enumerate(MODES):
+        for right_mode in MODES[index + 1 :]:
+            duplicate_ids = mode_ids[left_mode] & mode_ids[right_mode]
+            if duplicate_ids:
+                failures.append(
+                    f"{left_mode}/{right_mode}: {len(duplicate_ids)} prompt IDs are reused across modes"
+                )
+            duplicate_texts = mode_texts[left_mode] & mode_texts[right_mode]
+            if duplicate_texts:
+                warnings.append(
+                    f"{left_mode}/{right_mode}: {len(duplicate_texts)} normalized prompt texts are reused across modes"
+                )
     if args.require_integration:
         validate_integration(root, args.game_id, failures)
 
@@ -202,7 +239,7 @@ def main() -> int:
         print(json.dumps(result, indent=2))
     else:
         for mode, count in counts.items():
-            print(f"[PASS] {mode}: {count} source prompts")
+            print(f"[INFO] {mode}: {count} source prompts")
         for warning in warnings:
             print(f"[WARN] {warning}")
         for failure in failures:

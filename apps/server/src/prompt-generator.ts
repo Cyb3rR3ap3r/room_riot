@@ -1,6 +1,8 @@
 import { randomInt, randomUUID } from 'node:crypto';
 
 import type { ContentMode } from '@room-riot/contracts';
+import { loadDrawnOutPrompts } from '@room-riot/drawn-out';
+import type { DrawnOutPrompt } from '@room-riot/drawn-out';
 import { loadGroupthinkPrompts } from '@room-riot/groupthink';
 import type { GroupthinkPrompt } from '@room-riot/groupthink';
 import { loadHotTakePrompts } from '@room-riot/hot-take';
@@ -69,6 +71,20 @@ export function generateSuspectPrompts(
       id: `ai-suspect-${index + 1}-${randomUUID()}`,
     }));
 }
+
+export function generateDrawnOutPrompts(
+  contentMode: ContentMode,
+  count = 100,
+): readonly DrawnOutPrompt[] {
+  return shuffle([...loadDrawnOutPrompts(contentMode)])
+    .slice(0, Math.max(1, Math.min(count, CURATED_DRAWN_OUT_LIMIT)))
+    .map((prompt, index) => ({
+      ...prompt,
+      id: `ai-drawn-out-${index + 1}-${randomUUID()}`,
+    }));
+}
+
+const CURATED_DRAWN_OUT_LIMIT = 100;
 
 function uniqueTexts(texts: readonly string[]): string[] {
   return [...new Set(texts)];

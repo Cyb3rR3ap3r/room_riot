@@ -2045,6 +2045,269 @@
         overflow: visible;
       }
 
+      /* Drawn Out — shared neon-comic sketch studio. */
+      .game-drawn-out {
+        --game-accent: #9cf000;
+        --game-accent-strong: #ff2ea6;
+        --game-glow: rgba(156, 240, 0, 0.2);
+        --game-surface: rgba(30, 12, 53, 0.74);
+      }
+
+      .page.game-drawn-out {
+        background:
+          linear-gradient(rgba(5, 3, 18, 0.28), rgba(5, 3, 18, 0.45)),
+          url('/assets/drawn-out-bg-v2.png') center / cover fixed;
+      }
+
+      .page.game-drawn-out .phase-card,
+      .game-detail.game-drawn-out {
+        border-color: rgba(156, 240, 0, 0.62);
+        background:
+          linear-gradient(135deg, rgba(156, 240, 0, 0.14), transparent 48%), var(--surface);
+      }
+
+      .sketch-studio {
+        border-color: rgba(156, 240, 0, 0.48);
+        background: rgba(7, 3, 25, 0.72);
+        box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.45);
+      }
+
+      .drawn-out-room-pass,
+      .artist-roster,
+      .drawn-out-stage {
+        overflow: hidden;
+        border: 2px solid rgba(156, 240, 0, 0.38);
+        border-radius: 1.4rem;
+        background: rgba(15, 7, 38, 0.82);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+      }
+
+      .drawn-out-room-pass {
+        display: grid;
+        min-height: 31rem;
+        align-content: center;
+        justify-items: center;
+        gap: 0.65rem;
+        padding: 1rem;
+        text-align: center;
+      }
+
+      .drawn-out-room-pass .room-code {
+        color: #9cf000;
+        font-size: clamp(2.8rem, 6vw, 5.6rem);
+        letter-spacing: 0.12em;
+        text-shadow: 0 0 1.2rem rgba(156, 240, 0, 0.42);
+      }
+
+      .drawn-out-room-pass .qr {
+        width: min(12rem, 75%);
+        border: 0.5rem solid white;
+        border-radius: 1rem;
+        background: white;
+      }
+
+      .drawn-out-stage {
+        display: grid;
+        min-width: 0;
+        min-height: 31rem;
+        grid-template-columns: minmax(14rem, 0.95fr) minmax(18rem, 1.2fr);
+        align-items: center;
+        gap: clamp(0.8rem, 2vw, 1.5rem);
+        padding: clamp(0.9rem, 2vw, 1.5rem);
+      }
+
+      .drawn-out-canvas-stage {
+        display: grid;
+        min-width: 0;
+        place-items: center;
+      }
+
+      .drawn-out-canvas-stage .stage-art {
+        width: min(100%, 28rem);
+        max-height: 48vh;
+        object-fit: contain;
+        filter: drop-shadow(0 1rem 1.4rem rgba(0, 0, 0, 0.44));
+      }
+
+      .drawing-canvas {
+        display: block;
+        width: 100%;
+        height: auto;
+        aspect-ratio: 3 / 2;
+        border: 0.45rem solid #fff;
+        border-radius: 1rem;
+        background: #fffdf4;
+        box-shadow:
+          0 1rem 2rem rgba(0, 0, 0, 0.38),
+          0 0 0 0.2rem #151022;
+      }
+
+      .drawing-input {
+        cursor: crosshair;
+        touch-action: none;
+      }
+
+      .drawing-pad {
+        display: grid;
+        gap: 0.75rem;
+      }
+
+      .drawing-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.45rem;
+      }
+
+      .drawing-swatch {
+        width: 2.65rem;
+        min-width: 2.65rem;
+        height: 2.65rem;
+        padding: 0;
+        border: 0.18rem solid white;
+        border-radius: 50%;
+      }
+
+      .drawing-swatch[aria-pressed='true'] {
+        outline: 0.22rem solid #9cf000;
+        outline-offset: 0.12rem;
+      }
+
+      .display-drawing {
+        width: min(100%, 42rem);
+      }
+
+      .controller-drawing {
+        max-width: 34rem;
+      }
+
+      .drawn-out-stage-copy {
+        display: grid;
+        min-width: 0;
+        align-content: center;
+        gap: 0.65rem;
+      }
+
+      .drawn-out-prompt-reveal,
+      .drawn-out-fake-reveal,
+      .drawn-out-instruction,
+      .drawn-out-fake-warning {
+        margin: 0;
+        border-radius: 1rem;
+        padding: 0.75rem 0.9rem;
+        font-weight: 900;
+      }
+
+      .drawn-out-prompt-reveal {
+        color: #151022;
+        background: #9cf000;
+      }
+
+      .drawn-out-fake-reveal,
+      .drawn-out-fake-warning {
+        color: white;
+        background: #ff2ea6;
+      }
+
+      .drawn-out-chain {
+        display: grid;
+        max-height: 20rem;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.55rem;
+        overflow: auto;
+        padding-left: 1.4rem;
+      }
+
+      .drawn-out-chain li {
+        display: grid;
+        gap: 0.35rem;
+        border-radius: 0.75rem;
+        padding: 0.55rem;
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .chain-drawing {
+        border-width: 0.2rem;
+      }
+
+      .artist-roster {
+        padding: 1rem;
+      }
+
+      .artist-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+        gap: 0.55rem;
+        padding: 0;
+        list-style: none;
+      }
+
+      .artist-grid li {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        border-radius: 0.8rem;
+        padding: 0.55rem;
+        background: rgba(156, 240, 0, 0.08);
+      }
+
+      .drawn-out-controller {
+        border-color: rgba(156, 240, 0, 0.5);
+        background: rgba(19, 7, 43, 0.92);
+      }
+
+      .drawn-out-controller > .controller-art {
+        opacity: 0.24;
+      }
+
+      .join-drawn-out {
+        border-color: rgba(156, 240, 0, 0.55);
+        background:
+          linear-gradient(rgba(9, 3, 28, 0.76), rgba(9, 3, 28, 0.88)),
+          url('/assets/drawn-out-bg-v2.png') center / cover;
+      }
+
+      .join-drawn-out button:not(.secondary),
+      .drawn-out-controller button:not(.secondary) {
+        color: #151022;
+        background: linear-gradient(135deg, #9cf000, #ffe12c);
+      }
+
+      .display-page[data-game-id] .display-experience .drawn-out-stage,
+      .display-page[data-game-id] .display-experience .artist-roster,
+      .display-page[data-game-id] .display-experience .drawn-out-room-pass {
+        min-height: 0;
+        overflow: visible;
+      }
+
+      .display-page[data-game-id] .display-experience .drawn-out-chain {
+        max-height: none;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        overflow: visible;
+        padding-left: 1rem;
+      }
+
+      .display-page[data-game-id] .display-experience .drawn-out-chain li {
+        min-width: 0;
+        padding: 0.4rem;
+        font-size: 0.72rem;
+      }
+
+      @media (max-width: 720px) {
+        .drawn-out-room-pass,
+        .drawn-out-stage {
+          min-height: 24rem;
+        }
+
+        .drawn-out-stage {
+          grid-template-columns: 1fr;
+        }
+
+        .drawn-out-canvas-stage .stage-art {
+          max-height: 16rem;
+        }
+      }
+
       @media (prefers-reduced-motion: reduce) {
         *,
         *::before,
