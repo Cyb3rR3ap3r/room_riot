@@ -136,6 +136,8 @@ function renderDescriptionOrGuess(
     legend.textContent = 'What was the original prompt?';
     const choices = dependencies.document.createElement('div');
     choices.className = 'drawn-out-choice-grid';
+    choices.setAttribute('role', 'group');
+    choices.setAttribute('aria-label', 'Possible original prompts');
     const cards: HTMLButtonElement[] = [];
     for (const [index, option] of player.guessOptions.entries()) {
       const choice = createButton(dependencies.document, `${index + 1}. ${option.text}`);

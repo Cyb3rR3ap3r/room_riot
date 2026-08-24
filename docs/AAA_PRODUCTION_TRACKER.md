@@ -61,7 +61,7 @@ Estimates include focused automated tests but not lengthy physical-device or con
 | --------- | -------------------------------------------------------------- | ----------------------------------------------- | ----------- |
 | M0        | Gameplay integrity and session safety                          | G0: no-loss gameplay gate                       | In progress |
 | M1        | Maintainable client/server architecture                        | G1: architecture and contract gate              | In progress |
-| M2        | AAA host, player, and shared-display experience                | G2: visual, interaction, and accessibility gate | Not started |
+| M2        | AAA host, player, and shared-display experience                | G2: visual, interaction, and accessibility gate | In progress |
 | M3        | Game-specific fairness, content, scoring, and presentation     | G3: complete vertical-slice gate                | In progress |
 | M4        | Persistence, security, observability, and performance          | G4: production operations gate                  | In progress |
 | M5        | Automated browser/device QA, deployment, and release readiness | G5: release-candidate gate                      | In progress |
@@ -97,14 +97,14 @@ Estimates include focused automated tests but not lengthy physical-device or con
 | AAA-016 | M1        | P2  | M      | Add reusable loading/error/empty states            | AAA-010, AAA-015          | Done        |
 | AAA-017 | M1        | P2  | M      | Add component-level test harnesses                 | AAA-009, AAA-011          | Done        |
 | AAA-018 | M2        | P1  | L      | Redesign the host launcher                         | AAA-015                   | Done        |
-| AAA-019 | M2        | P1  | L      | Build the action-first phone controller            | AAA-011, AAA-015          | In progress |
-| AAA-020 | M2        | P1  | L      | Build explicit TV density layouts                  | AAA-015                   | In progress |
-| AAA-021 | M2        | P1  | M      | Make QR/join presentation phase-aware              | AAA-020, AAA-003          | In progress |
+| AAA-019 | M2        | P1  | L      | Build the action-first phone controller            | AAA-011, AAA-015          | In review   |
+| AAA-020 | M2        | P1  | L      | Build explicit TV density layouts                  | AAA-015                   | In review   |
+| AAA-021 | M2        | P1  | M      | Make QR/join presentation phase-aware              | AAA-020, AAA-003          | In review   |
 | AAA-022 | M2        | P1  | L      | Create premium phase transitions                   | AAA-020, AAA-024          | Not started |
 | AAA-023 | M2        | P1  | L      | Redesign results, scoring, and winner moments      | AAA-020, AAA-037          | Not started |
-| AAA-024 | M2        | P1  | M      | Add reduced-motion-safe motion tokens              | AAA-015                   | Not started |
+| AAA-024 | M2        | P1  | M      | Add reduced-motion-safe motion tokens              | AAA-015                   | In progress |
 | AAA-025 | M2        | P1  | L      | Replace prototype audio with a sound system        | Decision D-03, AAA-010    | Not started |
-| AAA-026 | M2        | P1  | L      | Complete accessibility and focus behavior          | AAA-011, AAA-015          | Not started |
+| AAA-026 | M2        | P1  | L      | Complete accessibility and focus behavior          | AAA-011, AAA-015          | In progress |
 | AAA-027 | M2        | P1  | M      | Polish drawing controls and recovery               | AAA-001, AAA-019          | Not started |
 | AAA-028 | M2        | P1  | M      | Add rematch/change-game/same-roster loop           | AAA-003, AAA-012          | Not started |
 | AAA-029 | M2        | P2  | M      | Add host moderation and room controls              | AAA-003, AAA-004          | Not started |
@@ -380,26 +380,26 @@ loading, success, warning, and error states in all four themes.
 
 #### AAA-019 — Build the action-first phone controller
 
-- [ ] Current action, deadline, and primary control appear in the first practical viewport.
-- [ ] Decorative art collapses during action phases and expands for waiting/results.
-- [ ] Inputs support draft recovery, character counts, clear confirmation, and retry.
-- [ ] Waiting state shows exactly what was accepted and what happens next.
+- [x] Current action, deadline, and primary control appear in the first practical viewport.
+- [x] Decorative art collapses during action phases and expands for waiting/results.
+- [x] Inputs support draft recovery, character counts, clear confirmation, and retry.
+- [x] Waiting state shows exactly what was accepted and what happens next.
 - [ ] Layout passes portrait, landscape, safe-area, large-text, and virtual-keyboard tests.
 
 #### AAA-020 — Build explicit TV density layouts
 
-- [ ] Replace unlimited whole-screen shrinking with regular, compact, and paged result layouts.
-- [ ] Minimum body type is 24 px at 1080p-equivalent rendering; critical prompts are larger.
-- [ ] 5% overscan-safe margins protect all essential state.
-- [ ] Maximum players, longest names/prompts, ties, and empty results fit without page scroll.
+- [x] Replace unlimited whole-screen shrinking with regular, compact, and paged result layouts.
+- [x] Minimum body type is 24 px at 1080p-equivalent rendering; critical prompts are larger.
+- [x] 5% overscan-safe margins protect all essential state.
+- [x] Maximum players, longest names/prompts, ties, and empty results fit without page scroll.
 - [ ] 720p, 1080p, and 4K screenshots pass visual review for every phase.
 
 #### AAA-021 — Make QR/join presentation phase-aware
 
-- [ ] Full join instructions and QR dominate only the lobby.
-- [ ] During play, an optional compact join badge replaces the full panel.
-- [ ] Join-lock state is visible and QR never advertises an unusable flow.
-- [ ] Address wrapping/truncation never makes the manual URL ambiguous.
+- [x] Full join instructions and QR dominate only the lobby.
+- [x] During play, an optional compact join badge replaces the full panel.
+- [x] Join-lock state is visible and QR never advertises an unusable flow.
+- [x] Address wrapping/truncation never makes the manual URL ambiguous.
 
 #### AAA-022 — Create premium phase transitions
 
@@ -419,7 +419,7 @@ loading, success, warning, and error states in all four themes.
 #### AAA-024 — Add reduced-motion-safe motion tokens
 
 - [ ] All animation uses documented tokens and can be disabled centrally.
-- [ ] Continuous decorative motion pauses when the page is hidden.
+- [x] Continuous decorative motion pauses when the page is hidden.
 - [ ] No flashing violates WCAG thresholds.
 - [ ] Motion performance stays within frame-time budgets on target phones/TV browser.
 
@@ -434,7 +434,7 @@ loading, success, warning, and error states in all four themes.
 #### AAA-026 — Complete accessibility and focus behavior
 
 - [ ] Phase changes move focus only when helpful and announce one concise update.
-- [ ] Voting uses semantic groups with a clear selected state.
+- [x] Voting uses semantic groups with a clear selected state.
 - [ ] All interactive targets are keyboard operable and at least 44x44 CSS pixels.
 - [ ] Text/background combinations pass WCAG AA; critical status does not rely on color alone.
 - [ ] 200% zoom and increased text size do not hide primary controls.
@@ -468,7 +468,7 @@ loading, success, warning, and error states in all four themes.
 - [x] Opaque scenes ship as AVIF/WebP with PNG fallback only if necessary.
 - [x] Transparent art is quantized or converted to lossless WebP after alpha verification.
 - [ ] Multiple responsive sizes avoid decoding oversized art on phones.
-- [ ] Non-selected catalog art is lazy-loaded.
+- [x] Non-selected catalog art is lazy-loaded.
 - [ ] Initial host, player, and display transfers meet `AAA-049` budgets.
 
 #### AAA-031 — Introduce premium self-hosted typography

@@ -118,6 +118,8 @@ function renderVotingForm(
   legend.textContent = 'Which take deserves the spotlight?';
   const choices = dependencies.document.createElement('div');
   choices.className = 'vote-card-grid';
+  choices.setAttribute('role', 'group');
+  choices.setAttribute('aria-label', 'Available takes');
   let selectedEntryId = context.draft?.selections?.[0] ?? '';
   const cards: HTMLButtonElement[] = [];
   for (const [index, entry] of player.entries.entries()) {
