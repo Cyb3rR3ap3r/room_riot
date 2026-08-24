@@ -4,20 +4,20 @@ Use this as a map, then verify details against the current source before editing
 
 ## Repository map
 
-| Concern | Location | What to inspect |
-| --- | --- | --- |
-| Shared protocol and IDs | `packages/contracts/src/index.ts` | game IDs, room settings, request/response schemas, public versus private state |
-| Game rules and content | `games/<game-id>/src/` | constants, state transitions, prompt loaders, scoring, views, tests |
-| Curated content | `games/<game-id>/content/` | mode-specific JSON packs and prompt schema |
-| Room lifecycle | `apps/server/src/room-manager.ts` | create/start/action/resolve/next-round/end, deadlines, snapshots, reconnects |
-| Socket transport | `apps/server/src/socket.ts` | authenticated room actions, acknowledgements, error envelopes |
-| HTTP/bootstrap | `apps/server/src/http.ts` | static serving, health/startup, generated asset imports |
-| Web protocol types | `apps/web/src/protocol.ts` | client game unions, socket request/response types, private/public views |
-| Web application | `apps/web/src/main.ts` | catalog, host controls, player controller, display, results, winner routes |
-| Global display styling | `apps/web/index.html` | inline CSS, viewport rules, responsive layout, game-specific classes |
-| Visual assets | `apps/web/assets/` | logos, backgrounds, icons, naming and import conventions |
-| Build/deploy | root `package.json`, `pnpm-workspace.yaml`, `Dockerfile`, `scripts/verify-deployment.mjs` | package scripts, build order, production dependency handling, route and asset checks |
-| TypeScript project graph | `tsconfig.json`, `apps/server/tsconfig.json`, `apps/web/tsconfig.json` | project references that must include the new game package |
+| Concern                  | Location                                                                                  | What to inspect                                                                      |
+| ------------------------ | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Shared protocol and IDs  | `packages/contracts/src/index.ts`                                                         | game IDs, room settings, request/response schemas, public versus private state       |
+| Game rules and content   | `games/<game-id>/src/`                                                                    | constants, state transitions, prompt loaders, scoring, views, tests                  |
+| Curated content          | `games/<game-id>/content/`                                                                | mode-specific JSON packs and prompt schema                                           |
+| Room lifecycle           | `apps/server/src/room-manager.ts`                                                         | create/start/action/resolve/next-round/end, deadlines, snapshots, reconnects         |
+| Socket transport         | `apps/server/src/socket.ts`                                                               | authenticated room actions, acknowledgements, error envelopes                        |
+| HTTP/bootstrap           | `apps/server/src/http.ts`                                                                 | static serving, health/startup, generated asset imports                              |
+| Web protocol types       | `apps/web/src/protocol.ts`                                                                | client game unions, socket request/response types, private/public views              |
+| Web application          | `apps/web/src/main.ts`                                                                    | catalog, host controls, player controller, display, results, winner routes           |
+| Global display styling   | `apps/web/index.html`                                                                     | inline CSS, viewport rules, responsive layout, game-specific classes                 |
+| Visual assets            | `apps/web/assets/`                                                                        | logos, backgrounds, icons, naming and import conventions                             |
+| Build/deploy             | root `package.json`, `pnpm-workspace.yaml`, `Dockerfile`, `scripts/verify-deployment.mjs` | package scripts, build order, production dependency handling, route and asset checks |
+| TypeScript project graph | `tsconfig.json`, `apps/server/tsconfig.json`, `apps/web/tsconfig.json`                    | project references that must include the new game package                            |
 
 ## Integration sequence
 

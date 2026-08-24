@@ -4,14 +4,14 @@
 
 Record a compact matrix before implementation. Compare the proposed game with every current Room Riot game on:
 
-| Dimension | Questions |
-| --- | --- |
-| Core action | What does a player physically choose, write, rank, bluff, draw, or target? |
-| Social engine | Is the tension from consensus, prediction, deception, speed, negotiation, or asymmetric information? |
-| Information flow | What is private, simultaneous, revealed, voted on, or inferred? |
-| Scoring | What earns points, when are ties resolved, and why can a losing player recover? |
-| Round shape | How do setup, input, reveal, resolution, and next-round cadence differ? |
-| Display role | What must the shared screen communicate, and what does it deliberately hide? |
+| Dimension        | Questions                                                                                            |
+| ---------------- | ---------------------------------------------------------------------------------------------------- |
+| Core action      | What does a player physically choose, write, rank, bluff, draw, or target?                           |
+| Social engine    | Is the tension from consensus, prediction, deception, speed, negotiation, or asymmetric information? |
+| Information flow | What is private, simultaneous, revealed, voted on, or inferred?                                      |
+| Scoring          | What earns points, when are ties resolved, and why can a losing player recover?                      |
+| Round shape      | How do setup, input, reveal, resolution, and next-round cadence differ?                              |
+| Display role     | What must the shared screen communicate, and what does it deliberately hide?                         |
 
 Aim for at least three meaningful differences from each existing game, not merely a new theme or prompt set. Reject concepts whose fun depends on reproducing a recognizable commercial game's distinctive rules or wording.
 
