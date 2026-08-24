@@ -16,8 +16,9 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 RUN pnpm build
-# pnpm asks for confirmation before replacing node_modules; Docker builds have no TTY.
-RUN CI=true pnpm prune --prod
+# Workspace prune is not recursive and can remove production links such as qrcode.
+# A production install is recursive across the workspace and keeps those links intact.
+RUN CI=true pnpm install --prod --frozen-lockfile
 
 FROM node:22-alpine AS runtime
 
