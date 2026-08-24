@@ -16,7 +16,8 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 RUN pnpm build
-RUN pnpm prune --prod
+# pnpm asks for confirmation before replacing node_modules; Docker builds have no TTY.
+RUN CI=true pnpm prune --prod
 
 FROM node:22-alpine AS runtime
 
