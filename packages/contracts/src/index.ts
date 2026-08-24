@@ -27,7 +27,7 @@ export const GameIdSchema = z
   .regex(/^[a-z][a-z0-9-]{1,31}$/, 'Game IDs must be lowercase kebab-case.');
 export type GameId = z.infer<typeof GameIdSchema>;
 
-export const SupportedGameIdSchema = z.enum(['groupthink', 'hot-take']);
+export const SupportedGameIdSchema = z.enum(['groupthink', 'hot-take', 'suspect']);
 export type SupportedGameId = z.infer<typeof SupportedGameIdSchema>;
 
 export const RoomPhaseSchema = z.enum([
@@ -35,6 +35,7 @@ export const RoomPhaseSchema = z.enum([
   'intro',
   'prompt',
   'input',
+  'alibi',
   'voting',
   'results',
   'scoring',
@@ -135,6 +136,16 @@ export const PlayerSubmitAnswerRequestSchema = z
   .strict();
 
 export type PlayerSubmitAnswerRequest = z.infer<typeof PlayerSubmitAnswerRequestSchema>;
+
+export const PlayerSubmitAlibiRequestSchema = z
+  .object({
+    roomCode: RoomCodeSchema,
+    playerToken: SessionTokenSchema,
+    alibi: z.string().trim().min(1).max(280),
+  })
+  .strict();
+
+export type PlayerSubmitAlibiRequest = z.infer<typeof PlayerSubmitAlibiRequestSchema>;
 
 export const PlayerCastVoteRequestSchema = z
   .object({

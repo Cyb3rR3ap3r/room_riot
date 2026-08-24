@@ -12,6 +12,7 @@
     { "path": "../../packages/contracts" },
     { "path": "../../packages/game-engine" },
     { "path": "../../games/groupthink" },
-    { "path": "../../games/hot-take" }
+    { "path": "../../games/hot-take" },
+    { "path": "../../games/suspect" }
   ]
 }

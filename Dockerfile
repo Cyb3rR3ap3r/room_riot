@@ -9,6 +9,7 @@ COPY apps/server/package.json apps/server/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY games/groupthink/package.json games/groupthink/package.json
 COPY games/hot-take/package.json games/hot-take/package.json
+COPY games/suspect/package.json games/suspect/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/game-engine/package.json packages/game-engine/package.json
 
@@ -40,6 +41,10 @@ COPY --from=build /app/games/hot-take/package.json ./games/hot-take/package.json
 COPY --from=build /app/games/hot-take/node_modules ./games/hot-take/node_modules
 COPY --from=build /app/games/hot-take/dist ./games/hot-take/dist
 COPY --from=build /app/games/hot-take/content ./games/hot-take/content
+COPY --from=build /app/games/suspect/package.json ./games/suspect/package.json
+COPY --from=build /app/games/suspect/node_modules ./games/suspect/node_modules
+COPY --from=build /app/games/suspect/dist ./games/suspect/dist
+COPY --from=build /app/games/suspect/content ./games/suspect/content
 COPY --from=build /app/packages/contracts/package.json ./packages/contracts/package.json
 COPY --from=build /app/packages/contracts/node_modules ./packages/contracts/node_modules
 COPY --from=build /app/packages/contracts/dist ./packages/contracts/dist

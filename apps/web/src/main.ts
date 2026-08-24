@@ -8,6 +8,7 @@ import type {
   JoinRoomRequest,
   PlayerCastVoteRequest,
   PlayerSubmitAnswerRequest,
+  PlayerSubmitAlibiRequest,
   PromptMode,
   RoomPhase,
   RoomCode,
@@ -16,6 +17,7 @@ import type {
 import type { PublicRoomState } from '@room-riot/game-engine';
 import type { GroupthinkPlayerView, GroupthinkPublicView } from '@room-riot/groupthink';
 import type { HotTakeEntryView, HotTakePlayerView } from '@room-riot/hot-take';
+import type { SuspectPlayerView, SuspectPublicView } from '@room-riot/suspect';
 
 import type {
   HostCreateResponse,
@@ -61,7 +63,7 @@ interface PageParts {
 
 type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting';
 
-type SupportedGameId = 'groupthink' | 'hot-take';
+type SupportedGameId = 'groupthink' | 'hot-take' | 'suspect';
 
 interface GameDefinition {
   readonly id: SupportedGameId;
@@ -112,12 +114,26 @@ const GAME_CATALOG: readonly GameDefinition[] = [
     controlRoom: 'Live Heat Control',
     audience: 'the audience',
   },
+  {
+    id: 'suspect',
+    label: 'Suspect',
+    kicker: 'Everybody looks guilty',
+    description: 'Answer in secret, build an alibi, and accuse the player who fits the clue.',
+    players: '4–12 players',
+    rounds: '5 rounds',
+    pace: 'Deduction · dramatic',
+    icon: '/assets/suspect-icon.png',
+    background: '/assets/suspect-bg.png',
+    stageArt: '/assets/suspect-stage.png',
+    controlRoom: 'Case File Control',
+    audience: 'the jury',
+  },
 ];
 
 function getGameFromPathname(pathname = window.location.pathname): SupportedGameId | null {
-  const match = pathname.match(/^\/(?:host|display|play)\/(groupthink|hot-take)$/);
+  const match = pathname.match(/^\/(?:host|display|play)\/(groupthink|hot-take|suspect)$/);
   const gameId = match?.[1];
-  return gameId === 'groupthink' || gameId === 'hot-take' ? gameId : null;
+  return gameId === 'groupthink' || gameId === 'hot-take' || gameId === 'suspect' ? gameId : null;
 }
 
 function buildHostRoute(gameId: SupportedGameId): string {
@@ -235,7 +251,12 @@ function createSoundController(): SoundController {
     context ??= new AudioContextConstructor();
     void context.resume();
     enabled = true;
-    button.textContent = activeGame === 'groupthink' ? 'Lab audio on' : 'Stage audio on';
+    button.textContent =
+      activeGame === 'groupthink'
+        ? 'Lab audio on'
+        : activeGame === 'hot-take'
+          ? 'Stage audio on'
+          : 'Case audio on';
   });
 
   const playTone = (
@@ -276,15 +297,29 @@ function createSoundController(): SoundController {
     }
 
     const notes =
-      phase === 'winner'
-        ? [220, 330, 440, 660]
-        : phase === 'results'
-          ? [196, 294, 494]
-          : phase === 'voting'
-            ? [260, 390, 520]
-            : [174, 261];
+      activeGame === 'hot-take'
+        ? phase === 'winner'
+          ? [220, 330, 440, 660]
+          : phase === 'results'
+            ? [196, 294, 494]
+            : phase === 'voting'
+              ? [260, 390, 520]
+              : [174, 261]
+        : phase === 'winner'
+          ? [196, 293, 440, 587]
+          : phase === 'results'
+            ? [164, 246, 369]
+            : phase === 'alibi'
+              ? [220, 277, 330]
+              : [147, 196];
     notes.forEach((frequency, index) =>
-      playTone(frequency, index * 0.065, 0.2, index === 0 ? 'sawtooth' : 'square', 0.035),
+      playTone(
+        frequency,
+        index * (activeGame === 'suspect' ? 0.08 : 0.065),
+        0.2,
+        activeGame === 'suspect' ? 'triangle' : index === 0 ? 'sawtooth' : 'square',
+        0.035,
+      ),
     );
   };
 
@@ -294,7 +329,12 @@ function createSoundController(): SoundController {
       if (gameId) {
         activeGame = gameId;
         if (!enabled) {
-          button.textContent = gameId === 'groupthink' ? 'Enable lab audio' : 'Enable stage audio';
+          button.textContent =
+            gameId === 'groupthink'
+              ? 'Enable lab audio'
+              : gameId === 'hot-take'
+                ? 'Enable stage audio'
+                : 'Enable case audio';
         }
       }
       if (previousPhase && previousPhase !== phase && enabled && context) {
@@ -317,7 +357,10 @@ function createButton(label: string, type: 'button' | 'submit' = 'button'): HTML
   return button;
 }
 
-function createField(labelText: string, input: HTMLInputElement | HTMLSelectElement): HTMLElement {
+function createField(
+  labelText: string,
+  input: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
+): HTMLElement {
   const label = document.createElement('label');
   label.className = 'field';
   const text = document.createElement('span');
@@ -338,7 +381,7 @@ function getGameDefinition(gameId: string | null | undefined): GameDefinition {
 }
 
 function setGameTheme(root: HTMLElement, gameId: string | null | undefined): void {
-  root.classList.remove('game-groupthink', 'game-hot-take');
+  root.classList.remove('game-groupthink', 'game-hot-take', 'game-suspect');
   if (!gameId) {
     delete root.dataset.gameId;
     return;
@@ -579,6 +622,34 @@ function appendHotTakeStatus(container: HTMLElement, snapshot: RoomSnapshot): vo
   container.append(progress);
 }
 
+function appendSuspectStatus(container: HTMLElement, snapshot: RoomSnapshot): void {
+  const game = snapshot.game;
+  if (!game || game.id !== 'suspect') return;
+
+  const prompt = document.createElement('p');
+  prompt.className = 'prompt';
+  prompt.textContent = game.prompt;
+  container.append(prompt);
+
+  const remainingSeconds = game.deadlineAt
+    ? Math.max(0, Math.ceil((game.deadlineAt - Date.now()) / 1000))
+    : null;
+  const phaseText =
+    game.status === 'input'
+      ? `${game.submittedCount}/${game.totalPlayers} answered privately`
+      : game.status === 'alibi'
+        ? 'Alibi window'
+        : game.status === 'voting'
+          ? 'Accuse someone'
+          : 'Case resolved';
+  const progress = document.createElement('span');
+  progress.className = 'pill';
+  progress.dataset.deadlineAt = game.deadlineAt ? String(game.deadlineAt) : '';
+  progress.dataset.countdownPrefix = `Round ${game.roundNumber}/${game.totalRounds} · ${phaseText}`;
+  progress.textContent = `${progress.dataset.countdownPrefix}${remainingSeconds === null ? '' : ` · ${remainingSeconds}s left`}`;
+  container.append(progress);
+}
+
 function updateCountdown(element: HTMLElement): void {
   const deadlineAt = Number(element.dataset.deadlineAt);
   const prefix = element.dataset.countdownPrefix;
@@ -617,6 +688,58 @@ function appendHotTakeEntries(
   container.append(list);
 }
 
+function appendSuspectResults(
+  container: HTMLElement,
+  game: SuspectPublicView,
+  state: PublicRoomState,
+): void {
+  const heading = document.createElement('h2');
+  heading.textContent =
+    game.roundType === 'false-accusation' ? 'The accusation was fake' : 'Case results';
+  container.append(heading);
+
+  const selected = document.createElement('p');
+  selected.className = 'suspect-result-callout';
+  if (game.selectedPlayerIds.length === 0) {
+    selected.textContent =
+      game.roundType === 'false-accusation'
+        ? 'No match. The sharp-eyed players saw through it.'
+        : game.roundType === 'most-likely'
+          ? 'No consensus. The jury could not agree on a best fit.'
+          : 'No match. The clue did not point to anyone.';
+  } else {
+    const names = game.selectedPlayerIds.map((id) => {
+      const player = state.players.find((candidate) => candidate.id === id);
+      return `${player?.avatar ?? '🕵️'} ${player?.name ?? 'Unknown player'}`;
+    });
+    selected.textContent = `${game.roundType === 'double-trouble' ? 'The pair was' : 'The suspect was'} ${names.join(' and ')}.`;
+  }
+  container.append(selected);
+
+  if (game.alibiText) {
+    const alibi = document.createElement('p');
+    alibi.className = 'muted';
+    alibi.textContent = `Alibi: “${game.alibiText}”`;
+    container.append(alibi);
+  }
+
+  if (game.voteSummary.length > 0) {
+    const votes = document.createElement('ul');
+    votes.className = 'answer-list suspect-vote-summary';
+    game.voteSummary.forEach((vote) => {
+      const item = document.createElement('li');
+      const names = vote.targetPlayerIds.length
+        ? vote.targetPlayerIds
+            .map((id) => state.players.find((player) => player.id === id)?.name ?? 'Unknown')
+            .join(' + ')
+        : 'No match';
+      item.textContent = `${names} · ${vote.count} vote${vote.count === 1 ? '' : 's'}`;
+      votes.append(item);
+    });
+    container.append(votes);
+  }
+}
+
 function isGroupthinkPlayerView(state: PlayerGameView | null): state is GroupthinkPlayerView {
   return state?.id === 'groupthink';
 }
@@ -625,13 +748,21 @@ function isHotTakePlayerView(state: PlayerGameView | null): state is HotTakePlay
   return state?.id === 'hot-take';
 }
 
+function isSuspectPlayerView(state: PlayerGameView | null): state is SuspectPlayerView {
+  return state?.id === 'suspect';
+}
+
 function createStageArtwork(gameId: SupportedGameId, className = ''): HTMLImageElement {
   const game = getGameDefinition(gameId);
   const image = document.createElement('img');
   image.className = `stage-art ${className}`.trim();
   image.src = game.stageArt;
   image.alt =
-    gameId === 'groupthink' ? 'Consensus reactor illustration' : 'Hot Take stage illustration';
+    gameId === 'groupthink'
+      ? 'Consensus reactor illustration'
+      : gameId === 'hot-take'
+        ? 'Hot Take stage illustration'
+        : 'Suspect investigation board illustration';
   return image;
 }
 
@@ -656,10 +787,20 @@ function createProgressMeter(value: number, total: number, label: string): HTMLE
 function createRoomPass(roomCode: string, gameId: SupportedGameId): HTMLElement {
   const game = getGameDefinition(gameId);
   const panel = document.createElement('aside');
-  panel.className = gameId === 'groupthink' ? 'lab-room-pass' : 'heat-room-pass';
+  panel.className =
+    gameId === 'groupthink'
+      ? 'lab-room-pass'
+      : gameId === 'hot-take'
+        ? 'heat-room-pass'
+        : 'suspect-room-pass';
   const eyebrow = document.createElement('span');
   eyebrow.className = 'experience-eyebrow';
-  eyebrow.textContent = gameId === 'groupthink' ? 'Mind link active' : 'Backstage access';
+  eyebrow.textContent =
+    gameId === 'groupthink'
+      ? 'Mind link active'
+      : gameId === 'hot-take'
+        ? 'Backstage access'
+        : 'Case file active';
   const label = document.createElement('span');
   label.className = 'room-pass-label';
   label.textContent = 'Join at this address';
@@ -679,22 +820,38 @@ function createRoomPass(roomCode: string, gameId: SupportedGameId): HTMLElement 
 
 function createExperienceRoster(state: PublicRoomState, gameId: SupportedGameId): HTMLElement {
   const roster = document.createElement('aside');
-  roster.className = gameId === 'groupthink' ? 'mind-roster' : 'audience-roster';
+  roster.className =
+    gameId === 'groupthink'
+      ? 'mind-roster'
+      : gameId === 'hot-take'
+        ? 'audience-roster'
+        : 'jury-roster';
   const heading = document.createElement('div');
   heading.className = 'experience-section-title';
   const title = document.createElement('h2');
-  title.textContent = gameId === 'groupthink' ? 'Connected minds' : 'Tonight’s audience';
+  title.textContent =
+    gameId === 'groupthink'
+      ? 'Connected minds'
+      : gameId === 'hot-take'
+        ? 'Tonight’s audience'
+        : 'The jury';
   const count = document.createElement('span');
   count.textContent = `${state.players.length}/${state.settings.maxPlayers}`;
   heading.append(title, count);
   roster.append(heading);
 
   const list = document.createElement('ul');
-  list.className = gameId === 'groupthink' ? 'mind-grid' : 'audience-grid';
+  list.className =
+    gameId === 'groupthink' ? 'mind-grid' : gameId === 'hot-take' ? 'audience-grid' : 'jury-grid';
   if (state.players.length === 0) {
     const empty = document.createElement('li');
     empty.className = 'experience-empty';
-    empty.textContent = gameId === 'groupthink' ? 'Scanning for minds…' : 'Doors are open…';
+    empty.textContent =
+      gameId === 'groupthink'
+        ? 'Scanning for minds…'
+        : gameId === 'hot-take'
+          ? 'Doors are open…'
+          : 'Waiting for witnesses…';
     list.append(empty);
   } else {
     state.players.forEach((player, index) => {
@@ -761,18 +918,33 @@ function createGameStage(snapshot: RoomSnapshot, gameId: SupportedGameId): HTMLE
       ? state.phase === 'lobby'
         ? 'Calibrating the consensus reactor'
         : 'Consensus reactor online'
-      : state.phase === 'lobby'
-        ? 'Pre-show'
-        : state.phase === 'voting'
-          ? 'The vote is live'
-          : 'Live on the Hot Take stage';
+      : gameId === 'hot-take'
+        ? state.phase === 'lobby'
+          ? 'Pre-show'
+          : state.phase === 'voting'
+            ? 'The vote is live'
+            : 'Live on the Hot Take stage'
+        : state.phase === 'lobby'
+          ? 'Open case file'
+          : state.phase === 'alibi'
+            ? 'The suspect has the floor'
+            : state.phase === 'voting'
+              ? 'Accusations are live'
+              : 'Investigation in progress';
   const title = document.createElement('h2');
   title.textContent =
     state.phase === 'lobby'
       ? gameId === 'groupthink'
         ? 'Bring every brain into the loop.'
-        : 'Get the room ready to bring the heat.'
-      : game?.prompt || (gameId === 'groupthink' ? 'Think alike.' : 'Make it spicy.');
+        : gameId === 'hot-take'
+          ? 'Get the room ready to bring the heat.'
+          : 'Set the jury and open the case.'
+      : game?.prompt ||
+        (gameId === 'groupthink'
+          ? 'Think alike.'
+          : gameId === 'hot-take'
+            ? 'Make it spicy.'
+            : 'Everybody looks guilty.');
   stageCopy.append(cue, title);
 
   if (game?.id === 'groupthink') {
@@ -803,6 +975,37 @@ function createGameStage(snapshot: RoomSnapshot, gameId: SupportedGameId): HTMLE
       );
       stageCopy.append(entries);
     }
+  } else if (game?.id === 'suspect') {
+    stageCopy.append(
+      createProgressMeter(
+        game.status === 'input'
+          ? game.submittedCount
+          : game.status === 'voting'
+            ? game.voteSummary.length
+            : game.submittedCount,
+        game.status === 'voting' ? game.totalPlayers : game.totalPlayers,
+        game.status === 'input'
+          ? 'Private answers'
+          : game.status === 'alibi'
+            ? 'Alibi window'
+            : game.status === 'voting'
+              ? 'Accusations'
+              : 'Case resolved',
+      ),
+    );
+    if (game.status === 'alibi' && game.alibiPlayerId) {
+      const accused = state.players.find((player) => player.id === game.alibiPlayerId);
+      const alibi = document.createElement('p');
+      alibi.className = 'suspect-callout';
+      alibi.textContent = `${accused?.avatar ?? '🕵️'} ${accused?.name ?? 'A player'} has been selected for questioning.`;
+      stageCopy.append(alibi);
+    }
+    if (state.phase === 'results' || state.phase === 'winner') {
+      const results = document.createElement('section');
+      results.className = 'suspect-results';
+      appendSuspectResults(results, game, state);
+      stageCopy.append(results);
+    }
   }
 
   if (state.phase === 'winner') {
@@ -818,7 +1021,9 @@ function createGameStage(snapshot: RoomSnapshot, gameId: SupportedGameId): HTMLE
 function createHostExperience(snapshot: RoomSnapshot, session: HostSession): HTMLElement {
   const gameId = getGameDefinition(snapshot.game?.id ?? snapshot.state.gameId ?? session.gameId).id;
   const shell = document.createElement('section');
-  shell.className = `experience-shell host-experience ${gameId === 'groupthink' ? 'consensus-lab' : 'live-heat'}`;
+  shell.className = `experience-shell host-experience ${
+    gameId === 'groupthink' ? 'consensus-lab' : gameId === 'hot-take' ? 'live-heat' : 'case-room'
+  }`;
   shell.append(createExperienceTopbar(gameId, session.roomCode, snapshot.state.phase));
   const grid = document.createElement('div');
   grid.className = 'experience-grid';
@@ -834,7 +1039,9 @@ function createHostExperience(snapshot: RoomSnapshot, session: HostSession): HTM
 function createDisplayExperience(snapshot: RoomSnapshot, sound: SoundController): HTMLElement {
   const gameId = getGameDefinition(snapshot.game?.id ?? snapshot.state.gameId).id;
   const shell = document.createElement('section');
-  shell.className = `experience-shell display-experience ${gameId === 'groupthink' ? 'consensus-lab' : 'live-heat'}`;
+  shell.className = `experience-shell display-experience ${
+    gameId === 'groupthink' ? 'consensus-lab' : gameId === 'hot-take' ? 'live-heat' : 'case-room'
+  }`;
   shell.append(createExperienceTopbar(gameId, snapshot.state.roomCode, snapshot.state.phase));
 
   const grid = document.createElement('div');
@@ -996,10 +1203,20 @@ function renderHost(root: HTMLElement): void {
 
     if (state.phase === 'lobby') {
       const start = createButton(
-        `Start ${session.gameId === 'hot-take' ? 'Hot Take' : 'Groupthink'}`,
+        `Start ${
+          session.gameId === 'hot-take'
+            ? 'Hot Take'
+            : session.gameId === 'suspect'
+              ? 'Suspect'
+              : 'Groupthink'
+        }`,
       );
       start.disabled =
-        session.gameId === 'hot-take' ? state.players.length < 3 : state.players.length < 1;
+        session.gameId === 'hot-take'
+          ? state.players.length < 3
+          : session.gameId === 'suspect'
+            ? state.players.length < 4
+            : state.players.length < 1;
       start.addEventListener('click', () => {
         const request: HostStartGameRequest = {
           roomCode: session?.roomCode ?? '',
@@ -1018,7 +1235,11 @@ function renderHost(root: HTMLElement): void {
       controls.append(start);
     } else if (state.phase === 'input') {
       const reveal = createButton(
-        session.gameId === 'hot-take' ? 'Put the Takes on Stage' : 'Open the Thought Clusters',
+        session.gameId === 'hot-take'
+          ? 'Put the Takes on Stage'
+          : session.gameId === 'suspect'
+            ? 'Open the Case'
+            : 'Open the Thought Clusters',
       );
       reveal.addEventListener('click', () => {
         const request: HostRoomActionRequest = {
@@ -1035,8 +1256,27 @@ function renderHost(root: HTMLElement): void {
         });
       });
       controls.append(reveal);
+    } else if (state.phase === 'alibi') {
+      const reveal = createButton('Close the Alibi Window');
+      reveal.addEventListener('click', () => {
+        const request: HostRoomActionRequest = {
+          roomCode: session?.roomCode ?? '',
+          hostToken: session?.hostToken ?? '',
+        };
+        socket.emit('host:reveal-results', request, (response: RoomStateResponse) => {
+          if (!isSuccess(response)) {
+            setNotice(page.notice, response.error.message, true);
+            return;
+          }
+          snapshot = response.snapshot;
+          render();
+        });
+      });
+      controls.append(reveal);
     } else if (state.phase === 'voting') {
-      const reveal = createButton('Reveal the Hottest Take');
+      const reveal = createButton(
+        session.gameId === 'suspect' ? 'Reveal the Accusations' : 'Reveal the Hottest Take',
+      );
       reveal.addEventListener('click', () => {
         const request: HostRoomActionRequest = {
           roomCode: session?.roomCode ?? '',
@@ -1054,7 +1294,11 @@ function renderHost(root: HTMLElement): void {
       controls.append(reveal);
     } else if (state.phase === 'results') {
       const next = createButton(
-        session.gameId === 'hot-take' ? 'Turn Up the Next Round' : 'Sync the Next Round',
+        session.gameId === 'hot-take'
+          ? 'Turn Up the Next Round'
+          : session.gameId === 'suspect'
+            ? 'Open the Next Case'
+            : 'Sync the Next Round',
       );
       next.addEventListener('click', () => {
         const request: HostRoomActionRequest = {
@@ -1226,7 +1470,11 @@ function renderPlayer(root: HTMLElement): void {
         const kicker = document.createElement('span');
         kicker.className = 'experience-eyebrow';
         kicker.textContent =
-          routeGameId === 'groupthink' ? 'Connect your mind' : 'Claim your backstage pass';
+          routeGameId === 'groupthink'
+            ? 'Connect your mind'
+            : routeGameId === 'hot-take'
+              ? 'Claim your backstage pass'
+              : 'Join the jury';
         const heading = document.createElement('h1');
         heading.textContent = `Join ${game.label}`;
         const helper = document.createElement('p');
@@ -1234,7 +1482,9 @@ function renderPlayer(root: HTMLElement): void {
         helper.textContent =
           routeGameId === 'groupthink'
             ? 'Enter the room code and tune into the consensus reactor.'
-            : 'Enter the room code and step into tonight’s live audience.';
+            : routeGameId === 'hot-take'
+              ? 'Enter the room code and step into tonight’s live audience.'
+              : 'Enter the room code and keep your answers secret.';
         copy.append(kicker, heading, helper);
         intro.append(copy);
         form.append(intro);
@@ -1272,7 +1522,11 @@ function renderPlayer(root: HTMLElement): void {
     const activeGame = snapshot?.game?.id ?? state?.gameId;
     const controllerGame = activeGame ? getGameDefinition(activeGame).id : null;
     status.className = `controller-shell phase-${state?.phase ?? 'lobby'} ${
-      controllerGame === 'hot-take' ? 'live-heat-controller' : 'consensus-controller'
+      controllerGame === 'groupthink'
+        ? 'consensus-controller'
+        : controllerGame === 'hot-take'
+          ? 'live-heat-controller'
+          : 'suspect-controller'
     }`;
     if (controllerGame) {
       const controllerHeader = createExperienceTopbar(
@@ -1288,12 +1542,16 @@ function renderPlayer(root: HTMLElement): void {
     const statusTitle = document.createElement('h2');
     statusTitle.textContent =
       state?.phase === 'lobby'
-        ? controllerGame === 'hot-take'
-          ? 'Your backstage pass is live.'
-          : 'Your mind is in the loop.'
-        : controllerGame === 'hot-take'
-          ? 'The stage is yours.'
-          : 'Send a thought to the reactor.';
+        ? controllerGame === 'groupthink'
+          ? 'Your mind is in the loop.'
+          : controllerGame === 'hot-take'
+            ? 'Your backstage pass is live.'
+            : 'Your case file is open.'
+        : controllerGame === 'groupthink'
+          ? 'Send a thought to the reactor.'
+          : controllerGame === 'hot-take'
+            ? 'The stage is yours.'
+            : 'Keep your answer secret, then make your accusation.';
     status.append(statusTitle);
 
     if (snapshot?.game?.id === 'groupthink' && isGroupthinkPlayerView(playerState)) {
@@ -1463,6 +1721,178 @@ function renderPlayer(root: HTMLElement): void {
           status.append(own);
         }
         appendHotTakeEntries(status, playerState.entries, 'Vote results');
+      }
+    } else if (snapshot?.game?.id === 'suspect' && isSuspectPlayerView(playerState)) {
+      const suspectSnapshot = snapshot;
+      const suspectPlayerState = playerState;
+      appendSuspectStatus(status, snapshot);
+      if (state?.phase === 'input' && !playerState.hasSubmitted) {
+        const form = document.createElement('form');
+        form.className = 'answer-form suspect-answer-form';
+        const choice = document.createElement('select');
+        choice.innerHTML =
+          '<option value="yes">Yes — this applies to me</option><option value="no">No — not me</option>';
+        form.append(createField('Private answer', choice));
+        const submit = createButton('Lock My Answer', 'submit');
+        form.append(submit);
+        form.addEventListener('submit', (event) => {
+          event.preventDefault();
+          if (!session) return;
+          submit.disabled = true;
+          const request: PlayerSubmitAnswerRequest = {
+            roomCode: session.roomCode,
+            playerToken: session.playerToken,
+            answer: choice.value,
+          };
+          socket.emit('player:submit-answer', request, (response: PlayerAnswerResponse) => {
+            submit.disabled = false;
+            if (!isSuccess(response)) {
+              setNotice(page.notice, response.error.message, true);
+              return;
+            }
+            snapshot = response.snapshot;
+            playerState = response.playerState;
+            render();
+          });
+        });
+        status.append(form);
+      } else if (state?.phase === 'input' && playerState.hasSubmitted) {
+        const waiting = document.createElement('p');
+        waiting.className = 'muted';
+        waiting.textContent = `Private answer locked: ${playerState.ownAnswer ? 'Yes' : 'No'} · waiting for the room.`;
+        status.append(waiting);
+      } else if (state?.phase === 'alibi' && playerState.canSubmitAlibi) {
+        const form = document.createElement('form');
+        form.className = 'answer-form suspect-alibi-form';
+        const textarea = document.createElement('textarea');
+        textarea.maxLength = 280;
+        textarea.rows = 4;
+        textarea.placeholder = 'Make your case in 280 characters…';
+        form.append(createField('Your alibi', textarea));
+        const submit = createButton('Submit Alibi', 'submit');
+        form.append(submit);
+        form.addEventListener('submit', (event) => {
+          event.preventDefault();
+          if (!session || !textarea.value.trim()) return;
+          submit.disabled = true;
+          const request: PlayerSubmitAlibiRequest = {
+            roomCode: session.roomCode,
+            playerToken: session.playerToken,
+            alibi: textarea.value,
+          };
+          socket.emit('player:submit-alibi', request, (response: PlayerAnswerResponse) => {
+            submit.disabled = false;
+            if (!isSuccess(response)) {
+              setNotice(page.notice, response.error.message, true);
+              return;
+            }
+            snapshot = response.snapshot;
+            playerState = response.playerState;
+            render();
+          });
+        });
+        status.append(form);
+      } else if (state?.phase === 'alibi') {
+        const waiting = document.createElement('p');
+        waiting.className = 'muted';
+        waiting.textContent =
+          playerState.alibiPlayerId === session?.playerId
+            ? 'Your alibi is locked. Watch the jury.'
+            : 'The accused player is preparing an alibi.';
+        status.append(waiting);
+      } else if (state?.phase === 'voting' && !playerState.hasVoted) {
+        const form = document.createElement('form');
+        form.className = 'answer-form suspect-vote-form';
+        const selects: HTMLSelectElement[] = [];
+        const addSelect = (label: string): HTMLSelectElement => {
+          const select = document.createElement('select');
+          suspectPlayerState.candidatePlayerIds.forEach((playerId) => {
+            const player = suspectSnapshot.state.players.find(
+              (candidate) => candidate.id === playerId,
+            );
+            const option = document.createElement('option');
+            option.value = playerId;
+            option.textContent = `${player?.avatar ?? '🕵️'} ${player?.name ?? 'Unknown player'}`;
+            select.append(option);
+          });
+          form.append(createField(label, select));
+          selects.push(select);
+          return select;
+        };
+        if (suspectPlayerState.roundType === 'double-trouble') {
+          addSelect('First suspect');
+          addSelect('Second suspect');
+        } else {
+          addSelect(suspectPlayerState.roundType === 'most-likely' ? 'Most likely' : 'Suspect');
+        }
+        const noMatch = document.createElement('label');
+        noMatch.className = 'checkbox-field';
+        const noMatchInput = document.createElement('input');
+        noMatchInput.type = 'checkbox';
+        const noMatchText = document.createElement('span');
+        noMatchText.textContent = 'No match — call the accusation fake';
+        noMatch.append(noMatchInput, noMatchText);
+        if (suspectPlayerState.roundType === 'most-likely') noMatch.hidden = true;
+        form.append(noMatch);
+        const submit = createButton('Submit Accusation', 'submit');
+        form.append(submit);
+        form.addEventListener('submit', (event) => {
+          event.preventDefault();
+          if (!session) return;
+          const targets = noMatchInput.checked
+            ? []
+            : selects.map((select) => select.value).filter(Boolean);
+          if (
+            suspectPlayerState.roundType === 'double-trouble' &&
+            targets.length === 2 &&
+            targets[0] === targets[1]
+          ) {
+            setNotice(page.notice, 'Choose two different suspects.', true);
+            return;
+          }
+          if (!targets.length && suspectPlayerState.roundType === 'most-likely') {
+            setNotice(page.notice, 'Choose the player who fits best.', true);
+            return;
+          }
+          submit.disabled = true;
+          const entryId =
+            targets.length === 0
+              ? 'none'
+              : targets.length === 1
+                ? `player:${targets[0]}`
+                : `players:${targets.join(',')}`;
+          const request: PlayerCastVoteRequest = {
+            roomCode: session.roomCode,
+            playerToken: session.playerToken,
+            entryId,
+          };
+          socket.emit('player:cast-vote', request, (response: PlayerAnswerResponse) => {
+            submit.disabled = false;
+            if (!isSuccess(response)) {
+              setNotice(page.notice, response.error.message, true);
+              return;
+            }
+            snapshot = response.snapshot;
+            playerState = response.playerState;
+            render();
+          });
+        });
+        status.append(form);
+      } else if (state?.phase === 'voting' && playerState.hasVoted) {
+        const waiting = document.createElement('p');
+        waiting.className = 'muted';
+        waiting.textContent = 'Accusation locked · waiting for the jury.';
+        status.append(waiting);
+      } else if (state?.phase === 'results' || state?.phase === 'winner') {
+        const waiting = document.createElement('p');
+        waiting.className = 'muted';
+        waiting.textContent = 'The case results are on the big screen.';
+        status.append(waiting);
+        appendSuspectResults(
+          status,
+          suspectSnapshot.game as SuspectPublicView,
+          suspectSnapshot.state,
+        );
       }
     } else {
       const waiting = document.createElement('p');

@@ -1,0 +1,104 @@
+{
+  "prompts": [
+    {
+      "id": "family-sick",
+      "text": "I have pretended to be sick to avoid a chore.",
+      "roundType": "standard"
+    },
+    {
+      "id": "family-snack-stash",
+      "text": "I have hidden a snack so nobody else would find it.",
+      "roundType": "standard"
+    },
+    {
+      "id": "family-wrong-song",
+      "text": "I have confidently sung the wrong words to a song.",
+      "roundType": "standard"
+    },
+    {
+      "id": "family-pet-blame",
+      "text": "I have blamed a pet for a noise I made.",
+      "roundType": "standard"
+    },
+    {
+      "id": "family-last-cookie",
+      "text": "I have taken the last cookie and hoped nobody noticed.",
+      "roundType": "alibi"
+    },
+    {
+      "id": "family-board-game",
+      "text": "I have changed a board-game rule after the game started.",
+      "roundType": "alibi"
+    },
+    {
+      "id": "family-pretend-sleep",
+      "text": "I have pretended to be asleep so I would not have to answer a question.",
+      "roundType": "alibi"
+    },
+    {
+      "id": "family-secret-gift",
+      "text": "I have accidentally revealed a surprise gift.",
+      "roundType": "alibi"
+    },
+    {
+      "id": "family-matching-socks",
+      "text": "I have left the house wearing two different socks.",
+      "roundType": "double-trouble"
+    },
+    {
+      "id": "family-wrong-name",
+      "text": "I have called a teacher, coach, or neighbor the wrong name.",
+      "roundType": "double-trouble"
+    },
+    {
+      "id": "family-fort",
+      "text": "I have built a blanket fort and refused to take it down.",
+      "roundType": "double-trouble"
+    },
+    {
+      "id": "family-lost-toy",
+      "text": "I have looked everywhere for something that was in my hand.",
+      "roundType": "double-trouble"
+    },
+    {
+      "id": "family-fake-rule",
+      "text": "I have invented a rule during a game because it helped me.",
+      "roundType": "false-accusation"
+    },
+    {
+      "id": "family-car-sing",
+      "text": "I have started a car sing-along without checking whether anyone wanted one.",
+      "roundType": "false-accusation"
+    },
+    {
+      "id": "family-extra-dessert",
+      "text": "I have eaten dessert before dinner and called it a taste test.",
+      "roundType": "false-accusation"
+    },
+    {
+      "id": "family-school-project",
+      "text": "I have volunteered someone else for a school project job.",
+      "roundType": "false-accusation"
+    },
+    {
+      "id": "family-most-organized",
+      "text": "Who in this room would organize the best family road trip?",
+      "roundType": "most-likely"
+    },
+    {
+      "id": "family-most-dramatic",
+      "text": "Who in this room would make a tiny inconvenience sound like an adventure?",
+      "roundType": "most-likely"
+    },
+    {
+      "id": "family-most-snacks",
+      "text": "Who in this room would bring the best snacks to a sleepover?",
+      "roundType": "most-likely"
+    },
+    {
+      "id": "family-most-lost",
+      "text": "Who in this room would get lost in a familiar neighborhood?",
+      "roundType": "most-likely"
+    }
+  ]
+}

@@ -276,6 +276,67 @@ test('automatically resolves Hot Take with no submitted answers', async () => {
   assert.equal(phases.at(-1), 'results');
 });
 
+test('runs Suspect through private answers, accusations, and scoring', () => {
+  const manager = new RoomManager({ randomizePrompts: false });
+  const room = manager.createRoom({ gameId: 'suspect', settings: { roundCount: 1 } });
+  const players = [
+    manager.joinRoom({ roomCode: room.roomCode, name: 'Alex', avatar: '😎' }),
+    manager.joinRoom({ roomCode: room.roomCode, name: 'Blair', avatar: '👽' }),
+    manager.joinRoom({ roomCode: room.roomCode, name: 'Casey', avatar: '🤖' }),
+    manager.joinRoom({ roomCode: room.roomCode, name: 'Drew', avatar: '🐸' }),
+  ];
+
+  const started = manager.startGame(room.roomCode, room.hostToken, 'suspect');
+  assert.equal(started.state.phase, 'input');
+  assert.equal(started.game?.id, 'suspect');
+  if (started.game?.id !== 'suspect') throw new Error('Expected Suspect state.');
+
+  const firstAnswer = manager.submitAnswer(room.roomCode, players[0]!.playerId, 'yes');
+  assert.equal(firstAnswer.snapshot.state.phase, 'input');
+  assert.equal(firstAnswer.snapshot.game?.id, 'suspect');
+  assert.equal(firstAnswer.snapshot.game?.matchedCount, 0);
+  assert.equal(firstAnswer.playerState?.id, 'suspect');
+  if (firstAnswer.playerState?.id === 'suspect')
+    assert.equal(firstAnswer.playerState.ownAnswer, true);
+
+  manager.submitAnswer(room.roomCode, players[1]!.playerId, 'no');
+  manager.submitAnswer(room.roomCode, players[2]!.playerId, 'no');
+  const voting = manager.submitAnswer(room.roomCode, players[3]!.playerId, 'no');
+  assert.equal(voting.snapshot.state.phase, 'voting');
+
+  manager.castVote(room.roomCode, players[0]!.playerId, `player:${players[1]!.playerId}`);
+  manager.castVote(room.roomCode, players[1]!.playerId, `player:${players[0]!.playerId}`);
+  manager.castVote(room.roomCode, players[2]!.playerId, `player:${players[0]!.playerId}`);
+  const results = manager.castVote(
+    room.roomCode,
+    players[3]!.playerId,
+    `player:${players[1]!.playerId}`,
+  );
+  assert.equal(results.snapshot.state.phase, 'results');
+  assert.equal(results.snapshot.game?.id, 'suspect');
+  if (results.snapshot.game?.id === 'suspect') {
+    assert.deepEqual(results.snapshot.game.selectedPlayerIds, [players[0]!.playerId]);
+    assert.equal(
+      results.snapshot.game.roundScores.find((score) => score.playerId === players[1]!.playerId)
+        ?.points,
+      100,
+    );
+    assert.equal(
+      results.snapshot.game.roundScores.find((score) => score.playerId === players[2]!.playerId)
+        ?.points,
+      100,
+    );
+  }
+
+  const winner = manager.advanceRound(room.roomCode, room.hostToken);
+  assert.equal(winner.state.phase, 'winner');
+  assert.equal(
+    winner.state.players.find((player) => player.id === players[1]!.playerId)?.score,
+    100,
+  );
+  manager.close();
+});
+
 function waitForRoomPhase(manager: RoomManager, roomCode: string, phase: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const state: {

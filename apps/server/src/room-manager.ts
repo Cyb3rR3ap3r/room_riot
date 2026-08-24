@@ -58,6 +58,31 @@ import type {
   HotTakeSessionState,
 } from '@room-riot/hot-take';
 import {
+  SUSPECT_ALIBI_DURATION_MS,
+  SUSPECT_GAME_ID,
+  SUSPECT_INPUT_DURATION_MS,
+  SUSPECT_VOTING_DURATION_MS,
+  advanceSuspectRound,
+  allSuspectPlayersAnswered,
+  allSuspectPlayersVoted,
+  createSuspectSession,
+  expireSuspectAlibi,
+  getSuspectPlayerView,
+  getSuspectPublicView,
+  loadSuspectPrompts,
+  revealSuspectAnswers,
+  revealSuspectVotes,
+  submitSuspectAlibi,
+  submitSuspectAnswer,
+  submitSuspectVote,
+} from '@room-riot/suspect';
+import type {
+  SuspectPlayerView,
+  SuspectPrompt,
+  SuspectPublicView,
+  SuspectSessionState,
+} from '@room-riot/suspect';
+import {
   addPlayerScores,
   addPlayer,
   createInitialRoomState,
@@ -67,7 +92,11 @@ import {
   toPublicRoomState,
 } from '@room-riot/game-engine';
 import type { PublicRoomState, RoomState } from '@room-riot/game-engine';
-import { generateGroupthinkPrompts, generateHotTakePrompts } from './prompt-generator.js';
+import {
+  generateGroupthinkPrompts,
+  generateHotTakePrompts,
+  generateSuspectPrompts,
+} from './prompt-generator.js';
 
 const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const ROOM_CODE_LENGTH = 4;
@@ -80,8 +109,10 @@ interface RoomSession {
   state: RoomState;
   groupthink?: GroupthinkSessionState;
   hotTake?: HotTakeSessionState;
+  suspect?: SuspectSessionState;
   groupthinkPrompts?: readonly GroupthinkPrompt[];
   hotTakePrompts?: readonly HotTakePrompt[];
+  suspectPrompts?: readonly SuspectPrompt[];
   readonly hostToken: SessionToken;
   lastActivityAt: number;
   hostSocketId?: string;
@@ -113,8 +144,8 @@ export interface JoinedRoom {
   readonly playerState: PlayerGameView | null;
 }
 
-export type PublicGameView = GroupthinkPublicView | HotTakePublicView;
-export type PlayerGameView = GroupthinkPlayerView | HotTakePlayerView;
+export type PublicGameView = GroupthinkPublicView | HotTakePublicView | SuspectPublicView;
+export type PlayerGameView = GroupthinkPlayerView | HotTakePlayerView | SuspectPlayerView;
 
 export interface RoomSnapshot {
   readonly state: PublicRoomState;
@@ -130,6 +161,9 @@ export interface RoomManagerOptions {
   readonly groupthinkInputDurationMs?: number;
   readonly hotTakeInputDurationMs?: number;
   readonly hotTakeVotingDurationMs?: number;
+  readonly suspectInputDurationMs?: number;
+  readonly suspectAlibiDurationMs?: number;
+  readonly suspectVotingDurationMs?: number;
   readonly maxRooms?: number;
   readonly roomIdleTtlMs?: number;
   readonly cleanupIntervalMs?: number;
@@ -143,13 +177,18 @@ export class RoomManager {
   private readonly socketBindings = new Map<string, SocketBinding>();
   private readonly groupthinkPrompts = new Map<ContentMode, readonly GroupthinkPrompt[]>();
   private readonly hotTakePrompts = new Map<ContentMode, readonly HotTakePrompt[]>();
+  private readonly suspectPrompts = new Map<ContentMode, readonly SuspectPrompt[]>();
   private readonly lastGroupthinkPromptIds = new Map<ContentMode, string>();
   private readonly lastHotTakePromptIds = new Map<ContentMode, string>();
+  private readonly lastSuspectPromptIds = new Map<ContentMode, string>();
   private readonly inputTimers = new Map<RoomCode, ReturnType<typeof setTimeout>>();
   private readonly snapshotListeners = new Set<RoomSnapshotListener>();
   private readonly groupthinkInputDurationMs: number;
   private readonly hotTakeInputDurationMs: number;
   private readonly hotTakeVotingDurationMs: number;
+  private readonly suspectInputDurationMs: number;
+  private readonly suspectAlibiDurationMs: number;
+  private readonly suspectVotingDurationMs: number;
   private readonly maxRooms: number;
   private readonly roomIdleTtlMs: number;
   private readonly cleanupTimer: ReturnType<typeof setInterval>;
@@ -160,6 +199,9 @@ export class RoomManager {
       options.groupthinkInputDurationMs ?? GROUPTHINK_INPUT_DURATION_MS;
     const hotTakeInputDurationMs = options.hotTakeInputDurationMs ?? HOT_TAKE_INPUT_DURATION_MS;
     const hotTakeVotingDurationMs = options.hotTakeVotingDurationMs ?? HOT_TAKE_VOTING_DURATION_MS;
+    const suspectInputDurationMs = options.suspectInputDurationMs ?? SUSPECT_INPUT_DURATION_MS;
+    const suspectAlibiDurationMs = options.suspectAlibiDurationMs ?? SUSPECT_ALIBI_DURATION_MS;
+    const suspectVotingDurationMs = options.suspectVotingDurationMs ?? SUSPECT_VOTING_DURATION_MS;
     const maxRooms = options.maxRooms ?? 1_000;
     const roomIdleTtlMs = options.roomIdleTtlMs ?? 6 * 60 * 60 * 1_000;
     const cleanupIntervalMs = options.cleanupIntervalMs ?? 60_000;
@@ -171,6 +213,12 @@ export class RoomManager {
       hotTakeInputDurationMs < 1 ||
       !Number.isInteger(hotTakeVotingDurationMs) ||
       hotTakeVotingDurationMs < 1 ||
+      !Number.isInteger(suspectInputDurationMs) ||
+      suspectInputDurationMs < 1 ||
+      !Number.isInteger(suspectAlibiDurationMs) ||
+      suspectAlibiDurationMs < 1 ||
+      !Number.isInteger(suspectVotingDurationMs) ||
+      suspectVotingDurationMs < 1 ||
       !Number.isInteger(maxRooms) ||
       maxRooms < 1 ||
       !Number.isInteger(roomIdleTtlMs) ||
@@ -183,6 +231,9 @@ export class RoomManager {
     this.groupthinkInputDurationMs = groupthinkInputDurationMs;
     this.hotTakeInputDurationMs = hotTakeInputDurationMs;
     this.hotTakeVotingDurationMs = hotTakeVotingDurationMs;
+    this.suspectInputDurationMs = suspectInputDurationMs;
+    this.suspectAlibiDurationMs = suspectAlibiDurationMs;
+    this.suspectVotingDurationMs = suspectVotingDurationMs;
     this.maxRooms = maxRooms;
     this.roomIdleTtlMs = roomIdleTtlMs;
     this.randomizePrompts = randomizePrompts;
@@ -284,11 +335,18 @@ export class RoomManager {
     if (session.state.phase !== 'lobby') {
       throw new RoomManagerError('INVALID_STATE', 'A game can only be started from the lobby.');
     }
-    if (gameId !== GROUPTHINK_GAME_ID && gameId !== HOT_TAKE_GAME_ID) {
+    if (
+      gameId !== GROUPTHINK_GAME_ID &&
+      gameId !== HOT_TAKE_GAME_ID &&
+      gameId !== SUSPECT_GAME_ID
+    ) {
       throw new RoomManagerError('INVALID_STATE', 'That game is not available.');
     }
     if (gameId === HOT_TAKE_GAME_ID && Object.keys(session.state.players).length < 3) {
       throw new RoomManagerError('INVALID_STATE', 'Hot Take requires at least three players.');
+    }
+    if (gameId === SUSPECT_GAME_ID && Object.keys(session.state.players).length < 4) {
+      throw new RoomManagerError('INVALID_STATE', 'Suspect requires at least four players.');
     }
     session.state = setGame(session.state, gameId);
     if (session.state.gameId === GROUPTHINK_GAME_ID) {
@@ -343,9 +401,43 @@ export class RoomManager {
       }
       session.state = setPhase(session.state, 'input');
       this.scheduleHotTakeDeadline(roomCode, session);
+    } else if (session.state.gameId === SUSPECT_GAME_ID) {
+      delete session.groupthink;
+      delete session.groupthinkPrompts;
+      delete session.hotTake;
+      delete session.hotTakePrompts;
+      const prompts = this.getSuspectPrompts(
+        session.state.settings.contentMode,
+        session.state.settings.promptMode,
+      );
+      session.suspectPrompts = prompts;
+      session.suspect = createSuspectSession(
+        prompts,
+        session.state.settings.roundCount,
+        Date.now(),
+        this.suspectInputDurationMs,
+        this.suspectAlibiDurationMs,
+        this.suspectVotingDurationMs,
+        this.randomizePrompts,
+        this.randomizePrompts
+          ? this.lastSuspectPromptIds.get(session.state.settings.contentMode)
+          : undefined,
+      );
+      if (this.randomizePrompts) {
+        this.lastSuspectPromptIds.set(
+          session.state.settings.contentMode,
+          session.suspect.prompt.id,
+        );
+      }
+      session.state = setPhase(
+        session.state,
+        session.suspect.status === 'voting' ? 'voting' : 'input',
+      );
+      this.scheduleSuspectDeadline(roomCode, session);
     } else {
       delete session.groupthink;
       delete session.hotTake;
+      delete session.suspect;
       this.clearGameDeadline(roomCode);
     }
     return this.getSnapshot(session);
@@ -553,7 +645,79 @@ export class RoomManager {
       return this.submitHotTakeAnswer(roomCodeInput, playerId, answer, targetPlayerId);
     }
 
+    if (session.state.gameId === SUSPECT_GAME_ID) {
+      if (targetPlayerId) {
+        throw new RoomManagerError(
+          'INVALID_STATE',
+          'Suspect answers are private Yes or No choices.',
+        );
+      }
+      return this.submitSuspectAnswer(roomCodeInput, playerId, answer);
+    }
+
     throw new RoomManagerError('INVALID_STATE', 'This room is not running a playable game.');
+  }
+
+  submitSuspectAnswer(
+    roomCodeInput: string,
+    playerIdInput: string,
+    answer: string,
+  ): PlayerGameUpdate {
+    const session = this.requireRoom(roomCodeInput);
+    this.expireGameIfNeeded(session);
+    const playerId = PlayerIdSchemaFromInput(playerIdInput);
+    const game = this.requireSuspect(session);
+    if (!session.state.players[playerId]) {
+      throw new RoomManagerError('UNAUTHORIZED', 'Player session is not part of this room.');
+    }
+    const normalized = answer.trim().toLowerCase();
+    if (normalized !== 'yes' && normalized !== 'no') {
+      throw new RoomManagerError('INVALID_STATE', 'Suspect answers must be Yes or No.');
+    }
+    session.suspect = submitSuspectAnswer(game, playerId, normalized === 'yes', Date.now());
+    const playerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
+    if (allSuspectPlayersAnswered(session.suspect, playerIds)) {
+      session.suspect = revealSuspectAnswers(
+        session.suspect,
+        playerIds,
+        Date.now(),
+        this.suspectAlibiDurationMs,
+        this.suspectVotingDurationMs,
+      );
+      session.state = setPhase(
+        session.state,
+        session.suspect.status === 'alibi' ? 'alibi' : 'voting',
+      );
+      this.scheduleSuspectDeadline(session.state.roomCode, session);
+    }
+    return {
+      snapshot: this.getSnapshot(session),
+      playerState: this.getPrivatePlayerState(session, playerId),
+    };
+  }
+
+  submitSuspectAlibi(
+    roomCodeInput: string,
+    playerIdInput: string,
+    alibi: string,
+  ): PlayerGameUpdate {
+    const session = this.requireRoom(roomCodeInput);
+    this.expireGameIfNeeded(session);
+    const playerId = PlayerIdSchemaFromInput(playerIdInput);
+    const game = this.requireSuspect(session);
+    session.suspect = submitSuspectAlibi(
+      game,
+      playerId,
+      alibi,
+      Date.now(),
+      this.suspectVotingDurationMs,
+    );
+    session.state = setPhase(session.state, 'voting');
+    this.scheduleSuspectDeadline(session.state.roomCode, session);
+    return {
+      snapshot: this.getSnapshot(session),
+      playerState: this.getPrivatePlayerState(session, playerId),
+    };
   }
 
   submitHotTakeAnswer(
@@ -595,6 +759,9 @@ export class RoomManager {
     const session = this.requireRoom(roomCodeInput);
     this.expireGameIfNeeded(session);
     const playerId = PlayerIdSchemaFromInput(playerIdInput);
+    if (session.state.gameId === SUSPECT_GAME_ID) {
+      return this.castSuspectVote(roomCodeInput, playerId, entryId);
+    }
     const game = this.requireHotTake(session);
     const playerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
     session.hotTake = submitHotTakeVote(game, playerId, entryId, Date.now());
@@ -605,6 +772,25 @@ export class RoomManager {
       this.clearGameDeadline(session.state.roomCode);
     }
 
+    return {
+      snapshot: this.getSnapshot(session),
+      playerState: this.getPrivatePlayerState(session, playerId),
+    };
+  }
+
+  castSuspectVote(roomCodeInput: string, playerIdInput: string, choice: string): PlayerGameUpdate {
+    const session = this.requireRoom(roomCodeInput);
+    this.expireGameIfNeeded(session);
+    const playerId = PlayerIdSchemaFromInput(playerIdInput);
+    const game = this.requireSuspect(session);
+    const playerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
+    const targets = parseSuspectVoteChoice(choice);
+    session.suspect = submitSuspectVote(game, playerId, targets, playerIds, Date.now());
+    if (allSuspectPlayersVoted(session.suspect, playerIds)) {
+      session.suspect = revealSuspectVotes(session.suspect);
+      session.state = setPhase(session.state, 'results');
+      this.clearGameDeadline(session.state.roomCode);
+    }
     return {
       snapshot: this.getSnapshot(session),
       playerState: this.getPrivatePlayerState(session, playerId),
@@ -625,6 +811,39 @@ export class RoomManager {
 
     if (session.state.gameId === GROUPTHINK_GAME_ID) {
       return this.revealGroupthinkResults(roomCodeInput, hostTokenInput);
+    }
+
+    if (session.state.gameId === SUSPECT_GAME_ID) {
+      const game = this.requireSuspect(session);
+      const playerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
+      if (session.state.phase === 'input') {
+        session.suspect = revealSuspectAnswers(
+          game,
+          playerIds,
+          Date.now(),
+          this.suspectAlibiDurationMs,
+          this.suspectVotingDurationMs,
+        );
+        session.state = setPhase(
+          session.state,
+          session.suspect.status === 'alibi' ? 'alibi' : 'voting',
+        );
+        this.scheduleSuspectDeadline(session.state.roomCode, session);
+        return this.getSnapshot(session);
+      }
+      if (session.state.phase === 'alibi') {
+        session.suspect = expireSuspectAlibi(game, Date.now(), this.suspectVotingDurationMs);
+        session.state = setPhase(session.state, 'voting');
+        this.scheduleSuspectDeadline(session.state.roomCode, session);
+        return this.getSnapshot(session);
+      }
+      if (session.state.phase === 'voting') {
+        session.suspect = revealSuspectVotes(game);
+        session.state = setPhase(session.state, 'results');
+        this.clearGameDeadline(session.state.roomCode);
+        return this.getSnapshot(session);
+      }
+      throw new RoomManagerError('INVALID_STATE', 'This Suspect round is not waiting for results.');
     }
 
     if (session.state.gameId !== HOT_TAKE_GAME_ID || !session.hotTake) {
@@ -693,6 +912,9 @@ export class RoomManager {
     if (session.state.gameId === GROUPTHINK_GAME_ID) {
       return this.advanceGroupthink(roomCodeInput, hostTokenInput);
     }
+    if (session.state.gameId === SUSPECT_GAME_ID) {
+      return this.advanceSuspect(roomCodeInput, hostTokenInput);
+    }
     if (session.state.gameId !== HOT_TAKE_GAME_ID || !session.hotTake) {
       throw new RoomManagerError('INVALID_STATE', 'This room is not running a playable game.');
     }
@@ -723,10 +945,87 @@ export class RoomManager {
     return this.getSnapshot(session);
   }
 
+  private advanceSuspect(roomCodeInput: string, hostTokenInput: string): RoomSnapshot {
+    const session = this.requireAuthorizedSession(roomCodeInput, hostTokenInput);
+    const game = this.requireSuspect(session);
+    if (session.state.phase !== 'results') {
+      throw new RoomManagerError('INVALID_STATE', 'Results must be revealed before advancing.');
+    }
+    session.state = addPlayerScores(session.state, game.roundScores);
+    session.suspect = advanceSuspectRound(
+      game,
+      session.suspectPrompts ??
+        this.getSuspectPrompts(
+          session.state.settings.contentMode,
+          session.state.settings.promptMode,
+        ),
+      Date.now(),
+      this.suspectInputDurationMs,
+      this.suspectAlibiDurationMs,
+      this.suspectVotingDurationMs,
+    );
+    session.state = setPhase(
+      session.state,
+      session.suspect.status === 'complete'
+        ? 'winner'
+        : session.suspect.status === 'voting'
+          ? 'voting'
+          : 'input',
+    );
+    if (session.suspect.status === 'complete') this.clearGameDeadline(session.state.roomCode);
+    else this.scheduleSuspectDeadline(session.state.roomCode, session);
+    return this.getSnapshot(session);
+  }
+
   private expireGameIfNeeded(session: RoomSession, now = Date.now()): void {
     if (session.groupthink?.status === 'input' && session.groupthink.inputDeadlineAt !== null) {
       if (now >= session.groupthink.inputDeadlineAt) {
         session.groupthink = revealGroupthink(session.groupthink);
+        session.state = setPhase(session.state, 'results', now);
+        this.clearGameDeadline(session.state.roomCode);
+      }
+      return;
+    }
+
+    const suspect = session.suspect;
+    if (suspect) {
+      const playerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
+      if (
+        suspect.status === 'input' &&
+        suspect.inputDeadlineAt !== null &&
+        now >= suspect.inputDeadlineAt
+      ) {
+        session.suspect = revealSuspectAnswers(
+          suspect,
+          playerIds,
+          now,
+          this.suspectAlibiDurationMs,
+          this.suspectVotingDurationMs,
+        );
+        session.state = setPhase(
+          session.state,
+          session.suspect.status === 'alibi' ? 'alibi' : 'voting',
+          now,
+        );
+        this.scheduleSuspectDeadline(session.state.roomCode, session);
+        return;
+      }
+      if (
+        suspect.status === 'alibi' &&
+        suspect.alibiDeadlineAt !== null &&
+        now >= suspect.alibiDeadlineAt
+      ) {
+        session.suspect = expireSuspectAlibi(suspect, now, this.suspectVotingDurationMs);
+        session.state = setPhase(session.state, 'voting', now);
+        this.scheduleSuspectDeadline(session.state.roomCode, session);
+        return;
+      }
+      if (
+        suspect.status === 'voting' &&
+        suspect.votingDeadlineAt !== null &&
+        now >= suspect.votingDeadlineAt
+      ) {
+        session.suspect = revealSuspectVotes(suspect);
         session.state = setPhase(session.state, 'results', now);
         this.clearGameDeadline(session.state.roomCode);
       }
@@ -838,6 +1137,64 @@ export class RoomManager {
     this.inputTimers.set(roomCode, timer);
   }
 
+  private scheduleSuspectDeadline(roomCode: RoomCode, session: RoomSession): void {
+    this.clearGameDeadline(roomCode);
+    const game = session.suspect;
+    const deadlineAt =
+      game?.status === 'input'
+        ? game.inputDeadlineAt
+        : game?.status === 'alibi'
+          ? game.alibiDeadlineAt
+          : game?.status === 'voting'
+            ? game.votingDeadlineAt
+            : null;
+    if (!deadlineAt || !game || !['input', 'alibi', 'voting'].includes(game.status)) return;
+
+    const status = game.status;
+    const timer = setTimeout(
+      () => {
+        const current = this.rooms.get(roomCode);
+        if (!current || current.suspect?.status !== status) return;
+        const currentDeadline =
+          status === 'input'
+            ? current.suspect.inputDeadlineAt
+            : status === 'alibi'
+              ? current.suspect.alibiDeadlineAt
+              : current.suspect.votingDeadlineAt;
+        if (currentDeadline !== deadlineAt) return;
+
+        const now = Date.now();
+        const playerIds = Object.keys(current.state.players).map(PlayerIdSchemaFromInput);
+        if (status === 'input') {
+          current.suspect = revealSuspectAnswers(
+            current.suspect,
+            playerIds,
+            now,
+            this.suspectAlibiDurationMs,
+            this.suspectVotingDurationMs,
+          );
+          current.state = setPhase(
+            current.state,
+            current.suspect.status === 'alibi' ? 'alibi' : 'voting',
+          );
+          this.scheduleSuspectDeadline(roomCode, current);
+        } else if (status === 'alibi') {
+          current.suspect = expireSuspectAlibi(current.suspect, now, this.suspectVotingDurationMs);
+          current.state = setPhase(current.state, 'voting');
+          this.scheduleSuspectDeadline(roomCode, current);
+        } else {
+          current.suspect = revealSuspectVotes(current.suspect);
+          current.state = setPhase(current.state, 'results');
+          this.inputTimers.delete(roomCode);
+        }
+        this.notifySnapshotListeners(roomCode, this.getSnapshot(current));
+      },
+      Math.max(0, deadlineAt - Date.now()),
+    );
+    timer.unref?.();
+    this.inputTimers.set(roomCode, timer);
+  }
+
   private clearGameDeadline(roomCode: RoomCode): void {
     const timer = this.inputTimers.get(roomCode);
     if (!timer) return;
@@ -897,6 +1254,13 @@ export class RoomManager {
     return session.hotTake;
   }
 
+  private requireSuspect(session: RoomSession): SuspectSessionState {
+    if (session.state.gameId !== SUSPECT_GAME_ID || !session.suspect) {
+      throw new RoomManagerError('INVALID_STATE', 'This room is not running Suspect.');
+    }
+    return session.suspect;
+  }
+
   private getSnapshot(session: RoomSession): RoomSnapshot {
     const playerNames = Object.fromEntries(
       Object.values(session.state.players).map((player) => [player.id, player.name]),
@@ -912,7 +1276,9 @@ export class RoomManager {
                 Object.keys(session.state.players).length,
                 playerNames,
               )
-            : null,
+            : session.suspect && session.state.gameId === SUSPECT_GAME_ID
+              ? getSuspectPublicView(session.suspect, Object.keys(session.state.players).length)
+              : null,
     };
   }
 
@@ -925,6 +1291,10 @@ export class RoomManager {
     }
     if (session.hotTake && session.state.gameId === HOT_TAKE_GAME_ID) {
       return getHotTakePlayerView(session.hotTake, playerId, playerNames);
+    }
+    if (session.suspect && session.state.gameId === SUSPECT_GAME_ID) {
+      const playerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
+      return getSuspectPlayerView(session.suspect, playerId, playerIds);
     }
     return null;
   }
@@ -950,6 +1320,18 @@ export class RoomManager {
     if (cached) return cached;
     const prompts = loadHotTakePrompts(contentMode);
     this.hotTakePrompts.set(contentMode, prompts);
+    return prompts;
+  }
+
+  private getSuspectPrompts(
+    contentMode: ContentMode,
+    promptMode: PromptMode = 'default',
+  ): readonly SuspectPrompt[] {
+    if (promptMode === 'ai') return generateSuspectPrompts(contentMode);
+    const cached = this.suspectPrompts.get(contentMode);
+    if (cached) return cached;
+    const prompts = loadSuspectPrompts(contentMode);
+    this.suspectPrompts.set(contentMode, prompts);
     return prompts;
   }
 
@@ -987,4 +1369,20 @@ function PlayerIdSchemaFromUuid(): PlayerId {
 
 function PlayerIdSchemaFromInput(input: string): PlayerId {
   return PlayerIdSchema.parse(input);
+}
+
+function parseSuspectVoteChoice(choice: string): readonly PlayerId[] {
+  if (choice === 'none') return [];
+  const [prefix, value] = choice.split(':', 2);
+  if (!value || (prefix !== 'player' && prefix !== 'players')) {
+    throw new RoomManagerError('INVALID_STATE', 'That accusation choice is invalid.');
+  }
+  const values = value.split(',').filter(Boolean);
+  if (prefix === 'player' && values.length !== 1) {
+    throw new RoomManagerError('INVALID_STATE', 'That accusation choice is invalid.');
+  }
+  if (prefix === 'players' && values.length !== 2) {
+    throw new RoomManagerError('INVALID_STATE', 'That accusation choice is invalid.');
+  }
+  return values.map(PlayerIdSchemaFromInput);
 }

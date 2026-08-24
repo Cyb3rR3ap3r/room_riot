@@ -1,0 +1,104 @@
+{
+  "prompts": [
+    {
+      "id": "standard-sick",
+      "text": "I have pretended to be sick to get out of a commitment.",
+      "roundType": "standard"
+    },
+    {
+      "id": "standard-email",
+      "text": "I have written a reply in my head and forgotten to send it.",
+      "roundType": "standard"
+    },
+    {
+      "id": "standard-name",
+      "text": "I have forgotten someone's name while they were saying it.",
+      "roundType": "standard"
+    },
+    {
+      "id": "standard-late",
+      "text": "I have said I was almost there while I was still at home.",
+      "roundType": "standard"
+    },
+    {
+      "id": "standard-fridge",
+      "text": "I have opened the fridge three times hoping new food would appear.",
+      "roundType": "alibi"
+    },
+    {
+      "id": "standard-meeting",
+      "text": "I have nodded in a meeting while understanding absolutely nothing.",
+      "roundType": "alibi"
+    },
+    {
+      "id": "standard-cancel",
+      "text": "I have quietly hoped plans would be cancelled.",
+      "roundType": "alibi"
+    },
+    {
+      "id": "standard-ghost",
+      "text": "I have left a message unanswered because I did not know how to end the conversation.",
+      "roundType": "alibi"
+    },
+    {
+      "id": "standard-parking",
+      "text": "I have forgotten where I parked and blamed the parking lot.",
+      "roundType": "double-trouble"
+    },
+    {
+      "id": "standard-boss",
+      "text": "I have rehearsed a simple sentence before saying it to a boss.",
+      "roundType": "double-trouble"
+    },
+    {
+      "id": "standard-takeout",
+      "text": "I have ordered the same takeout because choosing felt like work.",
+      "roundType": "double-trouble"
+    },
+    {
+      "id": "standard-free-stuff",
+      "text": "I have taken free merchandise I did not actually want.",
+      "roundType": "double-trouble"
+    },
+    {
+      "id": "standard-calendar",
+      "text": "I have put an event on my calendar and still forgotten it.",
+      "roundType": "false-accusation"
+    },
+    {
+      "id": "standard-tab",
+      "text": "I have kept a browser tab open for months because I might need it.",
+      "roundType": "false-accusation"
+    },
+    {
+      "id": "standard-delivery",
+      "text": "I have tracked a delivery even when I knew it was not arriving today.",
+      "roundType": "false-accusation"
+    },
+    {
+      "id": "standard-rehearsed",
+      "text": "I have practiced an argument that never happened.",
+      "roundType": "false-accusation"
+    },
+    {
+      "id": "standard-most-bluff",
+      "text": "Who in this room would give the most convincing alibi?",
+      "roundType": "most-likely"
+    },
+    {
+      "id": "standard-most-detective",
+      "text": "Who in this room would notice a suspicious detail first?",
+      "roundType": "most-likely"
+    },
+    {
+      "id": "standard-most-late",
+      "text": "Who in this room would arrive late with the most believable excuse?",
+      "roundType": "most-likely"
+    },
+    {
+      "id": "standard-most-secret",
+      "text": "Who in this room would be best at keeping a harmless secret?",
+      "roundType": "most-likely"
+    }
+  ]
+}

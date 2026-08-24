@@ -323,8 +323,16 @@
         --game-surface: rgba(84, 21, 86, 0.66);
       }
 
+      .game-suspect {
+        --game-accent: #ffb31a;
+        --game-accent-strong: #ff3d7f;
+        --game-glow: rgba(255, 61, 127, 0.2);
+        --game-surface: rgba(46, 19, 48, 0.72);
+      }
+
       .page.game-groupthink,
-      .page.game-hot-take {
+      .page.game-hot-take,
+      .page.game-suspect {
         background:
           radial-gradient(circle at 100% 0, var(--game-glow), transparent 28rem),
           radial-gradient(circle at 0 100%, var(--game-glow), transparent 24rem);
@@ -338,7 +346,9 @@
       }
 
       .page.game-hot-take .phase-card,
-      .game-detail.game-hot-take {
+      .game-detail.game-hot-take,
+      .page.game-suspect .phase-card,
+      .game-detail.game-suspect {
         border-color: color-mix(in srgb, var(--game-accent) 65%, transparent);
         background:
           linear-gradient(135deg, rgba(255, 62, 169, 0.14), transparent 48%), var(--surface);
@@ -910,6 +920,16 @@
           url('/assets/hot-take-stage-bg-v2.png') center / cover fixed;
       }
 
+      .page.game-suspect {
+        --game-primary: #ff3d7f;
+        --game-secondary: #6d4aff;
+        --game-accent: #ffb31a;
+        --game-panel: rgba(18, 12, 34, 0.92);
+        background:
+          linear-gradient(120deg, rgba(4, 7, 24, 0.72), rgba(24, 5, 28, 0.42)),
+          url('/assets/suspect-bg.png') center / cover fixed;
+      }
+
       .experience-shell {
         position: relative;
         min-height: calc(100svh - 3rem);
@@ -936,6 +956,18 @@
         background:
           radial-gradient(circle at 50% 120%, rgba(255, 76, 29, 0.2), transparent 42%),
           linear-gradient(145deg, rgba(24, 3, 42, 0.94), rgba(8, 3, 21, 0.9));
+      }
+
+      .case-room {
+        border-color: rgba(255, 61, 127, 0.55);
+        border-radius: 1rem;
+        background:
+          radial-gradient(circle at 55% 20%, rgba(255, 179, 26, 0.1), transparent 38%),
+          linear-gradient(150deg, rgba(24, 10, 39, 0.95), rgba(5, 8, 25, 0.92));
+      }
+
+      .case-room .experience-topbar {
+        border-bottom-color: rgba(255, 179, 26, 0.32);
       }
 
       .experience-topbar {
@@ -1044,9 +1076,12 @@
       .lab-room-pass,
       .mind-roster,
       .audience-roster,
+      .jury-roster,
       .consensus-stage,
       .heat-room-pass,
-      .heat-stage {
+      .heat-stage,
+      .suspect-room-pass,
+      .suspect-stage {
         position: relative;
         min-width: 0;
         overflow: hidden;
@@ -1070,8 +1105,20 @@
         box-shadow: inset 0 0 2.5rem rgba(255, 45, 167, 0.055);
       }
 
+      .suspect-room-pass,
+      .jury-roster,
+      .suspect-stage {
+        border: 1px solid rgba(255, 61, 127, 0.36);
+        border-radius: 0.8rem;
+        background:
+          linear-gradient(145deg, rgba(44, 17, 48, 0.92), rgba(9, 10, 29, 0.9)),
+          url('/assets/suspect-bg.png') center / cover;
+        box-shadow: inset 0 0 2.5rem rgba(255, 179, 26, 0.055);
+      }
+
       .lab-room-pass,
-      .heat-room-pass {
+      .heat-room-pass,
+      .suspect-room-pass {
         display: flex;
         align-items: center;
         flex-direction: column;
@@ -1092,6 +1139,10 @@
         );
       }
 
+      .suspect-room-pass {
+        border-color: rgba(255, 179, 26, 0.42);
+      }
+
       .room-pass-label {
         color: var(--muted);
         font-size: 0.78rem;
@@ -1108,7 +1159,8 @@
       }
 
       .lab-room-pass .room-code,
-      .heat-room-pass .room-code {
+      .heat-room-pass .room-code,
+      .suspect-room-pass .room-code {
         margin: 0.35rem 0;
         color: white;
         font:
@@ -1124,8 +1176,14 @@
         transform: skew(-5deg);
       }
 
+      .suspect-room-pass .room-code {
+        color: var(--game-accent);
+        text-shadow: 0 0 1.3rem rgba(255, 179, 26, 0.6);
+      }
+
       .lab-room-pass .qr,
-      .heat-room-pass .qr {
+      .heat-room-pass .qr,
+      .suspect-room-pass .qr {
         width: min(10rem, 78%);
         border: 0.45rem solid white;
         border-radius: 1rem;
@@ -1139,8 +1197,14 @@
         transform: rotate(-1.5deg);
       }
 
+      .suspect-room-pass .qr {
+        border-color: var(--game-accent);
+        border-radius: 0.35rem;
+      }
+
       .consensus-stage,
-      .heat-stage {
+      .heat-stage,
+      .suspect-stage {
         display: grid;
         grid-template-rows: minmax(10rem, 0.85fr) minmax(12rem, 1.15fr);
       }
@@ -1183,6 +1247,11 @@
         animation: stage-breathe 2.7s ease-in-out infinite;
       }
 
+      .suspect-stage .stage-art {
+        width: min(98%, 40rem);
+        animation: case-breathe 4s ease-in-out infinite;
+      }
+
       .stage-copy {
         position: relative;
         z-index: 2;
@@ -1209,6 +1278,11 @@
         font-style: italic;
         text-transform: uppercase;
         text-shadow: 0.18rem 0.18rem 0 #781bd0;
+      }
+
+      .suspect-stage .stage-copy h2 {
+        color: #fff3d0;
+        text-shadow: 0.12rem 0.12rem 0 rgba(255, 61, 127, 0.62);
       }
 
       .experience-meter {
@@ -1255,7 +1329,8 @@
       }
 
       .mind-roster,
-      .audience-roster {
+      .audience-roster,
+      .jury-roster {
         padding: 1rem;
       }
 
@@ -1280,7 +1355,8 @@
       }
 
       .mind-grid,
-      .audience-grid {
+      .audience-grid,
+      .jury-grid {
         display: grid;
         gap: 0.55rem;
         margin: 0;
@@ -1289,7 +1365,8 @@
       }
 
       .mind-grid li,
-      .audience-grid li {
+      .audience-grid li,
+      .jury-grid li {
         display: flex;
         min-width: 0;
         align-items: center;
@@ -1309,6 +1386,12 @@
         background: linear-gradient(90deg, rgba(255, 45, 167, 0.14), transparent);
       }
 
+      .jury-grid li {
+        border: 1px solid rgba(255, 179, 26, 0.24);
+        border-radius: 0.35rem;
+        background: linear-gradient(90deg, rgba(255, 61, 127, 0.15), transparent);
+      }
+
       .roster-avatar {
         display: grid;
         width: 2.5rem;
@@ -1321,25 +1404,29 @@
       }
 
       .mind-grid li > span:last-child,
-      .audience-grid li > span:last-child {
+      .audience-grid li > span:last-child,
+      .jury-grid li > span:last-child {
         display: grid;
         min-width: 0;
       }
 
       .mind-grid strong,
-      .audience-grid strong {
+      .audience-grid strong,
+      .jury-grid strong {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
 
       .mind-grid small,
-      .audience-grid small {
+      .audience-grid small,
+      .jury-grid small {
         color: var(--muted);
       }
 
       .thought-clusters .answer-list,
-      .take-wall .answer-list {
+      .take-wall .answer-list,
+      .suspect-results .answer-list {
         grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
       }
 
@@ -1361,6 +1448,20 @@
           0 100%,
           0 0.4rem
         );
+      }
+
+      .suspect-callout,
+      .suspect-result-callout {
+        border: 1px solid rgba(255, 179, 26, 0.42);
+        border-radius: 0.45rem;
+        padding: 0.75rem 0.9rem;
+        background: rgba(255, 179, 26, 0.1);
+        color: #fff3d0;
+        font-weight: 800;
+      }
+
+      .suspect-vote-summary li {
+        border-color: rgba(255, 61, 127, 0.28);
       }
 
       .thought-clusters h2,
@@ -1454,6 +1555,13 @@
           linear-gradient(150deg, rgba(55, 8, 73, 0.98), rgba(15, 3, 30, 0.98));
       }
 
+      .join-suspect {
+        border-radius: 0.8rem;
+        background:
+          radial-gradient(circle at 50% 8%, rgba(255, 179, 26, 0.14), transparent 35%),
+          linear-gradient(155deg, rgba(35, 14, 46, 0.98), rgba(5, 8, 25, 0.98));
+      }
+
       .themed-join-intro {
         display: grid;
         align-items: center;
@@ -1525,6 +1633,18 @@
         clip-path: polygon(0.5rem 0, 100% 0, calc(100% - 0.5rem) 100%, 0 100%);
       }
 
+      .join-suspect input,
+      .join-suspect select {
+        border-color: rgba(255, 179, 26, 0.5);
+        border-radius: 0.35rem;
+      }
+
+      .join-suspect button {
+        border-radius: 0.35rem;
+        background: linear-gradient(135deg, var(--game-accent), var(--game-primary));
+        color: #1b0820;
+      }
+
       /* Phone controllers */
       .player-page[data-game-id] {
         display: grid;
@@ -1571,6 +1691,14 @@
         background:
           radial-gradient(circle at 50% 115%, rgba(255, 75, 24, 0.3), transparent 42%),
           linear-gradient(155deg, rgba(48, 8, 66, 0.97), rgba(13, 3, 27, 0.98));
+      }
+
+      .suspect-controller {
+        border: 1px solid rgba(255, 61, 127, 0.48);
+        border-radius: 0.8rem;
+        background:
+          radial-gradient(circle at 50% 14%, rgba(255, 179, 26, 0.16), transparent 30%),
+          linear-gradient(160deg, rgba(35, 14, 46, 0.97), rgba(5, 8, 25, 0.98));
       }
 
       .controller-topbar {
@@ -1623,6 +1751,37 @@
         font-style: italic;
         text-transform: uppercase;
         transform: rotate(-0.5deg);
+      }
+
+      .suspect-controller .prompt {
+        border-color: rgba(255, 179, 26, 0.38);
+        border-radius: 0.45rem;
+      }
+
+      .suspect-answer-form select,
+      .suspect-alibi-form textarea,
+      .suspect-vote-form select {
+        border-color: rgba(255, 179, 26, 0.5);
+        border-radius: 0.35rem;
+      }
+
+      .suspect-controller button:not(.secondary) {
+        border-radius: 0.35rem;
+        background: linear-gradient(135deg, var(--game-accent), var(--game-primary));
+        color: #1b0820;
+      }
+
+      .checkbox-field {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        color: var(--muted);
+        font-size: 0.85rem;
+      }
+
+      .checkbox-field input {
+        width: 1rem;
+        height: 1rem;
       }
 
       .controller-shell .pill {
@@ -1728,12 +1887,14 @@
         }
 
         .mind-roster,
-        .audience-roster {
+        .audience-roster,
+        .jury-roster {
           grid-column: 1 / -1;
         }
 
         .mind-grid,
-        .audience-grid {
+        .audience-grid,
+        .jury-grid {
           grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
         }
       }
@@ -1776,12 +1937,14 @@
         }
 
         .lab-room-pass,
-        .heat-room-pass {
+        .heat-room-pass,
+        .suspect-room-pass {
           min-height: 24rem;
         }
 
         .consensus-stage,
-        .heat-stage {
+        .heat-stage,
+        .suspect-stage {
           min-height: 32rem;
         }
 
@@ -1799,7 +1962,8 @@
         }
 
         .display-experience .mind-roster,
-        .display-experience .audience-roster {
+        .display-experience .audience-roster,
+        .display-experience .jury-roster {
           margin-bottom: 1rem;
         }
 
@@ -1869,11 +2033,14 @@
 
       .display-page[data-game-id] .display-experience .consensus-stage,
       .display-page[data-game-id] .display-experience .heat-stage,
+      .display-page[data-game-id] .display-experience .suspect-stage,
       .display-page[data-game-id] .display-experience .stage-copy,
       .display-page[data-game-id] .display-experience .mind-roster,
       .display-page[data-game-id] .display-experience .audience-roster,
+      .display-page[data-game-id] .display-experience .jury-roster,
       .display-page[data-game-id] .display-experience .lab-room-pass,
-      .display-page[data-game-id] .display-experience .heat-room-pass {
+      .display-page[data-game-id] .display-experience .heat-room-pass,
+      .display-page[data-game-id] .display-experience .suspect-room-pass {
         min-height: 0;
         overflow: visible;
       }

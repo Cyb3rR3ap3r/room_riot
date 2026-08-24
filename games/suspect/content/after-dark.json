@@ -1,0 +1,104 @@
+{
+  "prompts": [
+    {
+      "id": "after-dark-sick",
+      "text": "I have pretended to be sick to escape a date or night out.",
+      "roundType": "standard"
+    },
+    {
+      "id": "after-dark-text",
+      "text": "I have typed a risky text, stared at it, and sent it anyway.",
+      "roundType": "standard"
+    },
+    {
+      "id": "after-dark-ex",
+      "text": "I have checked an ex's profile and denied it when asked.",
+      "roundType": "standard"
+    },
+    {
+      "id": "after-dark-party",
+      "text": "I have left a party without saying goodbye to anyone.",
+      "roundType": "standard"
+    },
+    {
+      "id": "after-dark-red-flag",
+      "text": "I have ignored a red flag because the story was entertaining.",
+      "roundType": "alibi"
+    },
+    {
+      "id": "after-dark-double-text",
+      "text": "I have sent a second message before getting a reply to the first.",
+      "roundType": "alibi"
+    },
+    {
+      "id": "after-dark-fake-name",
+      "text": "I have given a fake name to avoid a longer conversation.",
+      "roundType": "alibi"
+    },
+    {
+      "id": "after-dark-bartender",
+      "text": "I have ordered something I could not pronounce with confidence.",
+      "roundType": "alibi"
+    },
+    {
+      "id": "after-dark-dance",
+      "text": "I have danced like nobody was watching while many people were watching.",
+      "roundType": "double-trouble"
+    },
+    {
+      "id": "after-dark-last-call",
+      "text": "I have said one last drink and meant at least two more.",
+      "roundType": "double-trouble"
+    },
+    {
+      "id": "after-dark-crush",
+      "text": "I have changed an outfit because someone I liked might be there.",
+      "roundType": "double-trouble"
+    },
+    {
+      "id": "after-dark-screenshot",
+      "text": "I have screenshotted a message to ask friends what it meant.",
+      "roundType": "double-trouble"
+    },
+    {
+      "id": "after-dark-voicemail",
+      "text": "I have listened to my own voicemail greeting and decided it sounded strange.",
+      "roundType": "false-accusation"
+    },
+    {
+      "id": "after-dark-awkward",
+      "text": "I have taken the long way around to avoid an awkward hello.",
+      "roundType": "false-accusation"
+    },
+    {
+      "id": "after-dark-cover-story",
+      "text": "I have invented a cover story for an extremely ordinary plan.",
+      "roundType": "false-accusation"
+    },
+    {
+      "id": "after-dark-snooze",
+      "text": "I have set an alarm for a conversation I did not want to forget.",
+      "roundType": "false-accusation"
+    },
+    {
+      "id": "after-dark-most-flirt",
+      "text": "Who in this room would flirt their way out of a parking ticket?",
+      "roundType": "most-likely"
+    },
+    {
+      "id": "after-dark-most-chaos",
+      "text": "Who in this room would turn a quiet night into a story?",
+      "roundType": "most-likely"
+    },
+    {
+      "id": "after-dark-most-ex",
+      "text": "Who in this room would accidentally become friends with an ex's friends?",
+      "roundType": "most-likely"
+    },
+    {
+      "id": "after-dark-most-alibi",
+      "text": "Who in this room would make a suspicious story sound completely reasonable?",
+      "roundType": "most-likely"
+    }
+  ]
+}

@@ -10,6 +10,7 @@ import {
   HostStartGameRequestSchema,
   JoinRoomRequestSchema,
   PlayerLeaveRoomRequestSchema,
+  PlayerSubmitAlibiRequestSchema,
   PlayerCastVoteRequestSchema,
   PlayerSubmitAnswerRequestSchema,
 } from '@room-riot/contracts';
@@ -21,6 +22,7 @@ import type {
   HostStartGameRequest,
   JoinRoomRequest,
   PlayerLeaveRoomRequest,
+  PlayerSubmitAlibiRequest,
   PlayerCastVoteRequest,
   PlayerSubmitAnswerRequest,
   RoomCode,
@@ -79,6 +81,10 @@ export interface ClientToServerEvents {
   'player:join': (payload: JoinRoomRequest, ack: EventAck<PlayerJoinSuccess>) => void;
   'player:submit-answer': (
     payload: PlayerSubmitAnswerRequest,
+    ack: EventAck<PlayerAnswerSuccess>,
+  ) => void;
+  'player:submit-alibi': (
+    payload: PlayerSubmitAlibiRequest,
     ack: EventAck<PlayerAnswerSuccess>,
   ) => void;
   'player:cast-vote': (payload: PlayerCastVoteRequest, ack: EventAck<PlayerAnswerSuccess>) => void;
@@ -270,6 +276,21 @@ export function attachRealtimeServer(httpServer: HttpServer, roomManager: RoomMa
           request.answer,
           request.targetPlayerId,
         );
+        broadcastRoomSnapshot(request.roomCode, update.snapshot);
+        return {
+          roomCode: request.roomCode,
+          snapshot: update.snapshot,
+          playerState: update.playerState,
+        };
+      });
+    });
+
+    socket.on('player:submit-alibi', (payload, ack) => {
+      respond(ack, () => {
+        const request = PlayerSubmitAlibiRequestSchema.parse(payload);
+        const playerId = roomManager.getPlayerIdForToken(request.roomCode, request.playerToken);
+        roomManager.assertPlayerSocket(request.roomCode, playerId, socket.id);
+        const update = roomManager.submitSuspectAlibi(request.roomCode, playerId, request.alibi);
         broadcastRoomSnapshot(request.roomCode, update.snapshot);
         return {
           roomCode: request.roomCode,

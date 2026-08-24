@@ -18,6 +18,7 @@ from typing import Any
 
 MODES = ("family", "standard", "after-dark")
 VALID_KINDS = {"open", "player-targeted"}
+VALID_ROUND_TYPES = {"standard", "alibi", "double-trouble", "false-accusation", "most-likely"}
 GAME_ID_RE = re.compile(r"^[a-z][a-z0-9-]{1,31}$")
 
 
@@ -97,6 +98,7 @@ def validate_pack(
     ids: list[str] = []
     texts: list[str] = []
     saw_kind = False
+    saw_round_type = False
     for index, prompt in enumerate(prompts):
         label = f"{path} prompt {index + 1}"
         if not isinstance(prompt, dict):
@@ -116,6 +118,10 @@ def validate_pack(
             saw_kind = True
             if not isinstance(prompt["kind"], str) or prompt["kind"] not in VALID_KINDS:
                 failures.append(f"{label} has invalid kind {prompt['kind']!r}")
+        if "roundType" in prompt:
+            saw_round_type = True
+            if not isinstance(prompt["roundType"], str) or prompt["roundType"] not in VALID_ROUND_TYPES:
+                failures.append(f"{label} has invalid roundType {prompt['roundType']!r}")
 
     if len(ids) != len(set(ids)):
         failures.append(f"{path}: duplicate prompt IDs")
@@ -123,6 +129,10 @@ def validate_pack(
         failures.append(f"{path}: duplicate normalized prompt text")
     if saw_kind and any("kind" not in prompt for prompt in prompts if isinstance(prompt, dict)):
         failures.append(f"{path}: prompts must consistently include kind")
+    if saw_round_type and any(
+        "roundType" not in prompt for prompt in prompts if isinstance(prompt, dict)
+    ):
+        failures.append(f"{path}: prompts must consistently include roundType")
     return len(prompts)
 
 

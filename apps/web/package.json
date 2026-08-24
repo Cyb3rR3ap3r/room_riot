@@ -11,6 +11,7 @@
     "@room-riot/contracts": "workspace:*",
     "@room-riot/game-engine": "workspace:*",
     "@room-riot/groupthink": "workspace:*",
-    "@room-riot/hot-take": "workspace:*"
+    "@room-riot/hot-take": "workspace:*",
+    "@room-riot/suspect": "workspace:*"
   }
 }

@@ -5,6 +5,8 @@ import { loadGroupthinkPrompts } from '@room-riot/groupthink';
 import type { GroupthinkPrompt } from '@room-riot/groupthink';
 import { loadHotTakePrompts } from '@room-riot/hot-take';
 import type { HotTakePrompt } from '@room-riot/hot-take';
+import { loadSuspectPrompts } from '@room-riot/suspect';
+import type { SuspectPrompt } from '@room-riot/suspect';
 
 /**
  * Generates a large, local prompt deck for the AI mode.
@@ -47,6 +49,25 @@ export function generateHotTakePrompts(
     text: prompt.text,
     kind: prompt.kind,
   }));
+}
+
+export function generateSuspectPrompts(
+  contentMode: ContentMode,
+  count = 100,
+): readonly SuspectPrompt[] {
+  const candidateByText = new Map<string, SuspectPrompt>();
+  [
+    ...SUSPECT_PROMPTS,
+    ...(MODE_SUSPECT_PROMPTS[contentMode] ?? []),
+    ...loadSuspectPrompts(contentMode),
+  ].forEach((prompt) => candidateByText.set(prompt.text, prompt));
+  const candidates = shuffle([...candidateByText.values()]);
+  return candidates
+    .slice(0, Math.max(1, Math.min(count, candidates.length)))
+    .map((prompt, index) => ({
+      ...prompt,
+      id: `ai-suspect-${index + 1}-${randomUUID()}`,
+    }));
 }
 
 function uniqueTexts(texts: readonly string[]): string[] {
@@ -210,5 +231,67 @@ const MODE_HOT_TAKE_PROMPTS: Record<
     { text: 'What is the worst excuse for leaving a party early?', kind: 'open' },
     { text: 'Who in this room would make the most chaotic ex?', kind: 'player-targeted' },
     { text: 'Who in this room would text an ex at 2 a.m.?', kind: 'player-targeted' },
+  ],
+};
+
+const SUSPECT_PROMPTS: readonly SuspectPrompt[] = [
+  {
+    id: 'ai-seed-sick',
+    text: 'I have pretended to be sick to avoid a responsibility.',
+    roundType: 'standard',
+  },
+  {
+    id: 'ai-seed-phone',
+    text: 'I have checked my phone during a conversation.',
+    roundType: 'standard',
+  },
+  {
+    id: 'ai-seed-name',
+    text: "I have forgotten someone's name immediately after hearing it.",
+    roundType: 'standard',
+  },
+  {
+    id: 'ai-seed-alibi',
+    text: 'I have rehearsed an alibi for something completely harmless.',
+    roundType: 'alibi',
+  },
+  {
+    id: 'ai-seed-double',
+    text: 'I have sent a message and wished I could unsend it.',
+    roundType: 'double-trouble',
+  },
+  {
+    id: 'ai-seed-false',
+    text: 'I have won a competition without trying.',
+    roundType: 'false-accusation',
+  },
+  {
+    id: 'ai-seed-most',
+    text: 'Who in this room would spot a suspicious detail first?',
+    roundType: 'most-likely',
+  },
+];
+
+const MODE_SUSPECT_PROMPTS: Record<ContentMode, readonly SuspectPrompt[]> = {
+  family: [
+    { id: 'ai-family-snack', text: 'I have hidden a snack for later.', roundType: 'standard' },
+    {
+      id: 'ai-family-fort',
+      text: 'I have built a blanket fort and defended it seriously.',
+      roundType: 'alibi',
+    },
+  ],
+  standard: [],
+  'after-dark': [
+    {
+      id: 'ai-after-dark-text',
+      text: 'I have sent a risky late-night text.',
+      roundType: 'standard',
+    },
+    {
+      id: 'ai-after-dark-red-flag',
+      text: 'I have ignored a red flag because the story was fun.',
+      roundType: 'alibi',
+    },
   ],
 };

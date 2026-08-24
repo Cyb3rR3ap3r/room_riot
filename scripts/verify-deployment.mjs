@@ -21,7 +21,7 @@ const checks = [
     validate: async (response) =>
       response.ok && (await response.text()).toLowerCase().includes('room riot'),
   },
-  ...['groupthink', 'hot-take'].flatMap((gameId) => [
+  ...['groupthink', 'hot-take', 'suspect'].flatMap((gameId) => [
     {
       path: `/host/${gameId}`,
       validate: async (response) =>
@@ -38,7 +38,7 @@ const checks = [
     validate: async (response) =>
       response.ok && (await response.text()).toLowerCase().includes('room riot'),
   },
-  ...['groupthink', 'hot-take'].map((gameId) => ({
+  ...['groupthink', 'hot-take', 'suspect'].map((gameId) => ({
     path: `/play/${gameId}`,
     validate: async (response) =>
       response.ok && (await response.text()).toLowerCase().includes('room riot'),
@@ -59,6 +59,9 @@ const checks = [
     'groupthink-reactor-v2.png',
     'hot-take-stage-bg-v2.png',
     'hot-take-podium-v2.png',
+    'suspect-icon.png',
+    'suspect-bg.png',
+    'suspect-stage.png',
   ].map((assetName) => ({
     path: `/assets/${assetName}`,
     validate: async (response) =>

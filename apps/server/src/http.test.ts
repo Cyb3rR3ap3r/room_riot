@@ -85,6 +85,7 @@ test('returns a safe response for malformed Host headers', async () => {
 test('builds game-specific player paths with a generic fallback', () => {
   assert.equal(buildJoinPath('ABCD', 'groupthink'), '/play/groupthink?room=ABCD');
   assert.equal(buildJoinPath('WXYZ', 'hot-take'), '/play/hot-take?room=WXYZ');
+  assert.equal(buildJoinPath('RAGE', 'suspect'), '/play/suspect?room=RAGE');
   assert.equal(buildJoinPath('RAGE', null), '/play?room=RAGE');
 });
 
@@ -114,8 +115,11 @@ test('serves the browser shell and an offline QR code for a room', async () => {
     '/host/hot-take',
     '/display/groupthink',
     '/display/hot-take',
+    '/host/suspect',
+    '/display/suspect',
     '/play/groupthink',
     '/play/hot-take',
+    '/play/suspect',
   ]) {
     const gamePageResponse: Response = await fetch(`http://127.0.0.1:${address.port}${pagePath}`);
     assert.equal(gamePageResponse.status, 200);
@@ -140,6 +144,9 @@ test('serves the browser shell and an offline QR code for a room', async () => {
     'groupthink-reactor-v2.png',
     'hot-take-stage-bg-v2.png',
     'hot-take-podium-v2.png',
+    'suspect-icon.png',
+    'suspect-bg.png',
+    'suspect-stage.png',
   ]) {
     const assetResponse: Response = await fetch(
       `http://127.0.0.1:${address.port}/assets/${assetName}`,
