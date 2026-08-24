@@ -274,6 +274,7 @@ export function revealHotTakeAnswers(
     status: 'voting',
     inputDeadlineAt: null,
     votingDeadlineAt: now + votingDurationMs,
+    entries: createVotingEntries(session),
   };
 }
 
@@ -328,20 +329,15 @@ export function revealHotTakeVotes(session: HotTakeSessionState): HotTakeSession
     voteCounts.set(entryId, (voteCounts.get(entryId) ?? 0) + 1);
   });
 
-  const entries = Object.values(session.answers)
-    .map(({ entryId }) => {
-      const voteCount = voteCounts.get(entryId) ?? 0;
-      return {
-        entryId,
-        answer: entryId,
-        voteCount,
-        points: voteCount * HOT_TAKE_POINTS_PER_VOTE,
-      };
-    })
-    .sort(
-      (left, right) =>
-        right.voteCount - left.voteCount || left.entryId.localeCompare(right.entryId),
-    );
+  const entries = session.entries.map(({ entryId }) => {
+    const voteCount = voteCounts.get(entryId) ?? 0;
+    return {
+      entryId,
+      answer: entryId,
+      voteCount,
+      points: voteCount * HOT_TAKE_POINTS_PER_VOTE,
+    };
+  });
 
   const roundScores: Record<PlayerId, number> = {};
   Object.entries(session.answers).forEach(([playerId, answer]) => {
@@ -509,12 +505,48 @@ function getEntriesForView(
     });
   }
 
-  return Object.values(session.answers).map((answer) => ({
-    entryId: answer.entryId,
-    answer: answerDisplay(answer, playerNames),
-    voteCount: 0,
-    points: 0,
-  }));
+  return session.entries.map((entry) => {
+    const answer = Object.values(session.answers).find(
+      (candidate) => candidate.entryId === entry.entryId,
+    );
+    return {
+      ...entry,
+      answer: answer ? answerDisplay(answer, playerNames) : entry.answer,
+    };
+  });
+}
+
+/**
+ * Produces the anonymous ballot once. Starting from entry ID order prevents answer object insertion
+ * order (and therefore submission timing) from influencing the result. UUID-backed entry IDs give
+ * each round fresh entropy while the persisted array keeps every subsequent snapshot stable.
+ */
+function createVotingEntries(session: HotTakeSessionState): readonly HotTakeEntryView[] {
+  const entryIds = Object.values(session.answers)
+    .map((answer) => answer.entryId)
+    .sort((left, right) => left.localeCompare(right));
+  const seed = stableHash(`${session.prompt.id}:${session.roundNumber}:${entryIds.join('|')}`);
+  return entryIds
+    .map((entryId) => ({
+      entryId,
+      answer: entryId,
+      voteCount: 0,
+      points: 0,
+    }))
+    .sort((left, right) => {
+      const leftRank = stableHash(`${seed}:${left.entryId}`);
+      const rightRank = stableHash(`${seed}:${right.entryId}`);
+      return leftRank - rightRank || left.entryId.localeCompare(right.entryId);
+    });
+}
+
+function stableHash(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
 }
 
 function answerDisplay(

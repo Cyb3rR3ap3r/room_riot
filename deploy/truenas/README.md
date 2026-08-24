@@ -74,6 +74,24 @@ each phone. The QR code shown by the host/display page points players to the ser
 TrueNAS documents the Custom App YAML flow, container/host port mappings, and host-path storage
 configuration in its [Custom Apps guide](https://apps.truenas.com/managing-apps/installing-custom-apps/).
 
+### HTTPS and HSTS
+
+Room Riot does not send HTTP Strict Transport Security (HSTS) on its default LAN HTTP endpoint.
+That is intentional: advertising HSTS before HTTPS works can make a hostname inaccessible in
+browsers. For an HTTPS deployment, terminate TLS at a trusted reverse proxy, verify that every
+player device can reach the HTTPS URL, and configure both of these container environment values:
+
+```yaml
+environment:
+  PUBLIC_ORIGIN: https://room-riot.example
+  ENABLE_HSTS: 'true'
+```
+
+HSTS is emitted only when `ENABLE_HSTS=true` and `PUBLIC_ORIGIN` is a valid `https://` origin.
+Leave HSTS disabled for direct IP access or any deployment that still serves players over HTTP.
+Because the policy includes subdomains and browsers cache it for one year, enable it only on a
+hostname whose HTTPS configuration and subdomains you control.
+
 ## 4. Upgrade and rollback
 
 Push the desired commit to `main`, wait for the GitHub Actions workflow to finish, and download
@@ -102,6 +120,12 @@ From a PC on the same LAN, run the repository smoke test against the deployed UR
 
 ```bash
 node scripts/verify-deployment.mjs http://TRUENAS_IP:3000
+```
+
+For an HSTS-enabled HTTPS deployment, require the verifier to check that header too:
+
+```bash
+ROOM_RIOT_EXPECT_HSTS=true node scripts/verify-deployment.mjs https://room-riot.example
 ```
 
 It checks `/healthz`, all three browser routes, and the Socket.IO client asset. Then perform the

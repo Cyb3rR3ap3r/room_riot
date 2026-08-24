@@ -9,7 +9,8 @@ Use this as a map, then verify details against the current source before editing
 | Shared protocol and IDs  | `packages/contracts/src/index.ts`                                                         | game IDs, room settings, request/response schemas, public versus private state       |
 | Game rules and content   | `games/<game-id>/src/`                                                                    | constants, state transitions, prompt loaders, scoring, views, tests                  |
 | Curated content          | `games/<game-id>/content/`                                                                | mode-specific JSON packs and prompt schema                                           |
-| Room lifecycle           | `apps/server/src/room-manager.ts`                                                         | create/start/action/resolve/next-round/end, deadlines, snapshots, reconnects         |
+| Game registry            | `apps/server/src/game-registry.ts`                                                        | adapters, limits, modes, durations, routes, capabilities, integration metadata       |
+| Room lifecycle           | `apps/server/src/room-manager.ts`                                                         | room/session ownership, authorization, roster, reconnects, adapter dispatch          |
 | Socket transport         | `apps/server/src/socket.ts`                                                               | authenticated room actions, acknowledgements, error envelopes                        |
 | HTTP/bootstrap           | `apps/server/src/http.ts`                                                                 | static serving, health/startup, generated asset imports                              |
 | Web protocol types       | `apps/web/src/protocol.ts`                                                                | client game unions, socket request/response types, private/public views              |
@@ -23,10 +24,14 @@ Use this as a map, then verify details against the current source before editing
 
 1. Add a new game ID to the contract schema and any shared game-union types.
 2. Create `games/<game-id>/package.json`, `src/index.ts`, tests, and mode-aware content packs. Follow the existing ESM/TypeScript package style.
-3. Register the game in the room manager. Trace an existing game from room creation through start, each action, deadline/resolve, next round, snapshot, and winner so every phase is covered.
+3. Register a complete adapter in the server game registry. Trace an existing game from room
+   creation through start, each action, deadline/resolve, next round, snapshot, and winner so every
+   adapter phase is covered and RoomManager does not need a new shared game-ID chain.
 4. Extend socket request schemas only for genuinely new actions. Update `apps/web/src/protocol.ts` game unions and reuse authorization, membership, rate/deadline, and error handling already used by the server.
 5. Register a complete catalog entry and render every state needed by host, player, display, results, and winner experiences. Avoid leaking private answers in public snapshots.
-6. Add page paths and QR join-path handling in `apps/server/src/http.ts`; add the same host/display/player routes and every new asset to `scripts/verify-deployment.mjs`.
+6. Confirm HTTP page paths and QR join paths derive from the registry. Keep deployment route checks
+   driven by the live `/api/games` manifest and add every new static asset to
+   `scripts/verify-deployment.mjs`.
 7. Add display-first CSS and exact asset paths. Keep the shared display viewport-safe and readable from a distance.
 8. Add the game to root and app TypeScript project references, app `package.json` dependencies, and the workspace lockfile. Confirm the web asset-copy build includes the new files (the current pipeline copies the asset directory wholesale).
 9. Update `Dockerfile` in both places required by the workspace build: copy the game manifest before dependency installation, then copy its package manifest, production `node_modules`, compiled `dist`, and content pack into the runtime stage.

@@ -18,6 +18,7 @@ export interface ServerOptions {
   readonly version?: string;
   readonly webRoot?: string;
   readonly publicOrigin?: string;
+  readonly enableHsts?: boolean;
   readonly roomManager?: RoomManager;
 }
 
@@ -29,10 +30,16 @@ export function startServer(options: ServerOptions = {}) {
   const webRoot =
     options.webRoot ?? resolve(dirname(fileURLToPath(import.meta.url)), '../../web/dist');
   const publicOrigin = options.publicOrigin ?? process.env.PUBLIC_ORIGIN;
+  const enableHsts = options.enableHsts ?? process.env.ENABLE_HSTS === 'true';
   const server = createServer(
     createRequestHandler(
       { version },
-      { roomManager, webRoot, ...(publicOrigin ? { publicOrigin } : {}) },
+      {
+        roomManager,
+        webRoot,
+        ...(publicOrigin ? { publicOrigin } : {}),
+        ...(enableHsts ? { enableHsts } : {}),
+      },
     ),
   );
   const realtimeServer = attachRealtimeServer(server, roomManager);

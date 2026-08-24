@@ -13,6 +13,18 @@ Read [references/architecture.md](references/architecture.md) before editing. In
 
 Use the repository's existing conventions unless the new mechanic genuinely requires a new abstraction. Preserve the behavior of Groupthink and Hot Take. Do not copy an existing game and change only its theme.
 
+## Work from the production tracker
+
+When `docs/AAA_PRODUCTION_TRACKER.md` exists, treat it as the delivery ledger for production-readiness work as well as new-game integration:
+
+1. Select the highest-priority dependency-ready item and confirm its acceptance criteria before editing.
+2. Keep game rules, timing, authorization, and player limits authoritative on the server; clients may predict or preserve presentation state but must reconcile to snapshots.
+3. Add the narrowest useful automated regression coverage and record the exact verification command or manual evidence.
+4. Update dependencies, status, and the completion record in the tracker. Mark an item `Done` only when every acceptance criterion passes; use `In progress` or `In review` when visual, browser, device, load, or external verification remains.
+5. Re-run affected quality gates after shared contracts, room lifecycle, rendering, build, or deployment wiring changes.
+
+Do not trade away reconnect safety, snapshot privacy, input preservation, accessibility, motion preferences, or reduced-device performance for visual polish. Treat those properties as part of the AAA experience.
+
 ## 1. Define and research the concept
 
 Write a short game brief before coding and save it in the new game's `README.md` (or the repository's established game design/build-plan location if that convention has changed):
@@ -64,10 +76,13 @@ Implement in this order:
 
 1. Add the game ID and shared request/state schema in `packages/contracts`.
 2. Add the game package under `games/<game-id>/` with constants, prompt loading, session state, public/player views, state transitions, validation, scoring, deadlines, and tests.
-3. Register the game in `apps/server/src/room-manager.ts`, including start, reveal/resolve, next-round, deadline, snapshots, and player-private views.
+3. Register a complete adapter and operational metadata entry in
+   `apps/server/src/game-registry.ts`; keep shared RoomManager lifecycle dispatch registry-driven.
 4. Add socket events and acknowledgements in `apps/server/src/socket.ts` only when the game needs actions beyond the existing host/player actions. Reuse shared error envelopes and authorization checks.
 5. Update `apps/web/src/protocol.ts` unions and add the game catalog, host controls, player controller, display stage, results, and winner rendering in `apps/web/src/main.ts`.
-6. Add page paths and QR join-path handling in `apps/server/src/http.ts`; add the same host/display/player routes and every new asset to `scripts/verify-deployment.mjs`.
+6. Derive page paths and QR join-path handling from the server registry; keep
+   `scripts/verify-deployment.mjs` driven by the live `/api/games` manifest and add every new asset
+   to its static checks.
 7. Add game-specific visual styling in `apps/web/index.html`, keeping the display viewport-safe and readable on a TV.
 8. Add the game to root and app TypeScript project references, app dependencies, workspace lockfile, package/build wiring, the design note/uniqueness matrix, assets, and QA coverage.
 9. Update both Docker stages: copy the new workspace manifest before install, then copy the built package manifest, production `node_modules`, `dist`, and runtime content into the final image.

@@ -1,0 +1,181 @@
+.showcase-page {
+  display: grid;
+  gap: var(--space-6);
+  --game-primary: var(--color-accent);
+  --game-secondary: var(--color-accent-hot);
+}
+
+.showcase-section,
+.showcase-themes {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.showcase-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-3);
+}
+
+.showcase-stack {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.showcase-stack .notice {
+  margin: 0;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(8, 11, 22, 0.7);
+}
+
+.notice.success {
+  color: var(--color-success);
+}
+
+.notice.warning {
+  color: var(--color-warning);
+}
+
+.danger {
+  border-color: color-mix(in srgb, var(--color-error) 68%, transparent);
+  background: rgba(98, 17, 51, 0.72);
+  color: var(--color-text);
+  box-shadow: 0 0.75rem 1.8rem rgba(255, 46, 116, 0.16);
+}
+
+button.is-hover {
+  filter: brightness(1.08) saturate(1.1);
+  transform: translateY(-2px);
+}
+
+button.is-focus {
+  outline: var(--outline-width) solid var(--color-focus);
+  outline-offset: var(--outline-offset);
+}
+
+button.is-active {
+  transform: translateY(0) scale(0.98);
+}
+
+button.is-loading {
+  cursor: progress;
+  background: linear-gradient(110deg, var(--color-accent), var(--color-text), var(--color-accent));
+  background-size: 200% 100%;
+  animation: showcase-loading var(--motion-pulse) linear infinite;
+}
+
+.showcase-stage-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.showcase-prompt {
+  display: grid;
+  align-content: start;
+  gap: var(--space-3);
+}
+
+.showcase-prompt .prompt {
+  margin: 0;
+}
+
+.showcase-roster {
+  margin-top: var(--space-4);
+}
+
+.showcase-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.showcase-theme-grid .phase-card {
+  display: grid;
+  gap: var(--space-2);
+  min-height: 18rem;
+  align-content: end;
+  border-color: color-mix(in srgb, var(--game-accent) 65%, transparent);
+  background:
+    radial-gradient(circle at 90% 10%, var(--game-glow), transparent 45%), var(--game-surface);
+}
+
+.showcase-theme-grid span {
+  color: var(--game-accent);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.showcase-theme-grid strong {
+  font-size: var(--type-controller-lg);
+}
+
+.showcase-theme-grid p {
+  margin: 0;
+  color: var(--color-muted);
+}
+
+.showcase-theme-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.showcase-theme-actions button {
+  min-width: 0;
+  padding-inline: var(--space-2);
+  border-color: color-mix(in srgb, var(--game-accent) 55%, transparent);
+  background: linear-gradient(135deg, var(--game-accent), var(--game-accent-strong));
+}
+
+.showcase-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.showcase-status-row b {
+  border: 1px solid currentColor;
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--type-controller-sm);
+}
+
+.showcase-status-row .success {
+  color: var(--color-success);
+}
+
+.showcase-status-row .warning {
+  color: var(--color-warning);
+}
+
+.showcase-status-row .error {
+  color: var(--color-error);
+}
+
+@keyframes showcase-loading {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .showcase-stage-grid,
+  .showcase-theme-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .showcase-theme-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button.is-loading {
+    animation: none;
+  }
+}

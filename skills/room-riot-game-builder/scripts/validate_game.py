@@ -146,12 +146,11 @@ def validate_pack(
 
 
 def validate_integration(repo_root: Path, game_id: str, failures: list[str]) -> None:
-    checks = {
+    game_specific_checks = {
         "packages/contracts/src/index.ts": "contract ID",
-        "apps/server/src/room-manager.ts": "server registration",
-        "apps/server/src/http.ts": "HTTP routes and assets",
+        "apps/server/src/game-registry.ts": "server registry adapter",
         "apps/server/package.json": "server dependency",
-        "apps/web/src/main.ts": "web catalog",
+        "apps/web/src/app/catalog.ts": "web catalog",
         "apps/web/src/protocol.ts": "web protocol",
         "apps/web/package.json": "web dependency",
         "tsconfig.json": "root project reference",
@@ -159,9 +158,8 @@ def validate_integration(repo_root: Path, game_id: str, failures: list[str]) -> 
         "apps/web/tsconfig.json": "web project reference",
         "pnpm-lock.yaml": "workspace lockfile",
         "Dockerfile": "Docker build and runtime packaging",
-        "scripts/verify-deployment.mjs": "deployment verifier",
     }
-    for relative, label in checks.items():
+    for relative, label in game_specific_checks.items():
         path = repo_root / relative
         try:
             text = path.read_text(encoding="utf-8")
@@ -170,6 +168,35 @@ def validate_integration(repo_root: Path, game_id: str, failures: list[str]) -> 
             continue
         if game_id not in text:
             failures.append(f"{label} does not reference {game_id!r}: {path}")
+
+    derived_checks = {
+        "apps/server/src/room-manager.ts": (
+            "registry-driven room manager",
+            ("ServerGameRegistry",),
+        ),
+        "apps/server/src/http.ts": (
+            "registry-derived HTTP routes",
+            ("GAME_PAGE_ROUTES", "GAME_REGISTRY_METADATA"),
+        ),
+        "apps/web/src/main.ts": (
+            "catalog-driven web shell",
+            ("GAME_CATALOG", "getGameDefinition"),
+        ),
+        "scripts/verify-deployment.mjs": (
+            "live-registry deployment verifier",
+            ("/api/games", "game.routes"),
+        ),
+    }
+    for relative, (label, required_tokens) in derived_checks.items():
+        path = repo_root / relative
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            failures.append(f"cannot read {label} file: {path}")
+            continue
+        missing = [token for token in required_tokens if token not in text]
+        if missing:
+            failures.append(f"{label} is missing {', '.join(missing)}: {path}")
 
 
 def main() -> int:

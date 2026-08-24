@@ -1,4 +1,4 @@
-import { randomInt } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -71,6 +71,10 @@ export interface SuspectSessionState {
   readonly votes: Readonly<Record<PlayerId, readonly PlayerId[]>>;
   readonly voteSummary: readonly SuspectVoteSummary[];
   readonly roundScores: Readonly<Record<PlayerId, number>>;
+  /** Number of prior authored selections per player, retained across rounds for fair exposure. */
+  readonly selectionCounts: Readonly<Record<PlayerId, number>>;
+  /** Stable per-session entropy that makes selection reproducible in tests and incident replays. */
+  readonly selectionSeed: string;
 }
 
 export interface SuspectPublicView {
@@ -195,6 +199,7 @@ export function createSuspectSession(
   votingDurationMs = SUSPECT_VOTING_DURATION_MS,
   randomizePrompts = false,
   avoidFirstPromptId?: string,
+  selectionSeed: string = randomUUID(),
 ): SuspectSessionState {
   const orderedPrompts = orderPrompts(prompts, randomizePrompts, avoidFirstPromptId);
   const firstPrompt = orderedPrompts[0];
@@ -222,6 +227,8 @@ export function createSuspectSession(
     inputDurationMs,
     alibiDurationMs,
     votingDurationMs,
+    selectionSeed,
+    {},
   );
 }
 
@@ -260,7 +267,17 @@ export function revealSuspectAnswers(
 ): SuspectSessionState {
   if (session.status !== 'input') return session;
   const matchedPlayerIds = playerIds.filter((playerId) => session.answers[playerId] === true);
-  const selectedPlayerIds = selectSuspects(session.prompt.roundType, matchedPlayerIds);
+  const selectedPlayerIds = selectSuspects(
+    session.prompt.roundType,
+    matchedPlayerIds,
+    session.selectionCounts,
+    session.selectionSeed,
+    session.roundNumber,
+  );
+  const selectionCounts = { ...session.selectionCounts };
+  selectedPlayerIds.forEach((playerId) => {
+    selectionCounts[playerId] = (selectionCounts[playerId] ?? 0) + 1;
+  });
   const alibi = session.prompt.roundType === 'alibi' && selectedPlayerIds.length === 1;
 
   return {
@@ -272,6 +289,7 @@ export function revealSuspectAnswers(
     matchedPlayerIds,
     selectedPlayerIds,
     alibiPlayerId: alibi ? selectedPlayerIds[0]! : null,
+    selectionCounts,
   };
 }
 
@@ -452,6 +470,8 @@ export function advanceSuspectRound(
     inputDurationMs,
     alibiDurationMs,
     votingDurationMs,
+    session.selectionSeed,
+    session.selectionCounts,
   );
   return { ...next, usedPromptIds: [...session.usedPromptIds, nextPrompt.id] };
 }
@@ -532,12 +552,23 @@ export function getSuspectPlayerView(
 function selectSuspects(
   roundType: SuspectRoundType,
   matchedPlayerIds: readonly PlayerId[],
+  selectionCounts: Readonly<Record<PlayerId, number>>,
+  selectionSeed: string,
+  roundNumber: number,
 ): readonly PlayerId[] {
   if (roundType === 'false-accusation') return [];
-  if (roundType === 'double-trouble')
-    return matchedPlayerIds.length >= 2 ? matchedPlayerIds.slice(0, 2) : [];
   if (roundType === 'most-likely') return [];
-  return matchedPlayerIds.slice(0, 1);
+  const required = roundType === 'double-trouble' ? 2 : 1;
+  if (matchedPlayerIds.length < required) return [];
+  return [...matchedPlayerIds]
+    .sort((left, right) => {
+      const exposureDifference = (selectionCounts[left] ?? 0) - (selectionCounts[right] ?? 0);
+      if (exposureDifference !== 0) return exposureDifference;
+      const leftRank = stableHash(`${selectionSeed}:${roundNumber}:${left}`);
+      const rightRank = stableHash(`${selectionSeed}:${roundNumber}:${right}`);
+      return leftRank - rightRank || left.localeCompare(right);
+    })
+    .slice(0, required);
 }
 
 function isExactTargetSet(left: readonly PlayerId[], right: readonly PlayerId[]): boolean {
@@ -572,6 +603,8 @@ function createStateForPrompt(
   inputDurationMs: number,
   alibiDurationMs: number,
   votingDurationMs: number,
+  selectionSeed: string,
+  selectionCounts: Readonly<Record<PlayerId, number>>,
 ): SuspectSessionState {
   const mostLikely = prompt.roundType === 'most-likely';
   return {
@@ -592,7 +625,18 @@ function createStateForPrompt(
     votes: {},
     voteSummary: [],
     roundScores: {},
+    selectionCounts,
+    selectionSeed,
   };
+}
+
+function stableHash(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
 }
 
 function shufflePrompts(prompts: readonly SuspectPrompt[]): readonly SuspectPrompt[] {

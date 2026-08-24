@@ -1,13 +1,14 @@
 import type {
-  CreateRoomRequest,
+  CreateRoomActionRequest,
   ContentMode,
   DrawingData,
   DrawnOutMode,
   DisplayWatchRequest,
   HostReconnectRequest,
+  HostRemovePlayerRequest,
   HostRoomActionRequest,
   HostStartGameRequest,
-  JoinRoomRequest,
+  JoinRoomActionRequest,
   PlayerCastVoteRequest,
   PlayerSubmitAnswerRequest,
   PlayerSubmitAlibiRequest,
@@ -17,36 +18,118 @@ import type {
   RoomCode,
   SessionToken,
 } from '@room-riot/contracts';
-import type { PublicRoomState } from '@room-riot/game-engine';
-import type {
-  DrawnOutChainEntry,
-  DrawnOutPlayerView,
-  DrawnOutPublicView,
-} from '@room-riot/drawn-out';
-import type { GroupthinkPlayerView, GroupthinkPublicView } from '@room-riot/groupthink';
-import type { HotTakeEntryView, HotTakePlayerView } from '@room-riot/hot-take';
-import type { SuspectPlayerView, SuspectPublicView } from '@room-riot/suspect';
 
+import {
+  GAME_CATALOG,
+  getGameDefinition,
+  type GameDefinition,
+  type SupportedGameId,
+} from './app/catalog.js';
+import {
+  createActionFirstControllerComponent,
+  type ActionFirstControllerComponent,
+} from './components/action-first-controller.js';
+import {
+  createConnectionNoticeComponent,
+  type ConnectionNoticeComponent,
+} from './components/connection-notice.js';
+import {
+  createPageShellComponent,
+  type PageParts,
+  type PageShellComponent,
+} from './components/page-shell.js';
+import { createPhaseAwareJoinComponent } from './components/phase-aware-join.js';
+import { createRecoveryPanel, type RecoveryActionHandlers } from './components/recovery-panel.js';
+import {
+  createRecoveryDiagnosticCopy,
+  getRecoveryStateForEventError,
+  type RecoveryState,
+} from './components/recovery-state.js';
+import { getPageKind } from './components/presentation.js';
+import { createRoomStageShellComponent } from './components/room-stage-shell.js';
+import { createRosterComponent, type RosterComponent } from './components/roster.js';
+import { createTvDensityLayoutComponent } from './components/tv-density-layout.js';
+import { getGamePresentation } from './games/presentation.js';
+import { renderPlayerController } from './games/player-controller-registry.js';
+import type {
+  PlayerControllerDependencies,
+  PlayerControllerRenderResult,
+} from './games/player-controller.js';
+import { renderPublicGameStage } from './games/public-stage-registry.js';
 import type {
   HostCreateResponse,
   HostReconnectResponse,
+  LeaveRoomResponse,
   PlayerAnswerResponse,
   PlayerJoinResponse,
   PlayerGameView,
+  RemovePlayerResponse,
   RoomSnapshot,
   RoomStateResponse,
 } from './protocol.js';
-import { isSuccess } from './protocol.js';
+import {
+  isSuccess,
+  parsePlayerGameView,
+  parsePlayerStateUpdate,
+  parseRoomSnapshot,
+} from './protocol.js';
+import {
+  buildDisplayRoute,
+  buildHostRoute,
+  buildPlayRoute,
+  getGameFromPathname,
+  getRoomCodeFromSearch,
+  routes,
+} from './routes/routes.js';
+import { createPhaseAwareJoinViewModel } from './routes/display/join-presentation.js';
+import {
+  createLiveDisplayDensityViewModel,
+  type LiveDisplayDensityViewModel,
+} from './routes/display/live-display.js';
+import { advanceTvDensityPage, getTvDensityPage } from './routes/display/tv-layout.js';
+import { getDisplayRouteViewModel } from './routes/display/view-model.js';
+import { getHostRouteViewModel } from './routes/host/view-model.js';
+import { getPlayerRouteViewModel } from './routes/player/view-model.js';
+import {
+  createActionFirstControllerViewModel,
+  type ControllerAcceptedAction,
+  type ControllerOperationState,
+} from './routes/player/controller-view-model.js';
+import { getClientActionId } from './state/action-ids.js';
+import { clearPendingOperation, getOrCreatePendingOperation } from './state/pending-operations.js';
+import { installMotionVisibility } from './state/motion.js';
+import {
+  createHostMutationKey,
+  createPlayerActionKey,
+  shouldDiscardDraft,
+} from './state/player-action.js';
+import {
+  readPlayerDraft,
+  readRoomSession,
+  removePlayerDraft,
+  removeRoomSession,
+  writePlayerDraft,
+  writeRoomSession,
+  type PlayerDraft,
+} from './state/session-store.js';
+import {
+  createConnectionStore,
+  createDraftStore,
+  createPreferenceStore,
+  createPrivatePlayerStateStore,
+  createPublicSnapshotStore,
+  createSessionStore,
+  type ConnectionState,
+} from './state/store.js';
 
-export const routes = {
-  display: '/display',
-  host: '/host',
-  play: '/play',
-} as const;
+export { routes } from './routes/routes.js';
 
 const AVATARS = ['😎', '🤡', '👽', '💀', '🤖', '🐸', '👻', '🦆'];
 const HOST_STORAGE_KEY = 'room-riot-host-session';
 const PLAYER_STORAGE_KEY = 'room-riot-player-session';
+const PLAYER_DRAFT_STORAGE_KEY = 'room-riot-player-drafts';
+const PENDING_OPERATION_STORAGE_KEY = 'room-riot-pending-operations';
+const DISPLAY_PAGE_ROTATION_MS = 6_000;
 
 interface HostSession {
   readonly roomCode: RoomCode;
@@ -62,30 +145,15 @@ interface PlayerSession {
   readonly avatar: string;
 }
 
-interface PageParts {
-  readonly content: HTMLElement;
-  readonly notice: HTMLElement;
-  readonly brand: HTMLElement;
-  readonly brandLogo: HTMLImageElement;
+interface JoinDraft {
+  roomCode: string;
+  name: string;
+  avatar: string;
 }
 
-type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting';
-
-type SupportedGameId = 'groupthink' | 'hot-take' | 'suspect' | 'drawn-out';
-
-interface GameDefinition {
-  readonly id: SupportedGameId;
-  readonly label: string;
-  readonly kicker: string;
-  readonly description: string;
-  readonly players: string;
-  readonly rounds: string;
-  readonly pace: string;
-  readonly icon: string;
-  readonly background: string;
-  readonly stageArt: string;
-  readonly controlRoom: string;
-  readonly audience: string;
+interface PersistentNotice {
+  readonly message: string;
+  readonly isError: boolean;
 }
 
 interface GamePicker {
@@ -93,140 +161,25 @@ interface GamePicker {
   readonly getValue: () => SupportedGameId;
 }
 
-const GAME_CATALOG: readonly GameDefinition[] = [
-  {
-    id: 'groupthink',
-    label: 'Groupthink',
-    kicker: 'Match minds',
-    description: 'Give your answer, then see how many people in the room thought the same way.',
-    players: '1–12 players',
-    rounds: '5 rounds',
-    pace: 'Fast · social',
-    icon: '/assets/groupthink-icon.png',
-    background: '/assets/groupthink-lab-bg-v2.png',
-    stageArt: '/assets/groupthink-reactor-v2.png',
-    controlRoom: 'Consensus Lab',
-    audience: 'connected minds',
-  },
-  {
-    id: 'hot-take',
-    label: 'Hot Take',
-    kicker: 'Say it louder',
-    description: "Drop an anonymous opinion, then vote for the take the room can't ignore.",
-    players: '3–12 players',
-    rounds: '5 rounds',
-    pace: 'Anonymous · spicy',
-    icon: '/assets/hot-take-icon.png',
-    background: '/assets/hot-take-stage-bg-v2.png',
-    stageArt: '/assets/hot-take-podium-v2.png',
-    controlRoom: 'Live Heat Control',
-    audience: 'the audience',
-  },
-  {
-    id: 'suspect',
-    label: 'Suspect',
-    kicker: 'Everybody looks guilty',
-    description: 'Answer in secret, build an alibi, and accuse the player who fits the clue.',
-    players: '4–12 players',
-    rounds: '5 rounds',
-    pace: 'Deduction · dramatic',
-    icon: '/assets/suspect-icon-v2.png',
-    background: '/assets/suspect-bg-v2.png',
-    stageArt: '/assets/suspect-stage-v2.png',
-    controlRoom: 'Case File Control',
-    audience: 'the jury',
-  },
-  {
-    id: 'drawn-out',
-    label: 'Drawn Out',
-    kicker: 'Art was a mistake',
-    description: 'Draw ridiculous prompts, decode ruined art, or hide as the fake artist.',
-    players: '3–10 players',
-    rounds: '5 rounds',
-    pace: 'Drawing · chaotic',
-    icon: '/assets/drawn-out-icon-v2.png',
-    background: '/assets/drawn-out-bg-v2.png',
-    stageArt: '/assets/drawn-out-stage-v2.png',
-    controlRoom: 'Sketch Disaster Control',
-    audience: 'the art critics',
-  },
-];
-
-function getGameFromPathname(pathname = window.location.pathname): SupportedGameId | null {
-  const match = pathname.match(
-    /^\/(?:host|display|play)\/(groupthink|hot-take|suspect|drawn-out)$/,
-  );
-  const gameId = match?.[1];
-  return gameId === 'groupthink' ||
-    gameId === 'hot-take' ||
-    gameId === 'suspect' ||
-    gameId === 'drawn-out'
-    ? gameId
-    : null;
-}
-
-function buildHostRoute(gameId: SupportedGameId): string {
-  return `/host/${gameId}`;
-}
-
-function buildDisplayRoute(gameId: SupportedGameId, roomCode: string): string {
-  return `/display/${gameId}?room=${encodeURIComponent(roomCode)}`;
-}
-
-function buildPlayRoute(gameId: SupportedGameId, roomCode = ''): string {
-  const query = roomCode ? `?room=${encodeURIComponent(roomCode)}` : '';
-  return `/play/${gameId}${query}`;
-}
-
 interface SoundController {
   readonly button: HTMLButtonElement;
   phaseChanged(phase: RoomPhase, gameId?: SupportedGameId | null): void;
 }
 
-function createPage(
-  root: HTMLElement,
+function updatePage(
+  shell: PageShellComponent,
   titleText: string,
   subtitleText: string,
   gameId: string | null = null,
+  clearContent = true,
 ): PageParts {
-  root.replaceChildren();
-  const pageKind =
-    window.location.pathname === routes.host || window.location.pathname.startsWith('/host/')
-      ? 'host-page'
-      : window.location.pathname === routes.play || window.location.pathname.startsWith('/play/')
-        ? 'player-page'
-        : 'display-page';
-  root.className = `page ${pageKind}`;
-
-  const header = document.createElement('header');
-  header.className = 'page-header';
-
-  const title = document.createElement('div');
-  title.className = 'brand';
-  const logo = document.createElement('img');
-  logo.className = 'brand-logo';
-  title.append(logo);
-
-  const heading = document.createElement('h1');
-  heading.textContent = titleText;
-
-  const subtitle = document.createElement('p');
-  subtitle.className = 'muted';
-  subtitle.textContent = subtitleText;
-
-  header.append(title, heading, subtitle);
-
-  const notice = document.createElement('p');
-  notice.className = 'notice';
-  notice.setAttribute('role', 'status');
-  notice.setAttribute('aria-live', 'polite');
-
-  const content = document.createElement('section');
-  content.className = 'content';
-  const page = { content, notice, brand: title, brandLogo: logo };
-  root.append(header, notice, content);
+  const page = shell.update({
+    pageKind: getPageKind(window.location.pathname),
+    title: titleText,
+    subtitle: subtitleText,
+  });
+  if (clearContent) page.content.replaceChildren();
   updatePageBrand(page, gameId);
-
   return page;
 }
 
@@ -234,7 +187,7 @@ function updatePageBrand(page: PageParts, gameId: string | null | undefined): vo
   if (!gameId) {
     page.brand.classList.remove('game-brand');
     page.brandLogo.classList.remove('game-logo');
-    page.brandLogo.src = '/assets/room-riot-logo.png';
+    page.brandLogo.src = '/assets/room-riot-logo.webp';
     page.brandLogo.alt = 'Room Riot';
     return;
   }
@@ -246,29 +199,43 @@ function updatePageBrand(page: PageParts, gameId: string | null | undefined): vo
   page.brandLogo.alt = `${game.label} logo`;
 }
 
-function renderConnectionNotice(page: PageParts, status: ConnectionStatus): void {
-  if (status === 'connected') {
-    if (!page.notice.classList.contains('error')) page.notice.textContent = '';
-    return;
-  }
+function renderConnectionNotice(
+  component: ConnectionNoticeComponent,
+  status: ConnectionState,
+): void {
+  component.update(status);
+}
 
-  setNotice(
-    page.notice,
-    status === 'connecting'
-      ? 'Connecting to Room Riot…'
-      : 'Connection lost. Reconnecting automatically…',
-    status === 'reconnecting',
-  );
+function getRecoveryHandlers(
+  state: RecoveryState,
+  overrides: RecoveryActionHandlers = {},
+): RecoveryActionHandlers {
+  const reload = (): void => window.location.reload();
+  return {
+    retry: reload,
+    'reload-client': reload,
+    'copy-diagnostics': () => {
+      void window.navigator.clipboard?.writeText(createRecoveryDiagnosticCopy(state));
+    },
+    ...overrides,
+  };
 }
 
 function createSoundController(): SoundController {
-  let enabled = false;
+  const preferences = createPreferenceStore();
   let context: AudioContext | null = null;
   let previousPhase: RoomPhase | null = null;
   let activeGame: SupportedGameId = 'groupthink';
 
   const button = createButton('Enable game audio');
   button.className = 'secondary';
+  preferences.subscribeSelector(
+    (state) => state.soundEnabled,
+    (soundEnabled) => {
+      if (!soundEnabled) return;
+      button.textContent = getGamePresentation(activeGame).audioOnLabel;
+    },
+  );
   button.addEventListener('click', () => {
     const AudioContextConstructor = window.AudioContext;
     if (!AudioContextConstructor) {
@@ -279,15 +246,7 @@ function createSoundController(): SoundController {
 
     context ??= new AudioContextConstructor();
     void context.resume();
-    enabled = true;
-    button.textContent =
-      activeGame === 'groupthink'
-        ? 'Lab audio on'
-        : activeGame === 'hot-take'
-          ? 'Stage audio on'
-          : activeGame === 'suspect'
-            ? 'Case audio on'
-            : 'Sketch audio on';
+    preferences.setState({ soundEnabled: true });
   });
 
   const playTone = (
@@ -312,45 +271,9 @@ function createSoundController(): SoundController {
   };
 
   const playCue = (phase: RoomPhase): void => {
-    if (activeGame === 'groupthink') {
-      const notes =
-        phase === 'winner'
-          ? [523, 659, 784, 1047]
-          : phase === 'results'
-            ? [440, 554, 659]
-            : phase === 'input'
-              ? [392, 523]
-              : [330, 392];
-      notes.forEach((frequency, index) =>
-        playTone(frequency, index * 0.09, 0.28, index % 2 ? 'triangle' : 'sine', 0.065),
-      );
-      return;
-    }
-
-    const notes =
-      activeGame === 'hot-take'
-        ? phase === 'winner'
-          ? [220, 330, 440, 660]
-          : phase === 'results'
-            ? [196, 294, 494]
-            : phase === 'voting'
-              ? [260, 390, 520]
-              : [174, 261]
-        : phase === 'winner'
-          ? [196, 293, 440, 587]
-          : phase === 'results'
-            ? [164, 246, 369]
-            : phase === 'alibi'
-              ? [220, 277, 330]
-              : [147, 196];
-    notes.forEach((frequency, index) =>
-      playTone(
-        frequency,
-        index * (activeGame === 'suspect' ? 0.08 : 0.065),
-        0.2,
-        activeGame === 'suspect' ? 'triangle' : index === 0 ? 'sawtooth' : 'square',
-        0.035,
-      ),
+    const cue = getGamePresentation(activeGame).soundCue(phase);
+    cue.notes.forEach((frequency, index) =>
+      playTone(frequency, index * cue.spacing, cue.duration, cue.waveform(index), cue.volume),
     );
   };
 
@@ -359,18 +282,16 @@ function createSoundController(): SoundController {
     phaseChanged(phase, gameId) {
       if (gameId) {
         activeGame = gameId;
-        if (!enabled) {
-          button.textContent =
-            gameId === 'groupthink'
-              ? 'Enable lab audio'
-              : gameId === 'hot-take'
-                ? 'Enable stage audio'
-                : gameId === 'suspect'
-                  ? 'Enable case audio'
-                  : 'Enable sketch audio';
+        if (!preferences.select((state) => state.soundEnabled)) {
+          button.textContent = getGamePresentation(gameId).audioEnableLabel;
         }
       }
-      if (previousPhase && previousPhase !== phase && enabled && context) {
+      if (
+        previousPhase &&
+        previousPhase !== phase &&
+        preferences.select((state) => state.soundEnabled) &&
+        context
+      ) {
         playCue(phase);
       }
       previousPhase = phase;
@@ -447,13 +368,21 @@ function createDrawingPreview(drawing: DrawingData | null, className = ''): HTML
   return canvas;
 }
 
-function createDrawingPad(existing: DrawingData | null = null): DrawingPad {
+function createDrawingPad(
+  existing: DrawingData | null = null,
+  onChange?: (drawing: DrawingData) => void,
+): DrawingPad {
   const wrapper = document.createElement('section');
   wrapper.className = 'drawing-pad';
   const canvas = createDrawingPreview(existing);
   canvas.classList.add('drawing-input');
   canvas.setAttribute('aria-label', 'Drawing canvas');
-  const strokes: DrawingData['strokes'][number][] = [];
+  const strokes: DrawingData['strokes'][number][] = existing
+    ? existing.strokes.map((stroke) => ({
+        ...stroke,
+        points: stroke.points.map((point) => ({ ...point })),
+      }))
+    : [];
   let activeStroke: DrawingData['strokes'][number] | null = null;
   let color = '#151022';
   let width = 0.012;
@@ -470,12 +399,14 @@ function createDrawingPad(existing: DrawingData | null = null): DrawingPad {
     canvas.setPointerCapture(event.pointerId);
     activeStroke = { color, width, points: [position(event)] };
     strokes.push(activeStroke);
+    onChange?.({ strokes });
   });
   canvas.addEventListener('pointermove', (event) => {
     if (!activeStroke || !canvas.hasPointerCapture(event.pointerId)) return;
     if (activeStroke.points.length >= 256) return;
     activeStroke.points.push(position(event));
-    paintDrawing(canvas, { strokes: [...(existing?.strokes ?? []), ...strokes] });
+    paintDrawing(canvas, { strokes });
+    onChange?.({ strokes });
   });
   const endStroke = (event: PointerEvent): void => {
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
@@ -488,8 +419,7 @@ function createDrawingPad(existing: DrawingData | null = null): DrawingPad {
   toolbar.className = 'drawing-toolbar';
   ['#151022', '#ff2ea6', '#12bce8', '#8ee600', '#ffb000', '#7c3cff'].forEach((swatch, index) => {
     const button = createButton('');
-    button.className = 'drawing-swatch';
-    button.style.background = swatch;
+    button.className = `drawing-swatch drawing-swatch-${index + 1}`;
     button.setAttribute('aria-label', `Drawing color ${index + 1}`);
     button.setAttribute('aria-pressed', String(swatch === color));
     button.addEventListener('click', () => {
@@ -513,13 +443,15 @@ function createDrawingPad(existing: DrawingData | null = null): DrawingPad {
   undo.className = 'secondary';
   undo.addEventListener('click', () => {
     strokes.pop();
-    paintDrawing(canvas, { strokes: [...(existing?.strokes ?? []), ...strokes] });
+    paintDrawing(canvas, { strokes });
+    onChange?.({ strokes });
   });
   const clear = createButton('Clear');
   clear.className = 'secondary';
   clear.addEventListener('click', () => {
     strokes.splice(0);
-    paintDrawing(canvas, existing);
+    paintDrawing(canvas, { strokes });
+    onChange?.({ strokes });
   });
   toolbar.append(size, undo, clear);
   wrapper.append(canvas, toolbar);
@@ -527,10 +459,6 @@ function createDrawingPad(existing: DrawingData | null = null): DrawingPad {
     element: wrapper,
     getDrawing: () => ({ strokes }),
   };
-}
-
-function getGameDefinition(gameId: string | null | undefined): GameDefinition {
-  return GAME_CATALOG.find((game) => game.id === gameId) ?? GAME_CATALOG[0]!;
 }
 
 function setGameTheme(root: HTMLElement, gameId: string | null | undefined): void {
@@ -545,12 +473,17 @@ function setGameTheme(root: HTMLElement, gameId: string | null | undefined): voi
   root.dataset.gameId = game.id;
 }
 
-function createGameArtwork(game: GameDefinition, className: string): HTMLImageElement {
+function createGameArtwork(
+  game: GameDefinition,
+  className: string,
+  eager = false,
+): HTMLImageElement {
   const image = document.createElement('img');
   image.className = className;
   image.src = game.icon;
   image.alt = `${game.label} game icon`;
-  image.loading = 'lazy';
+  image.loading = eager ? 'eager' : 'lazy';
+  image.decoding = 'async';
   return image;
 }
 
@@ -650,7 +583,7 @@ function createGamePicker(
   const renderDetail = (): void => {
     detail.replaceChildren();
     detail.className = `game-detail game-${selected.id}`;
-    detail.append(createGameArtwork(selected, 'game-art game-art-large'));
+    detail.append(createGameArtwork(selected, 'game-art game-art-large', true));
 
     const copy = document.createElement('div');
     copy.className = 'game-detail-copy';
@@ -663,29 +596,44 @@ function createGamePicker(
     description.textContent = selected.description;
     const facts = document.createElement('ul');
     facts.className = 'game-facts';
-    [selected.players, selected.rounds, selected.pace].forEach((fact) => {
+    [selected.players, selected.duration, selected.contentRating, selected.controller].forEach(
+      (fact) => {
+        const item = document.createElement('li');
+        item.textContent = fact;
+        facts.append(item);
+      },
+    );
+    const mechanics = document.createElement('ol');
+    mechanics.className = 'game-mechanics';
+    selected.mechanics.forEach((mechanic) => {
       const item = document.createElement('li');
-      item.textContent = fact;
-      facts.append(item);
+      item.textContent = mechanic;
+      mechanics.append(item);
     });
-    copy.append(kicker, name, description, facts);
+    const format = document.createElement('p');
+    format.className = 'game-format';
+    format.textContent = `${selected.rounds} · ${selected.pace}`;
+    copy.append(kicker, name, description, mechanics, facts, format);
     detail.append(copy);
   };
 
   GAME_CATALOG.forEach((game) => {
     const option = createButton(game.label);
+    option.replaceChildren();
     option.className = `game-option game-${game.id}`;
     option.setAttribute('aria-pressed', String(game.id === selected.id));
     option.addEventListener('click', () => {
       selected = game;
       options.querySelectorAll<HTMLButtonElement>('.game-option').forEach((button) => {
         button.setAttribute('aria-pressed', String(button === option));
+        const artwork = button.querySelector<HTMLImageElement>('.game-art-option');
+        if (artwork) artwork.loading = button === option ? 'eager' : 'lazy';
       });
       renderDetail();
       onSelect?.(game);
     });
 
-    option.append(createGameArtwork(game, 'game-art game-art-option'));
+    option.append(createGameArtwork(game, 'game-art game-art-option', game.id === selected.id));
     const copy = document.createElement('span');
     copy.className = 'game-option-copy';
     const label = document.createElement('strong');
@@ -705,371 +653,45 @@ function createGamePicker(
   };
 }
 
-function appendGroupthinkResults(container: HTMLElement, game: GroupthinkPublicView): void {
-  if (game.groups.length === 0) return;
-
-  const heading = document.createElement('h2');
-  heading.textContent = 'The room thought…';
-  container.append(heading);
-
-  const list = document.createElement('ul');
-  list.className = 'answer-list';
-  game.groups.forEach((group) => {
-    const item = document.createElement('li');
-    const answer = document.createElement('span');
-    answer.textContent = group.answer;
-    const score = document.createElement('span');
-    score.className = group.points > 0 ? 'connected' : 'muted';
-    score.textContent = `${group.count} match${group.count === 1 ? '' : 'es'} · ${group.points} pts`;
-    item.append(answer, score);
-    list.append(item);
-  });
-  container.append(list);
-}
-
-function appendScoreboard(container: HTMLElement, state: PublicRoomState): void {
-  const heading = document.createElement('h2');
-  heading.textContent = 'Scoreboard';
-  container.append(heading);
-
-  const list = document.createElement('ol');
-  list.className = 'player-list scoreboard';
-  [...state.players]
-    .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name))
-    .forEach((player) => {
-      const item = document.createElement('li');
-      const identity = document.createElement('span');
-      identity.textContent = `${player.avatar} ${player.name}`;
-      const score = document.createElement('strong');
-      score.textContent = `${player.score}`;
-      item.append(identity, score);
-      list.append(item);
-    });
-  container.append(list);
-}
-
-function appendGroupthinkStatus(container: HTMLElement, snapshot: RoomSnapshot): void {
-  const game = snapshot.game;
-  if (!game || game.id !== 'groupthink') return;
-
-  const prompt = document.createElement('p');
-  prompt.className = 'prompt';
-  prompt.textContent = game.prompt;
-  container.append(prompt);
-
-  const progress = document.createElement('span');
-  progress.className = 'pill';
-  const remainingSeconds =
-    game.status === 'input' && game.inputDeadlineAt
-      ? Math.max(0, Math.ceil((game.inputDeadlineAt - Date.now()) / 1000))
-      : null;
-  const deadlineText = remainingSeconds === null ? '' : ` · ${remainingSeconds}s left`;
-  progress.dataset.deadlineAt = game.inputDeadlineAt ? String(game.inputDeadlineAt) : '';
-  progress.dataset.countdownPrefix = `Round ${game.roundNumber}/${game.totalRounds} · ${game.submittedCount}/${game.totalPlayers} answered`;
-  progress.textContent = `${progress.dataset.countdownPrefix}${deadlineText}`;
-  container.append(progress);
-}
-
-function appendHotTakeStatus(container: HTMLElement, snapshot: RoomSnapshot): void {
-  const game = snapshot.game;
-  if (!game || game.id !== 'hot-take') return;
-
-  const prompt = document.createElement('p');
-  prompt.className = 'prompt';
-  prompt.textContent = game.prompt;
-  container.append(prompt);
-
-  const remainingSeconds = game.deadlineAt
-    ? Math.max(0, Math.ceil((game.deadlineAt - Date.now()) / 1000))
-    : null;
-  const phaseText =
-    game.status === 'voting' ? 'Vote now' : `${game.submittedCount}/${game.totalPlayers} answered`;
-  const deadlineText = remainingSeconds === null ? '' : ` · ${remainingSeconds}s left`;
-  const progress = document.createElement('span');
-  progress.className = 'pill';
-  progress.dataset.deadlineAt = game.deadlineAt ? String(game.deadlineAt) : '';
-  progress.dataset.countdownPrefix = `Round ${game.roundNumber}/${game.totalRounds} · ${phaseText}`;
-  progress.textContent = `${progress.dataset.countdownPrefix}${deadlineText}`;
-  container.append(progress);
-}
-
-function appendSuspectStatus(container: HTMLElement, snapshot: RoomSnapshot): void {
-  const game = snapshot.game;
-  if (!game || game.id !== 'suspect') return;
-
-  const prompt = document.createElement('p');
-  prompt.className = 'prompt';
-  prompt.textContent = game.prompt;
-  container.append(prompt);
-
-  const remainingSeconds = game.deadlineAt
-    ? Math.max(0, Math.ceil((game.deadlineAt - Date.now()) / 1000))
-    : null;
-  const phaseText =
-    game.status === 'input'
-      ? `${game.submittedCount}/${game.totalPlayers} answered privately`
-      : game.status === 'alibi'
-        ? 'Alibi window'
-        : game.status === 'voting'
-          ? 'Accuse someone'
-          : 'Case resolved';
-  const progress = document.createElement('span');
-  progress.className = 'pill';
-  progress.dataset.deadlineAt = game.deadlineAt ? String(game.deadlineAt) : '';
-  progress.dataset.countdownPrefix = `Round ${game.roundNumber}/${game.totalRounds} · ${phaseText}`;
-  progress.textContent = `${progress.dataset.countdownPrefix}${remainingSeconds === null ? '' : ` · ${remainingSeconds}s left`}`;
-  container.append(progress);
-}
-
 function updateCountdown(element: HTMLElement): void {
   const deadlineAt = Number(element.dataset.deadlineAt);
   const prefix = element.dataset.countdownPrefix;
-  if (!deadlineAt || !prefix) return;
+  if (!deadlineAt) return;
   const remainingSeconds = Math.max(0, Math.ceil((deadlineAt - Date.now()) / 1000));
+  if (element.classList.contains('action-first-controller__deadline')) {
+    element.textContent = remainingSeconds === 0 ? 'Time is up' : `${remainingSeconds}s left`;
+    element.dataset.urgency =
+      remainingSeconds === 0 ? 'expired' : remainingSeconds <= 10 ? 'soon' : 'normal';
+    element.setAttribute(
+      'aria-label',
+      remainingSeconds === 0
+        ? 'The action deadline has passed'
+        : `${remainingSeconds} second${remainingSeconds === 1 ? '' : 's'} remaining`,
+    );
+    return;
+  }
+  if (!prefix) return;
   element.textContent = `${prefix} · ${remainingSeconds}s left`;
-}
-
-function appendHotTakeEntries(
-  container: HTMLElement,
-  entries: readonly HotTakeEntryView[],
-  title = 'Anonymous answers',
-): void {
-  if (entries.length === 0) return;
-
-  const heading = document.createElement('h2');
-  heading.textContent = title;
-  container.append(heading);
-
-  const list = document.createElement('ul');
-  list.className = 'answer-list';
-  entries.forEach((entry) => {
-    const item = document.createElement('li');
-    const answer = document.createElement('span');
-    answer.textContent = entry.answer;
-    if (title === 'Vote results') {
-      const score = document.createElement('span');
-      score.className = entry.points > 0 ? 'connected' : 'muted';
-      score.textContent = `${entry.voteCount} vote${entry.voteCount === 1 ? '' : 's'} · ${entry.points} pts`;
-      item.append(answer, score);
-    } else {
-      item.append(answer);
-    }
-    list.append(item);
-  });
-  container.append(list);
-}
-
-function appendSuspectResults(
-  container: HTMLElement,
-  game: SuspectPublicView,
-  state: PublicRoomState,
-): void {
-  const heading = document.createElement('h2');
-  heading.textContent =
-    game.roundType === 'false-accusation' ? 'The accusation was fake' : 'Case results';
-  container.append(heading);
-
-  const selected = document.createElement('p');
-  selected.className = 'suspect-result-callout';
-  if (game.selectedPlayerIds.length === 0) {
-    selected.textContent =
-      game.roundType === 'false-accusation'
-        ? 'No match. The sharp-eyed players saw through it.'
-        : game.roundType === 'most-likely'
-          ? 'No consensus. The jury could not agree on a best fit.'
-          : 'No match. The clue did not point to anyone.';
-  } else {
-    const names = game.selectedPlayerIds.map((id) => {
-      const player = state.players.find((candidate) => candidate.id === id);
-      return `${player?.avatar ?? '🕵️'} ${player?.name ?? 'Unknown player'}`;
-    });
-    selected.textContent = `${game.roundType === 'double-trouble' ? 'The pair was' : 'The suspect was'} ${names.join(' and ')}.`;
-  }
-  container.append(selected);
-
-  if (game.alibiText) {
-    const alibi = document.createElement('p');
-    alibi.className = 'muted';
-    alibi.textContent = `Alibi: “${game.alibiText}”`;
-    container.append(alibi);
-  }
-
-  if (game.voteSummary.length > 0) {
-    const votes = document.createElement('ul');
-    votes.className = 'answer-list suspect-vote-summary';
-    game.voteSummary.forEach((vote) => {
-      const item = document.createElement('li');
-      const names = vote.targetPlayerIds.length
-        ? vote.targetPlayerIds
-            .map((id) => state.players.find((player) => player.id === id)?.name ?? 'Unknown')
-            .join(' + ')
-        : 'No match';
-      item.textContent = `${names} · ${vote.count} vote${vote.count === 1 ? '' : 's'}`;
-      votes.append(item);
-    });
-    container.append(votes);
-  }
-}
-
-function drawnOutModeLabel(mode: DrawnOutMode): string {
-  return mode === 'classic' ? 'Classic' : mode === 'telephone' ? 'Telephone' : 'Fake Artist';
-}
-
-function appendDrawnOutStatus(container: HTMLElement, game: DrawnOutPublicView): void {
-  const phaseText =
-    game.status === 'drawing'
-      ? 'Featured artist is drawing'
-      : game.status === 'guessing'
-        ? `${game.submittedCount}/${Math.max(0, game.totalPlayers - 1)} guesses locked`
-        : game.status === 'telephone'
-          ? `Chain link ${Math.min(game.submittedCount + 1, game.totalPlayers)}/${game.totalPlayers}`
-          : game.status === 'fake-drawing'
-            ? 'Shared sketch in progress'
-            : game.status === 'fake-voting'
-              ? `${game.submittedCount}/${game.totalPlayers} votes locked`
-              : 'The damage is done';
-  const progress = document.createElement('span');
-  progress.className = 'pill';
-  progress.dataset.deadlineAt = game.deadlineAt ? String(game.deadlineAt) : '';
-  progress.dataset.countdownPrefix = `Round ${game.roundNumber}/${game.totalRounds} · ${drawnOutModeLabel(game.mode)} · ${phaseText}`;
-  progress.textContent = progress.dataset.countdownPrefix;
-  if (game.deadlineAt) updateCountdown(progress);
-  container.append(progress);
-}
-
-function appendDrawnOutResults(
-  container: HTMLElement,
-  game: DrawnOutPublicView,
-  state: PublicRoomState,
-): void {
-  const prompt = document.createElement('p');
-  prompt.className = 'drawn-out-prompt-reveal';
-  prompt.textContent = `Original prompt: ${game.prompt ?? 'Mystery prompt'}`;
-  container.append(prompt);
-
-  if (game.mode === 'classic' && game.guesses.length) {
-    const list = document.createElement('ul');
-    list.className = 'answer-list drawn-out-guesses';
-    game.guesses.forEach((guess) => {
-      const player = state.players.find((candidate) => candidate.id === guess.playerId);
-      const item = document.createElement('li');
-      item.textContent = `${guess.correct ? '✓' : '×'} ${player?.name ?? 'Player'}: ${guess.text}`;
-      item.classList.toggle('connected', guess.correct);
-      list.append(item);
-    });
-    container.append(list);
-  }
-
-  if (game.mode === 'telephone' && game.chain.length) {
-    const chain = document.createElement('ol');
-    chain.className = 'drawn-out-chain';
-    game.chain.forEach((entry: DrawnOutChainEntry) => {
-      const player = state.players.find((candidate) => candidate.id === entry.playerId);
-      const item = document.createElement('li');
-      const label = document.createElement('strong');
-      label.textContent = `${player?.avatar ?? '🎨'} ${player?.name ?? 'Player'}`;
-      item.append(label);
-      if (entry.kind === 'drawing')
-        item.append(createDrawingPreview(entry.drawing, 'chain-drawing'));
-      else {
-        const text = document.createElement('span');
-        text.textContent = entry.text;
-        item.append(text);
-      }
-      chain.append(item);
-    });
-    container.append(chain);
-  }
-
-  if (game.mode === 'fake-artist' && game.fakeArtistPlayerId) {
-    const fake = state.players.find((player) => player.id === game.fakeArtistPlayerId);
-    const reveal = document.createElement('p');
-    reveal.className = 'drawn-out-fake-reveal';
-    reveal.textContent = `${fake?.avatar ?? '🖊️'} ${fake?.name ?? 'The mystery player'} was the fake artist.`;
-    container.append(reveal);
-    const votes = document.createElement('p');
-    votes.className = 'muted';
-    votes.textContent = game.votes
-      .map((vote) => {
-        const player = state.players.find((candidate) => candidate.id === vote.playerId);
-        return `${player?.name ?? 'Player'}: ${vote.count}`;
-      })
-      .join(' · ');
-    container.append(votes);
-  }
-}
-
-function isGroupthinkPlayerView(state: PlayerGameView | null): state is GroupthinkPlayerView {
-  return state?.id === 'groupthink';
-}
-
-function isHotTakePlayerView(state: PlayerGameView | null): state is HotTakePlayerView {
-  return state?.id === 'hot-take';
-}
-
-function isSuspectPlayerView(state: PlayerGameView | null): state is SuspectPlayerView {
-  return state?.id === 'suspect';
-}
-
-function isDrawnOutPlayerView(state: PlayerGameView | null): state is DrawnOutPlayerView {
-  return state?.id === 'drawn-out';
 }
 
 function createStageArtwork(gameId: SupportedGameId, className = ''): HTMLImageElement {
   const game = getGameDefinition(gameId);
+  const presentation = getGamePresentation(gameId);
   const image = document.createElement('img');
   image.className = `stage-art ${className}`.trim();
   image.src = game.stageArt;
-  image.alt =
-    gameId === 'groupthink'
-      ? 'Consensus reactor illustration'
-      : gameId === 'hot-take'
-        ? 'Hot Take stage illustration'
-        : gameId === 'suspect'
-          ? 'Suspect investigation board illustration'
-          : 'Drawn Out chaotic sketchbook illustration';
+  image.alt = presentation.stageArtAlt;
   return image;
-}
-
-function createProgressMeter(value: number, total: number, label: string): HTMLElement {
-  const meter = document.createElement('div');
-  meter.className = 'experience-meter';
-  const copy = document.createElement('div');
-  const title = document.createElement('span');
-  title.textContent = label;
-  const count = document.createElement('strong');
-  count.textContent = `${value}/${total}`;
-  copy.append(title, count);
-  const track = document.createElement('div');
-  track.className = 'experience-meter-track';
-  const fill = document.createElement('span');
-  fill.style.width = `${total > 0 ? Math.min(100, Math.round((value / total) * 100)) : 0}%`;
-  track.append(fill);
-  meter.append(copy, track);
-  return meter;
 }
 
 function createRoomPass(roomCode: string, gameId: SupportedGameId): HTMLElement {
   const game = getGameDefinition(gameId);
+  const presentation = getGamePresentation(gameId);
   const panel = document.createElement('aside');
-  panel.className =
-    gameId === 'groupthink'
-      ? 'lab-room-pass'
-      : gameId === 'hot-take'
-        ? 'heat-room-pass'
-        : gameId === 'suspect'
-          ? 'suspect-room-pass'
-          : 'drawn-out-room-pass';
+  panel.className = presentation.roomPassClass;
   const eyebrow = document.createElement('span');
   eyebrow.className = 'experience-eyebrow';
-  eyebrow.textContent =
-    gameId === 'groupthink'
-      ? 'Mind link active'
-      : gameId === 'hot-take'
-        ? 'Backstage access'
-        : gameId === 'suspect'
-          ? 'Case file active'
-          : 'Sketchbook open';
+  eyebrow.textContent = presentation.roomPassEyebrow;
   const label = document.createElement('span');
   label.className = 'room-pass-label';
   label.textContent = 'Join at this address';
@@ -1085,74 +707,6 @@ function createRoomPass(roomCode: string, gameId: SupportedGameId): HTMLElement 
   qr.src = `/api/rooms/${encodeURIComponent(roomCode)}/qr.svg`;
   panel.append(eyebrow, label, address, code, qr);
   return panel;
-}
-
-function createExperienceRoster(state: PublicRoomState, gameId: SupportedGameId): HTMLElement {
-  const roster = document.createElement('aside');
-  roster.className =
-    gameId === 'groupthink'
-      ? 'mind-roster'
-      : gameId === 'hot-take'
-        ? 'audience-roster'
-        : gameId === 'suspect'
-          ? 'jury-roster'
-          : 'artist-roster';
-  const heading = document.createElement('div');
-  heading.className = 'experience-section-title';
-  const title = document.createElement('h2');
-  title.textContent =
-    gameId === 'groupthink'
-      ? 'Connected minds'
-      : gameId === 'hot-take'
-        ? 'Tonight’s audience'
-        : gameId === 'suspect'
-          ? 'The jury'
-          : 'Questionable artists';
-  const count = document.createElement('span');
-  count.textContent = `${state.players.length}/${state.settings.maxPlayers}`;
-  heading.append(title, count);
-  roster.append(heading);
-
-  const list = document.createElement('ul');
-  list.className =
-    gameId === 'groupthink'
-      ? 'mind-grid'
-      : gameId === 'hot-take'
-        ? 'audience-grid'
-        : gameId === 'suspect'
-          ? 'jury-grid'
-          : 'artist-grid';
-  if (state.players.length === 0) {
-    const empty = document.createElement('li');
-    empty.className = 'experience-empty';
-    empty.textContent =
-      gameId === 'groupthink'
-        ? 'Scanning for minds…'
-        : gameId === 'hot-take'
-          ? 'Doors are open…'
-          : gameId === 'suspect'
-            ? 'Waiting for witnesses…'
-            : 'Waiting for bad ideas…';
-    list.append(empty);
-  } else {
-    state.players.forEach((player, index) => {
-      const item = document.createElement('li');
-      item.className = player.status === 'connected' ? 'is-connected' : 'is-offline';
-      const avatar = document.createElement('span');
-      avatar.className = 'roster-avatar';
-      avatar.textContent = player.avatar;
-      const identity = document.createElement('span');
-      const name = document.createElement('strong');
-      name.textContent = player.name;
-      const score = document.createElement('small');
-      score.textContent = state.phase === 'lobby' ? `Signal ${index + 1}` : `${player.score} pts`;
-      identity.append(name, score);
-      item.append(avatar, identity);
-      list.append(item);
-    });
-  }
-  roster.append(list);
-  return roster;
 }
 
 function createExperienceTopbar(
@@ -1181,283 +735,323 @@ function createExperienceTopbar(
   return bar;
 }
 
-function createGameStage(snapshot: RoomSnapshot, gameId: SupportedGameId): HTMLElement {
-  if (gameId === 'drawn-out') return createDrawnOutStage(snapshot);
-  const state = snapshot.state;
-  const game = snapshot.game;
-  const stage = document.createElement('main');
-  stage.className = gameId === 'groupthink' ? 'consensus-stage' : 'heat-stage';
-
-  const artWrap = document.createElement('div');
-  artWrap.className = 'stage-art-wrap';
-  artWrap.append(createStageArtwork(gameId));
-  const stageCopy = document.createElement('div');
-  stageCopy.className = 'stage-copy';
-  const cue = document.createElement('span');
-  cue.className = 'experience-eyebrow';
-  cue.textContent =
-    gameId === 'groupthink'
-      ? state.phase === 'lobby'
-        ? 'Calibrating the consensus reactor'
-        : 'Consensus reactor online'
-      : gameId === 'hot-take'
-        ? state.phase === 'lobby'
-          ? 'Pre-show'
-          : state.phase === 'voting'
-            ? 'The vote is live'
-            : 'Live on the Hot Take stage'
-        : state.phase === 'lobby'
-          ? 'Open case file'
-          : state.phase === 'alibi'
-            ? 'The suspect has the floor'
-            : state.phase === 'voting'
-              ? 'Accusations are live'
-              : 'Investigation in progress';
-  const title = document.createElement('h2');
-  title.textContent =
-    state.phase === 'lobby'
-      ? gameId === 'groupthink'
-        ? 'Bring every brain into the loop.'
-        : gameId === 'hot-take'
-          ? 'Get the room ready to bring the heat.'
-          : 'Set the jury and open the case.'
-      : game?.prompt ||
-        (gameId === 'groupthink'
-          ? 'Think alike.'
-          : gameId === 'hot-take'
-            ? 'Make it spicy.'
-            : 'Everybody looks guilty.');
-  stageCopy.append(cue, title);
-
-  if (game?.id === 'groupthink') {
-    stageCopy.append(createProgressMeter(game.submittedCount, game.totalPlayers, 'Mind sync'));
-    if (state.phase === 'results' || state.phase === 'winner') {
-      const results = document.createElement('section');
-      results.className = 'thought-clusters';
-      appendGroupthinkResults(results, game);
-      stageCopy.append(results);
-    }
-  } else if (game?.id === 'hot-take') {
-    stageCopy.append(
-      createProgressMeter(
-        game.submittedCount,
-        game.totalPlayers,
-        state.phase === 'voting' ? 'Takes on stage' : 'Heat building',
-      ),
-    );
-    if (state.phase === 'voting' || state.phase === 'results' || state.phase === 'winner') {
-      const entries = document.createElement('section');
-      entries.className = 'take-wall';
-      appendHotTakeEntries(
-        entries,
-        game.entries,
-        state.phase === 'results' || state.phase === 'winner'
-          ? 'The room has spoken'
-          : 'Anonymous takes',
-      );
-      stageCopy.append(entries);
-    }
-  } else if (game?.id === 'suspect') {
-    stageCopy.append(
-      createProgressMeter(
-        game.status === 'input'
-          ? game.submittedCount
-          : game.status === 'voting'
-            ? game.voteSummary.length
-            : game.submittedCount,
-        game.status === 'voting' ? game.totalPlayers : game.totalPlayers,
-        game.status === 'input'
-          ? 'Private answers'
-          : game.status === 'alibi'
-            ? 'Alibi window'
-            : game.status === 'voting'
-              ? 'Accusations'
-              : 'Case resolved',
-      ),
-    );
-    if (game.status === 'alibi' && game.alibiPlayerId) {
-      const accused = state.players.find((player) => player.id === game.alibiPlayerId);
-      const alibi = document.createElement('p');
-      alibi.className = 'suspect-callout';
-      alibi.textContent = `${accused?.avatar ?? '🕵️'} ${accused?.name ?? 'A player'} has been selected for questioning.`;
-      stageCopy.append(alibi);
-    }
-    if (state.phase === 'results' || state.phase === 'winner') {
-      const results = document.createElement('section');
-      results.className = 'suspect-results';
-      appendSuspectResults(results, game, state);
-      stageCopy.append(results);
-    }
-  }
-
-  if (state.phase === 'winner') {
-    const scores = document.createElement('section');
-    scores.className = 'experience-scoreboard';
-    appendScoreboard(scores, state);
-    stageCopy.append(scores);
-  }
-  stage.append(artWrap, stageCopy);
-  return stage;
+function createPublicGameStage(snapshot: RoomSnapshot, gameId: SupportedGameId): HTMLElement {
+  return (
+    renderPublicGameStage(snapshot, {
+      document,
+      createArtwork: createStageArtwork,
+      createDrawingPreview,
+      now: Date.now,
+    }) ?? createLobbyStage(gameId, snapshot.state.phase)
+  );
 }
 
-function createDrawnOutStage(snapshot: RoomSnapshot): HTMLElement {
-  const game = snapshot.game?.id === 'drawn-out' ? snapshot.game : null;
+function createLobbyStage(gameId: SupportedGameId, phase: RoomPhase): HTMLElement {
+  const presentation = getGamePresentation(gameId);
   const stage = document.createElement('main');
-  stage.className = 'drawn-out-stage';
-  const visual = document.createElement('div');
-  visual.className = 'drawn-out-canvas-stage';
-  if (game?.drawing) visual.append(createDrawingPreview(game.drawing, 'display-drawing'));
-  else visual.append(createStageArtwork('drawn-out'));
-
+  stage.className = presentation.stageClass;
+  const artwork = document.createElement('div');
+  artwork.className = gameId === 'drawn-out' ? 'drawn-out-canvas-stage' : 'stage-art-wrap';
+  artwork.append(createStageArtwork(gameId));
   const copy = document.createElement('div');
-  copy.className = 'stage-copy drawn-out-stage-copy';
+  copy.className = gameId === 'drawn-out' ? 'stage-copy drawn-out-stage-copy' : 'stage-copy';
   const cue = document.createElement('span');
   cue.className = 'experience-eyebrow';
-  cue.textContent = game ? `${drawnOutModeLabel(game.mode)} mode` : 'Fresh sketchbook';
+  cue.textContent = presentation.stageCue(phase);
   const title = document.createElement('h2');
-  title.textContent =
-    snapshot.state.phase === 'lobby'
-      ? 'Get your drawing finger ready.'
-      : game?.status === 'drawing'
-        ? 'The artist is making choices.'
-        : game?.status === 'guessing'
-          ? 'What was this supposed to be?'
-          : game?.status === 'telephone'
-            ? 'The chain is getting worse.'
-            : game?.status === 'fake-drawing'
-              ? 'One artist has no idea.'
-              : game?.status === 'fake-voting'
-                ? 'Spot the suspicious strokes.'
-                : 'Art was a mistake.';
+  title.textContent = presentation.stageLobbyTitle;
   copy.append(cue, title);
-  if (game) appendDrawnOutStatus(copy, game);
-  if (game && (game.status === 'results' || game.status === 'complete')) {
-    appendDrawnOutResults(copy, game, snapshot.state);
-  }
-  if (snapshot.state.phase === 'winner') appendScoreboard(copy, snapshot.state);
-  stage.append(visual, copy);
+  stage.append(artwork, copy);
   return stage;
 }
 
-function createHostExperience(snapshot: RoomSnapshot, session: HostSession): HTMLElement {
+function updateHostExperience(
+  shell: ReturnType<typeof createRoomStageShellComponent>,
+  roster: RosterComponent,
+  snapshot: RoomSnapshot,
+  session: HostSession,
+): HTMLElement {
   const gameId = getGameDefinition(snapshot.game?.id ?? snapshot.state.gameId ?? session.gameId).id;
-  const shell = document.createElement('section');
-  shell.className = `experience-shell host-experience ${
-    gameId === 'groupthink'
-      ? 'consensus-lab'
-      : gameId === 'hot-take'
-        ? 'live-heat'
-        : gameId === 'suspect'
-          ? 'case-room'
-          : 'sketch-studio'
-  }`;
-  shell.append(createExperienceTopbar(gameId, session.roomCode, snapshot.state.phase));
-  const grid = document.createElement('div');
-  grid.className = 'experience-grid';
-  grid.append(
-    createRoomPass(session.roomCode, gameId),
-    createGameStage(snapshot, gameId),
-    createExperienceRoster(snapshot.state, gameId),
-  );
-  shell.append(grid);
-  return shell;
-}
-
-function createDisplayExperience(snapshot: RoomSnapshot, sound: SoundController): HTMLElement {
-  const gameId = getGameDefinition(snapshot.game?.id ?? snapshot.state.gameId).id;
-  const shell = document.createElement('section');
-  shell.className = `experience-shell display-experience ${
-    gameId === 'groupthink'
-      ? 'consensus-lab'
-      : gameId === 'hot-take'
-        ? 'live-heat'
-        : gameId === 'suspect'
-          ? 'case-room'
-          : 'sketch-studio'
-  }`;
-  shell.append(createExperienceTopbar(gameId, snapshot.state.roomCode, snapshot.state.phase));
-
-  const grid = document.createElement('div');
-  grid.className = 'experience-grid';
-  const roomPass = createRoomPass(snapshot.state.roomCode, gameId);
-  roomPass.classList.add('display-room-pass');
-  const audio = document.createElement('div');
-  audio.className = 'display-audio-control';
-  audio.append(sound.button);
-  roomPass.append(audio);
-  grid.append(
-    roomPass,
-    createGameStage(snapshot, gameId),
-    createExperienceRoster(snapshot.state, gameId),
-  );
-  shell.append(grid);
-  return shell;
-}
-
-function fitDisplayExperience(root: HTMLElement): void {
-  const experience = root.querySelector<HTMLElement>('.display-experience');
-  const content = root.querySelector<HTMLElement>(':scope > .content');
-  if (!experience || !content) return;
-
-  const grid = experience.querySelector<HTMLElement>('.experience-grid');
-  const topbar = experience.querySelector<HTMLElement>('.experience-topbar');
-  if (!grid || !topbar) return;
-
-  // Measure at scale 1. The grid's scrollHeight captures answer walls and rosters
-  // that would otherwise be clipped by the viewport's overflow guard.
-  experience.style.setProperty('--display-scale', '1');
-  const experienceRect = experience.getBoundingClientRect();
-  let requiredWidth = Math.max(experience.scrollWidth, grid.scrollWidth, 1);
-  let requiredHeight = Math.max(
-    experience.scrollHeight,
-    topbar.offsetHeight + grid.scrollHeight,
-    1,
-  );
-  experience.querySelectorAll<HTMLElement>('*').forEach((element) => {
-    const rect = element.getBoundingClientRect();
-    requiredWidth = Math.max(requiredWidth, element.scrollWidth, rect.right - experienceRect.left);
-    requiredHeight = Math.max(requiredHeight, rect.top - experienceRect.top + element.scrollHeight);
+  const presentation = getGamePresentation(gameId);
+  roster.update(snapshot.state, presentation);
+  shell.update({
+    shellClass: presentation.shellClass,
+    topbar: {
+      key: `${gameId}:${session.roomCode}:${snapshot.state.phase}`,
+      render: () => createExperienceTopbar(gameId, session.roomCode, snapshot.state.phase),
+    },
+    roomPass: {
+      key: `${gameId}:${session.roomCode}`,
+      render: () => createRoomPass(session.roomCode, gameId),
+    },
+    stage: {
+      key: createStageIdentity(snapshot),
+      render: () => createPublicGameStage(snapshot, gameId),
+    },
+    roster: roster.element,
   });
-  const availableWidth = Math.max(content.clientWidth, 1);
-  const availableHeight = Math.max(content.clientHeight, 1);
-  const scale = Math.min(1, availableWidth / requiredWidth, availableHeight / requiredHeight);
-  experience.style.setProperty('--display-scale', scale.toFixed(4));
+  return shell.element;
+}
+
+function updateDisplayExperience(
+  shell: ReturnType<typeof createRoomStageShellComponent>,
+  roster: RosterComponent,
+  join: ReturnType<typeof createPhaseAwareJoinComponent>,
+  density: ReturnType<typeof createTvDensityLayoutComponent>,
+  snapshot: RoomSnapshot,
+  densityView: LiveDisplayDensityViewModel,
+  densityPageIndex: number,
+): HTMLElement {
+  const gameId = getGameDefinition(snapshot.game?.id ?? snapshot.state.gameId).id;
+  const presentation = getGamePresentation(gameId);
+  roster.update(snapshot.state, presentation);
+  const activePlayerCount = snapshot.state.players.filter(
+    (player) => player.status !== 'removed',
+  ).length;
+  const availability =
+    activePlayerCount >= snapshot.state.settings.maxPlayers
+      ? 'full'
+      : snapshot.state.phase === 'lobby'
+        ? 'open'
+        : 'queued';
+  join.update(
+    createPhaseAwareJoinViewModel({
+      gameId,
+      roomCode: snapshot.state.roomCode,
+      phase: snapshot.state.phase,
+      availability,
+      origin: window.location.origin,
+      showDuringPlay: true,
+    }),
+  );
+
+  const publicStage = createPublicGameStage(snapshot, gameId);
+  publicStage.classList.add(`density-${densityView.plan.mode}`);
+  roster.element.classList.remove('density-regular', 'density-compact', 'density-paged');
+  roster.element.classList.add(`density-${densityView.plan.mode}`);
+  let stageElement = publicStage;
+  let rosterElement = roster.element;
+  if (densityView.plan.mode === 'paged') {
+    const source = densityView.target === 'stage' ? publicStage : roster.element;
+    const content = Array.from(source.querySelectorAll<HTMLElement>(densityView.contentSelector));
+    const contentById = Object.fromEntries(
+      densityView.plan.pages
+        .flatMap((page) => page.items)
+        .map((item, index) => [item.id, content[index]])
+        .filter((entry): entry is [string, HTMLElement] => Boolean(entry[1])),
+    );
+    density.update(densityView.plan, densityPageIndex, contentById);
+    if (densityView.target === 'stage') stageElement = density.element;
+    else rosterElement = density.element;
+  }
+  shell.update({
+    shellClass: presentation.shellClass,
+    topbar: {
+      key: `${gameId}:${snapshot.state.roomCode}:${snapshot.state.phase}`,
+      render: () => createExperienceTopbar(gameId, snapshot.state.roomCode, snapshot.state.phase),
+    },
+    roomPass: {
+      key: 'retained-phase-aware-join',
+      render: () => join.element,
+    },
+    stage: {
+      key: `${createStageIdentity(snapshot)}:${densityView.key}:${densityPageIndex}`,
+      render: () => stageElement,
+    },
+    roster: rosterElement,
+  });
+  shell.element.classList.add(
+    `display-density-${densityView.target}`,
+    `density-${densityView.plan.mode}`,
+  );
+  return shell.element;
+}
+
+function createStageIdentity(snapshot: RoomSnapshot): string {
+  const scoreContext =
+    snapshot.state.phase === 'results' || snapshot.state.phase === 'winner'
+      ? snapshot.state.players.map(({ id, name, avatar, score }) => ({ id, name, avatar, score }))
+      : null;
+  return JSON.stringify([snapshot.state.phase, snapshot.game, scoreContext]);
 }
 
 function renderHost(root: HTMLElement): void {
   const socket = window.io();
   const sound = createSoundController();
-  let connectionStatus: ConnectionStatus = 'connecting';
-  let session = readStorage<HostSession>(HOST_STORAGE_KEY);
-  let snapshot: RoomSnapshot | null = null;
+  const connectionNotice = createConnectionNoticeComponent(document);
+  const pageShell = createPageShellComponent(root, connectionNotice.element, document);
+  const experienceShell = createRoomStageShellComponent('host-experience', document);
+  const experienceRoster = createRosterComponent(document);
+  const connectionStore = createConnectionStore();
+  let connectionStatus = connectionStore.getState();
+  connectionStore.subscribe((state) => {
+    connectionStatus = state;
+  });
+  const roomFromUrl = getRoomCodeFromSearch(window.location.search);
+  const sessionStore = createSessionStore(
+    readRoomSession<HostSession>(window.localStorage, HOST_STORAGE_KEY, roomFromUrl),
+  );
+  let session = sessionStore.getState();
+  sessionStore.subscribe((state) => {
+    session = state;
+  });
+  const snapshotStore = createPublicSnapshotStore<RoomSnapshot>();
+  let snapshot = snapshotStore.getState();
+  snapshotStore.subscribe((state) => {
+    snapshot = state;
+  });
+  let activeNotice: HTMLElement | null = null;
+  let protocolNotice: string | null = null;
+  let sessionWasReplaced = false;
+  let reconnectAttempt = 0;
+  let recoveryState: RecoveryState | null = { kind: 'initial-connect', role: 'host' };
+  const actionIds = new Map<string, string>();
+
+  const showHostEventError = (error: { readonly code: string }, actionLabel = 'Action'): void => {
+    recoveryState = getRecoveryStateForEventError(
+      error,
+      { role: 'host', roomCode: session?.roomCode },
+      actionLabel,
+    );
+    render();
+  };
+
+  const acceptSnapshot = (payload: unknown): boolean => {
+    const parsed = parseRoomSnapshot(payload);
+    if (!parsed.ok) {
+      protocolNotice = parsed.message;
+      recoveryState =
+        parsed.error === 'incompatible-version'
+          ? {
+              kind: 'incompatible-client',
+              role: 'host',
+              roomCode: session?.roomCode,
+              errorCode: parsed.error,
+            }
+          : {
+              kind: 'server-unavailable',
+              role: 'host',
+              roomCode: session?.roomCode,
+              errorCode: parsed.error,
+            };
+      if (activeNotice) setNotice(activeNotice, parsed.message, true);
+      render();
+      return false;
+    }
+    return snapshotStore.acceptSnapshot(parsed.value);
+  };
+
+  const beginHostAction = (
+    key: string,
+    button?: HTMLButtonElement,
+    restoredActionId?: string,
+  ): { actionId: string; finish: () => void } => {
+    const actionId = restoredActionId ?? getClientActionId(actionIds, key);
+    if (button) button.disabled = true;
+    if (activeNotice) setNotice(activeNotice, 'Sending action…', false);
+    const timer = window.setTimeout(() => {
+      if (button) button.disabled = false;
+      if (activeNotice) {
+        setNotice(
+          activeNotice,
+          'The room did not respond. Check the connection, then retry safely.',
+          true,
+        );
+      }
+      recoveryState = {
+        kind: 'action-timeout',
+        role: 'host',
+        roomCode: session?.roomCode,
+        actionLabel: button?.textContent ?? 'Action',
+      };
+      render();
+    }, 8_000);
+    return {
+      actionId,
+      finish: () => {
+        window.clearTimeout(timer);
+        if (button) button.disabled = false;
+        actionIds.delete(key);
+      },
+    };
+  };
 
   const render = (): void => {
-    const routeGameId = getGameFromPathname();
-    const page = createPage(
-      root,
+    const routeGameId = getGameFromPathname(window.location.pathname);
+    const page = updatePage(
+      pageShell,
       session ? `Room ${session.roomCode}` : 'Start a Riot',
       session
         ? 'Share the display with the room and let everyone join.'
         : 'Create a room to begin.',
       session?.gameId ?? routeGameId,
     );
-    renderConnectionNotice(page, connectionStatus);
+    activeNotice = page.notice;
+    renderConnectionNotice(connectionNotice, connectionStatus);
+    if (connectionStatus === 'connected') setNotice(page.notice, '', false);
+    if (protocolNotice) setNotice(page.notice, protocolNotice, true);
+    if (sessionWasReplaced) {
+      setNotice(
+        page.notice,
+        'This host session moved to another tab or device. Reload this page to take control here.',
+        true,
+      );
+    }
     setGameTheme(root, session?.gameId ?? snapshot?.state.gameId ?? routeGameId);
     if (snapshot) sound.phaseChanged(snapshot.state.phase);
 
-    if (session && window.location.pathname === routes.host) {
-      window.history.replaceState(null, '', buildHostRoute(session.gameId));
+    const currentRoomInUrl = getRoomCodeFromSearch(window.location.search);
+    if (
+      session &&
+      (window.location.pathname === routes.host ||
+        currentRoomInUrl !== session.roomCode ||
+        getGameFromPathname(window.location.pathname) !== session.gameId)
+    ) {
+      window.history.replaceState(null, '', buildHostRoute(session.gameId, session.roomCode));
+    }
+
+    if (recoveryState) {
+      const clearRecovery = (): void => {
+        recoveryState = null;
+        render();
+      };
+      const leaveRoom = (): void => {
+        const current = session;
+        if (current) {
+          removeRoomSession<HostSession>(window.localStorage, HOST_STORAGE_KEY, current.roomCode);
+          sessionStore.setState(null);
+          snapshotStore.setState(null);
+          window.history.replaceState(null, '', buildHostRoute(current.gameId));
+        }
+        recoveryState = null;
+        sessionWasReplaced = false;
+        render();
+      };
+      page.content.append(
+        createRecoveryPanel(
+          recoveryState,
+          getRecoveryHandlers(recoveryState, {
+            ...(recoveryState.kind === 'action-timeout' ? { retry: clearRecovery } : {}),
+            'return-to-launcher': leaveRoom,
+            rejoin: leaveRoom,
+            'edit-room-code': clearRecovery,
+          }),
+        ),
+      );
+      return;
     }
 
     if (!session) {
       const form = document.createElement('form');
       form.className = 'card form game-launcher';
       let drawnOutModeField: HTMLElement | null = null;
+      let updateLauncherGuidance: (() => void) | null = null;
       const gamePicker = createGamePicker(routeGameId ?? 'groupthink', (game) => {
         window.history.replaceState(null, '', buildHostRoute(game.id));
         setGameTheme(root, game.id);
         updatePageBrand(page, game.id);
         if (drawnOutModeField) drawnOutModeField.hidden = game.id !== 'drawn-out';
+        updateLauncherGuidance?.();
       });
       form.append(gamePicker.element);
       const contentMode = createContentModeSelect();
@@ -1473,41 +1067,81 @@ function renderHost(root: HTMLElement): void {
       promptModeHint.textContent =
         'AI remix creates a fresh shuffled deck from local prompt ingredients, so it works offline on the big screen.';
       promptModeField.append(promptModeHint);
-      form.append(promptModeField);
+      const advancedSettings = document.createElement('details');
+      advancedSettings.className = 'advanced-settings';
+      const advancedSummary = document.createElement('summary');
+      advancedSummary.textContent = 'Advanced settings';
+      const advancedSettingsBody = document.createElement('div');
+      advancedSettingsBody.className = 'advanced-settings-body';
+      advancedSettingsBody.append(promptModeField);
+      advancedSettings.append(advancedSummary, advancedSettingsBody);
+      form.append(advancedSettings);
       const actions = document.createElement('div');
       actions.className = 'actions game-launcher-actions';
       const submit = createButton('Create Game', 'submit');
       submit.className = 'create-game-button';
-      actions.append(submit);
+      const guidance = document.createElement('p');
+      guidance.className = 'launcher-guidance';
+      updateLauncherGuidance = (): void => {
+        const selectedGame = getGameDefinition(gamePicker.getValue());
+        guidance.textContent = `${selectedGame.players} · Settings stay editable until round one.`;
+      };
+      updateLauncherGuidance();
+      actions.append(guidance, submit);
       form.append(actions);
       form.addEventListener('submit', (event) => {
         event.preventDefault();
-        submit.disabled = true;
         const gameId = gamePicker.getValue();
-        const request: CreateRoomRequest = {
+        const settings = {
+          maxPlayers: getGamePresentation(gameId).getPlayerLimits(
+            drawnOutMode.value as DrawnOutMode,
+          ).maximum,
+          roundCount: 5,
+          contentMode: contentMode.value as ContentMode,
+          promptMode: promptMode.value as PromptMode,
+          drawnOutMode: drawnOutMode.value as DrawnOutMode,
+        };
+        const pending = getOrCreatePendingOperation(
+          window.sessionStorage,
+          PENDING_OPERATION_STORAGE_KEY,
+          'host:create-room',
+          { gameId, settings },
+        );
+        const action = beginHostAction(
+          `host:create-room:${gameId}:${contentMode.value}:${promptMode.value}:${drawnOutMode.value}`,
+          submit,
+          pending.actionId,
+        );
+        const request: CreateRoomActionRequest = {
+          actionId: action.actionId,
           gameId,
-          settings: {
-            maxPlayers: gameId === 'drawn-out' ? 10 : 12,
-            roundCount: 5,
-            contentMode: contentMode.value as ContentMode,
-            promptMode: promptMode.value as PromptMode,
-            drawnOutMode: drawnOutMode.value as DrawnOutMode,
-          },
+          settings,
         };
         socket.emit('host:create-room', request, (response: HostCreateResponse) => {
-          submit.disabled = false;
+          action.finish();
+          clearPendingOperation(
+            window.sessionStorage,
+            PENDING_OPERATION_STORAGE_KEY,
+            'host:create-room',
+          );
           if (!isSuccess(response)) {
-            setNotice(page.notice, response.error.message, true);
+            recoveryState = getRecoveryStateForEventError(
+              response.error,
+              { role: 'host' },
+              'Create game',
+            );
+            render();
             return;
           }
-          session = {
+          const createdSession: HostSession = {
             roomCode: response.roomCode,
             hostToken: response.hostToken,
             gameId,
           };
-          window.history.replaceState(null, '', buildHostRoute(gameId));
-          snapshot = response.snapshot;
-          writeStorage(HOST_STORAGE_KEY, session);
+          sessionStore.setState(createdSession);
+          window.history.replaceState(null, '', buildHostRoute(gameId, response.roomCode));
+          if (!acceptSnapshot(response.snapshot)) return;
+          writeRoomSession(window.localStorage, HOST_STORAGE_KEY, createdSession);
           render();
         });
       });
@@ -1524,10 +1158,18 @@ function renderHost(root: HTMLElement): void {
     }
 
     const state = snapshot.state;
+    const hostMutationKey = (event: string): string =>
+      createHostMutationKey(event, session?.roomCode ?? '', state.phase, snapshot?.game);
     const activeGame = getGameDefinition(snapshot.game?.id ?? state.gameId ?? session.gameId).id;
+    const hostView = getHostRouteViewModel(
+      activeGame,
+      state.phase,
+      state.players.length,
+      state.settings.drawnOutMode,
+    );
     setGameTheme(root, activeGame);
     sound.phaseChanged(state.phase, activeGame);
-    page.content.append(createHostExperience(snapshot, session));
+    page.content.append(updateHostExperience(experienceShell, experienceRoster, snapshot, session));
 
     const controls = document.createElement('div');
     controls.className = 'actions';
@@ -1537,132 +1179,108 @@ function renderHost(root: HTMLElement): void {
     displayLink.target = '_blank';
     displayLink.rel = 'noreferrer';
     displayLink.textContent = 'Open Display';
-    controls.className = `actions experience-controls ${activeGame === 'groupthink' ? 'lab-controls' : 'heat-controls'}`;
+    controls.className = `actions experience-controls ${hostView.controlsClass}`;
     controls.append(displayLink);
     controls.append(sound.button);
 
     if (state.phase === 'lobby') {
-      const start = createButton(
-        `Start ${
-          session.gameId === 'hot-take'
-            ? 'Hot Take'
-            : session.gameId === 'suspect'
-              ? 'Suspect'
-              : session.gameId === 'drawn-out'
-                ? 'Drawn Out'
-                : 'Groupthink'
-        }`,
-      );
-      start.disabled =
-        session.gameId === 'hot-take'
-          ? state.players.length < 3
-          : session.gameId === 'suspect'
-            ? state.players.length < 4
-            : session.gameId === 'drawn-out'
-              ? state.players.length < 3
-              : state.players.length < 1;
+      const start = createButton(hostView.primaryAction?.label ?? 'Start Game');
+      start.disabled = hostView.primaryAction?.disabled ?? false;
       start.addEventListener('click', () => {
+        const action = beginHostAction(hostMutationKey('host:start-game'), start);
         const request: HostStartGameRequest = {
+          actionId: action.actionId,
           roomCode: session?.roomCode ?? '',
           hostToken: session?.hostToken ?? '',
           gameId: session?.gameId ?? 'groupthink',
         };
         socket.emit('host:start-game', request, (response: RoomStateResponse) => {
+          action.finish();
           if (!isSuccess(response)) {
-            setNotice(page.notice, response.error.message, true);
+            showHostEventError(response.error, 'Start game');
             return;
           }
-          snapshot = response.snapshot;
+          if (!acceptSnapshot(response.snapshot)) return;
           render();
         });
       });
       controls.append(start);
     } else if (state.phase === 'input') {
-      const reveal = createButton(
-        session.gameId === 'hot-take'
-          ? 'Put the Takes on Stage'
-          : session.gameId === 'suspect'
-            ? 'Open the Case'
-            : session.gameId === 'drawn-out'
-              ? 'Advance the Art Disaster'
-              : 'Open the Thought Clusters',
-      );
+      const reveal = createButton(hostView.primaryAction?.label ?? 'Reveal Results');
       reveal.addEventListener('click', () => {
+        const action = beginHostAction(hostMutationKey('host:reveal-results'), reveal);
         const request: HostRoomActionRequest = {
+          actionId: action.actionId,
           roomCode: session?.roomCode ?? '',
           hostToken: session?.hostToken ?? '',
         };
         socket.emit('host:reveal-results', request, (response: RoomStateResponse) => {
+          action.finish();
           if (!isSuccess(response)) {
-            setNotice(page.notice, response.error.message, true);
+            showHostEventError(response.error, 'Reveal results');
             return;
           }
-          snapshot = response.snapshot;
+          if (!acceptSnapshot(response.snapshot)) return;
           render();
         });
       });
       controls.append(reveal);
     } else if (state.phase === 'alibi') {
-      const reveal = createButton('Close the Alibi Window');
+      const reveal = createButton(hostView.primaryAction?.label ?? 'Close the Alibi Window');
       reveal.addEventListener('click', () => {
+        const action = beginHostAction(hostMutationKey('host:reveal-results'), reveal);
         const request: HostRoomActionRequest = {
+          actionId: action.actionId,
           roomCode: session?.roomCode ?? '',
           hostToken: session?.hostToken ?? '',
         };
         socket.emit('host:reveal-results', request, (response: RoomStateResponse) => {
+          action.finish();
           if (!isSuccess(response)) {
-            setNotice(page.notice, response.error.message, true);
+            showHostEventError(response.error, 'Reveal results');
             return;
           }
-          snapshot = response.snapshot;
+          if (!acceptSnapshot(response.snapshot)) return;
           render();
         });
       });
       controls.append(reveal);
     } else if (state.phase === 'voting') {
-      const reveal = createButton(
-        session.gameId === 'suspect'
-          ? 'Reveal the Accusations'
-          : session.gameId === 'drawn-out'
-            ? 'Reveal the Art Disaster'
-            : 'Reveal the Hottest Take',
-      );
+      const reveal = createButton(hostView.primaryAction?.label ?? 'Reveal Results');
       reveal.addEventListener('click', () => {
+        const action = beginHostAction(hostMutationKey('host:reveal-results'), reveal);
         const request: HostRoomActionRequest = {
+          actionId: action.actionId,
           roomCode: session?.roomCode ?? '',
           hostToken: session?.hostToken ?? '',
         };
         socket.emit('host:reveal-results', request, (response: RoomStateResponse) => {
+          action.finish();
           if (!isSuccess(response)) {
-            setNotice(page.notice, response.error.message, true);
+            showHostEventError(response.error, 'Reveal results');
             return;
           }
-          snapshot = response.snapshot;
+          if (!acceptSnapshot(response.snapshot)) return;
           render();
         });
       });
       controls.append(reveal);
     } else if (state.phase === 'results') {
-      const next = createButton(
-        session.gameId === 'hot-take'
-          ? 'Turn Up the Next Round'
-          : session.gameId === 'suspect'
-            ? 'Open the Next Case'
-            : session.gameId === 'drawn-out'
-              ? 'Start the Next Sketch'
-              : 'Sync the Next Round',
-      );
+      const next = createButton(hostView.primaryAction?.label ?? 'Next Round');
       next.addEventListener('click', () => {
+        const action = beginHostAction(hostMutationKey('host:next-round'), next);
         const request: HostRoomActionRequest = {
+          actionId: action.actionId,
           roomCode: session?.roomCode ?? '',
           hostToken: session?.hostToken ?? '',
         };
         socket.emit('host:next-round', request, (response: RoomStateResponse) => {
+          action.finish();
           if (!isSuccess(response)) {
-            setNotice(page.notice, response.error.message, true);
+            showHostEventError(response.error, 'Next round');
             return;
           }
-          snapshot = response.snapshot;
+          if (!acceptSnapshot(response.snapshot)) return;
           render();
         });
       });
@@ -1674,67 +1292,179 @@ function renderHost(root: HTMLElement): void {
       controls.append(phase);
     }
 
-    const reset = createButton('New Room');
-    reset.className = 'secondary';
-    reset.addEventListener('click', () => {
+    const closeRoom = createButton('Close Room');
+    closeRoom.className = 'secondary';
+    closeRoom.addEventListener('click', () => {
       const currentSession = session;
-      if (currentSession) {
-        socket.emit(
-          'host:leave',
-          {
-            roomCode: currentSession.roomCode,
-            hostToken: currentSession.hostToken,
-          },
-          () => undefined,
-        );
+      if (
+        !currentSession ||
+        !window.confirm('Close this room for everyone? Players will not be able to reconnect.')
+      ) {
+        return;
       }
-      session = null;
-      snapshot = null;
-      window.localStorage.removeItem(HOST_STORAGE_KEY);
-      render();
+      const action = beginHostAction(`host:close-room:${currentSession.roomCode}`, closeRoom);
+      socket.emit(
+        'host:close-room',
+        {
+          actionId: action.actionId,
+          roomCode: currentSession.roomCode,
+          hostToken: currentSession.hostToken,
+        },
+        (response: LeaveRoomResponse) => {
+          action.finish();
+          if (!isSuccess(response)) {
+            showHostEventError(response.error, 'Close room');
+            return;
+          }
+          sessionStore.setState(null);
+          snapshotStore.setState(null);
+          removeRoomSession<HostSession>(
+            window.localStorage,
+            HOST_STORAGE_KEY,
+            currentSession.roomCode,
+          );
+          window.history.replaceState(null, '', buildHostRoute(currentSession.gameId));
+          render();
+        },
+      );
     });
-    controls.append(reset);
+    controls.append(closeRoom);
     page.content.append(controls);
+
+    const removablePlayers = state.players.filter((player) => player.status !== 'removed');
+    if (removablePlayers.length > 0) {
+      const moderation = document.createElement('section');
+      moderation.className = 'card form';
+      const heading = document.createElement('h2');
+      heading.textContent = 'Room controls';
+      const helper = document.createElement('p');
+      helper.className = 'muted';
+      helper.textContent = 'Remove a player who has left the group or is disrupting the room.';
+      const kickActions = document.createElement('div');
+      kickActions.className = 'actions';
+      removablePlayers.forEach((player) => {
+        const kick = createButton(
+          player.status === 'disconnected' ? `Skip ${player.name} now` : `Remove ${player.name}`,
+        );
+        kick.className = 'secondary';
+        kick.addEventListener('click', () => {
+          if (!session || !window.confirm(`Remove ${player.name} from this room?`)) return;
+          const action = beginHostAction(`host:kick-player:${session.roomCode}:${player.id}`, kick);
+          const request: HostRemovePlayerRequest = {
+            actionId: action.actionId,
+            roomCode: session.roomCode,
+            hostToken: session.hostToken,
+            playerId: player.id,
+          };
+          socket.emit('host:kick-player', request, (response: RemovePlayerResponse) => {
+            action.finish();
+            if (!isSuccess(response)) {
+              showHostEventError(response.error, 'Remove player');
+              return;
+            }
+            if (!acceptSnapshot(response.snapshot)) return;
+            render();
+          });
+        });
+        kickActions.append(kick);
+      });
+      moderation.append(heading, helper, kickActions);
+      page.content.append(moderation);
+    }
   };
 
   socket.on('connect', () => {
-    connectionStatus = 'connected';
+    connectionStore.setState('connected');
+    reconnectAttempt = 0;
+    recoveryState = null;
     if (!session) {
       render();
       return;
     }
     const request: HostReconnectRequest = {
+      actionId: window.crypto.randomUUID(),
       roomCode: session.roomCode,
       hostToken: session.hostToken,
     };
+    recoveryState = { kind: 'initial-connect', role: 'host', roomCode: session.roomCode };
+    render();
     socket.emit('host:reconnect', request, (response: HostReconnectResponse) => {
       if (!isSuccess(response)) {
-        session = null;
-        snapshot = null;
-        window.localStorage.removeItem(HOST_STORAGE_KEY);
+        recoveryState = getRecoveryStateForEventError(response.error, {
+          role: 'host',
+          roomCode: session?.roomCode ?? roomFromUrl,
+        });
         render();
         return;
       }
-      snapshot = response.snapshot;
+      recoveryState = null;
+      if (!acceptSnapshot(response.snapshot)) return;
       render();
     });
   });
 
   socket.on('disconnect', () => {
-    connectionStatus = 'reconnecting';
+    if (sessionWasReplaced) {
+      if (activeNotice) {
+        setNotice(
+          activeNotice,
+          'This host session moved to another tab or device. Reload this page to take control here.',
+          true,
+        );
+      }
+      return;
+    }
+    connectionStore.setState('reconnecting');
+    reconnectAttempt += 1;
+    recoveryState = {
+      kind: 'reconnecting',
+      role: 'host',
+      roomCode: session?.roomCode,
+      attempt: reconnectAttempt,
+    };
     render();
   });
 
   socket.on('connect_error', () => {
-    connectionStatus = 'reconnecting';
+    connectionStore.setState('reconnecting');
+    reconnectAttempt += 1;
+    recoveryState = {
+      kind: 'server-unavailable',
+      role: 'host',
+      roomCode: session?.roomCode,
+      attempt: reconnectAttempt,
+    };
     render();
   });
 
   socket.on('room:state', (nextSnapshot) => {
-    if (session?.roomCode === nextSnapshot.state.roomCode) {
-      snapshot = nextSnapshot;
+    const parsed = parseRoomSnapshot(nextSnapshot);
+    if (!parsed.ok) {
+      acceptSnapshot(nextSnapshot);
+      return;
+    }
+    if (session?.roomCode === parsed.value.state.roomCode) {
+      if (!acceptSnapshot(parsed.value)) return;
       render();
     }
+  });
+
+  socket.on('room:closed', (notice) => {
+    if (session?.roomCode !== notice.roomCode) return;
+    const closedSession = session;
+    sessionStore.setState(null);
+    snapshotStore.setState(null);
+    removeRoomSession<HostSession>(window.localStorage, HOST_STORAGE_KEY, closedSession.roomCode);
+    window.history.replaceState(null, '', buildHostRoute(closedSession.gameId));
+    render();
+  });
+
+  socket.on('session:replaced', (notice) => {
+    if (session?.roomCode !== notice.roomCode || notice.role !== 'host') return;
+    sessionWasReplaced = true;
+    connectionStore.setState('connected');
+    recoveryState = { kind: 'stale-session', role: 'host', roomCode: session.roomCode };
+    render();
   });
 
   render();
@@ -1742,117 +1472,592 @@ function renderHost(root: HTMLElement): void {
 
 function renderPlayer(root: HTMLElement): void {
   const socket = window.io();
-  const routeGameId = getGameFromPathname();
-  let connectionStatus: ConnectionStatus = 'connecting';
-  const roomFromUrl = new URLSearchParams(window.location.search).get('room')?.toUpperCase() ?? '';
-  let session = readStorage<PlayerSession>(PLAYER_STORAGE_KEY);
-  let snapshot: RoomSnapshot | null = null;
-  let playerState: PlayerGameView | null = null;
+  const connectionNotice = createConnectionNoticeComponent(document);
+  const pageShell = createPageShellComponent(root, connectionNotice.element, document);
+  const controllerRoster = createRosterComponent(document, 'controller-roster');
+  const actionFirstController: ActionFirstControllerComponent =
+    createActionFirstControllerComponent(document);
+  const routeGameId = getGameFromPathname(window.location.pathname);
+  const connectionStore = createConnectionStore();
+  let connectionStatus = connectionStore.getState();
+  connectionStore.subscribe((state) => {
+    connectionStatus = state;
+  });
+  const roomFromUrl = getRoomCodeFromSearch(window.location.search);
+  const mostRecentSession = readRoomSession<PlayerSession>(window.localStorage, PLAYER_STORAGE_KEY);
+  const sessionStore = createSessionStore(
+    readRoomSession<PlayerSession>(window.localStorage, PLAYER_STORAGE_KEY, roomFromUrl),
+  );
+  let session = sessionStore.getState();
+  const snapshotStore = createPublicSnapshotStore<RoomSnapshot>();
+  let snapshot = snapshotStore.getState();
+  snapshotStore.subscribe((state) => {
+    snapshot = state;
+  });
+  const privatePlayerStore = createPrivatePlayerStateStore<PlayerGameView>();
+  let playerState = privatePlayerStore.getState();
+  privatePlayerStore.subscribe((state) => {
+    playerState = state;
+  });
   let activeNotice: HTMLElement | null = null;
+  let persistentNotice: PersistentNotice | null = null;
+  let sessionWasReplaced = false;
+  let reconnectAttempt = 0;
+  let recoveryState: RecoveryState | null = { kind: 'initial-connect', role: 'player' };
+  const joinDraft: JoinDraft = {
+    roomCode: roomFromUrl || session?.roomCode || '',
+    name: session?.name ?? mostRecentSession?.name ?? '',
+    avatar: session?.avatar ?? mostRecentSession?.avatar ?? AVATARS[0] ?? '😎',
+  };
+  const draftStore = createDraftStore(
+    readPlayerDraft(
+      window.sessionStorage,
+      PLAYER_DRAFT_STORAGE_KEY,
+      session?.roomCode ?? roomFromUrl,
+    ),
+  );
+  let playerDraft = draftStore.getState();
+  draftStore.subscribe((state) => {
+    playerDraft = state;
+  });
+  sessionStore.subscribe((state) => {
+    session = state;
+    draftStore.setState(
+      state
+        ? readPlayerDraft(window.sessionStorage, PLAYER_DRAFT_STORAGE_KEY, state.roomCode)
+        : null,
+    );
+  });
+  let renderedActionKey = '';
+  let stateRenderScheduled = false;
+  let controllerOperation: ControllerOperationState = { status: 'idle' };
+  let acceptedControllerAction: ControllerAcceptedAction | undefined;
+  let controllerAttempt = 0;
+  let retryControllerAction: (() => void) | null = null;
+  let activePlayerControllerRender: PlayerControllerRenderResult | null = null;
+  let playerExperienceInitialized = false;
+  let leaveButton: HTMLButtonElement | null = null;
+  const actionIds = new Map<string, string>();
+
+  const getActionKey = (): string => {
+    if (!session || !snapshot) return '';
+    return createPlayerActionKey({
+      roomCode: session.roomCode,
+      gameId: snapshot.state.gameId,
+      phase: snapshot.state.phase,
+      game: snapshot.game,
+      playerState,
+    });
+  };
+
+  const getControllerModel = (draft: PlayerDraft | null = playerDraft) => {
+    if (!session || !snapshot) return null;
+    if (acceptedControllerAction?.phase !== snapshot.state.phase) {
+      acceptedControllerAction = undefined;
+    }
+    const gameId = getGameDefinition(snapshot.game?.id ?? snapshot.state.gameId).id;
+    return createActionFirstControllerViewModel({
+      gameId,
+      roomCode: session.roomCode,
+      playerId: session.playerId,
+      phase: snapshot.state.phase,
+      publicGame: snapshot.game,
+      playerState,
+      draft,
+      playerLabels: Object.fromEntries(
+        snapshot.state.players.map((player) => [player.id, `${player.avatar} ${player.name}`]),
+      ),
+      operation: controllerOperation,
+      ...(acceptedControllerAction ? { acceptedAction: acceptedControllerAction } : {}),
+    });
+  };
+
+  const setPlayerNotice = (message: string, isError = false): void => {
+    persistentNotice = message ? { message, isError } : null;
+    if (activeNotice) setNotice(activeNotice, message, isError);
+  };
+
+  const showPlayerEventError = (error: { readonly code: string }, actionLabel = 'Action'): void => {
+    recoveryState = getRecoveryStateForEventError(
+      error,
+      { role: 'player', roomCode: session?.roomCode ?? joinDraft.roomCode },
+      actionLabel,
+    );
+    render();
+  };
+
+  const acceptSnapshot = (payload: unknown): boolean => {
+    const parsed = parseRoomSnapshot(payload);
+    if (!parsed.ok) {
+      recoveryState =
+        parsed.error === 'incompatible-version'
+          ? {
+              kind: 'incompatible-client',
+              role: 'player',
+              roomCode: session?.roomCode ?? joinDraft.roomCode,
+              errorCode: parsed.error,
+            }
+          : {
+              kind: 'server-unavailable',
+              role: 'player',
+              roomCode: session?.roomCode ?? joinDraft.roomCode,
+              errorCode: parsed.error,
+            };
+      setPlayerNotice(parsed.message, true);
+      render();
+      return false;
+    }
+    return snapshotStore.acceptSnapshot(parsed.value);
+  };
+
+  const acceptPlayerState = (revision: number, payload: unknown): boolean => {
+    const parsed = parsePlayerGameView(payload);
+    if (!parsed.ok) {
+      recoveryState = {
+        kind: 'server-unavailable',
+        role: 'player',
+        roomCode: session?.roomCode ?? joinDraft.roomCode,
+        errorCode: parsed.error,
+      };
+      setPlayerNotice(parsed.message, true);
+      render();
+      return false;
+    }
+    return privatePlayerStore.acceptState(revision, parsed.value);
+  };
+
+  const beginPending = (button: HTMLButtonElement): (() => void) => {
+    const label = button.textContent;
+    const isControllerAction = Boolean(button.closest('.action-first-controller'));
+    button.disabled = true;
+    button.textContent = 'Sending…';
+    if (isControllerAction) controllerOperation = { status: 'pending' };
+    const timer = window.setTimeout(() => {
+      button.disabled = false;
+      button.textContent = label;
+      setPlayerNotice(
+        'The room did not respond. Check your connection, then retry safely — your draft is saved.',
+        true,
+      );
+      if (isControllerAction) {
+        controllerAttempt += 1;
+        controllerOperation = {
+          status: 'failed',
+          attempt: controllerAttempt,
+          message: 'No acknowledgement arrived. Your saved input is ready to retry.',
+        };
+      } else {
+        recoveryState = {
+          kind: 'action-timeout',
+          role: 'player',
+          roomCode: session?.roomCode ?? joinDraft.roomCode,
+          actionLabel: label ?? 'Action',
+        };
+      }
+      render();
+    }, 8_000);
+    return () => {
+      window.clearTimeout(timer);
+      button.disabled = false;
+      button.textContent = label;
+      if (isControllerAction) {
+        controllerOperation = { status: 'idle' };
+        controllerAttempt = 0;
+      }
+    };
+  };
+
+  const saveDraft = (update: Partial<PlayerDraft>): void => {
+    if (!session) return;
+    const actionKey = getActionKey();
+    const nextDraft: PlayerDraft = {
+      ...(playerDraft?.actionKey === actionKey ? playerDraft : { actionKey }),
+      ...update,
+    };
+    draftStore.setState(nextDraft);
+    writePlayerDraft(window.sessionStorage, PLAYER_DRAFT_STORAGE_KEY, session.roomCode, nextDraft);
+    const clearModel = getControllerModel(nextDraft)?.clearDraft;
+    if (clearModel) {
+      actionFirstController.clearDraftButton.textContent = clearModel.label;
+      actionFirstController.clearDraftButton.setAttribute('aria-label', clearModel.accessibleLabel);
+      actionFirstController.clearDraftButton.dataset.confirmationTitle =
+        clearModel.confirmationTitle;
+      actionFirstController.clearDraftButton.dataset.confirmationMessage =
+        clearModel.confirmationMessage;
+      actionFirstController.clearDraftButton.hidden = false;
+    }
+  };
+
+  const clearDraft = (): void => {
+    if (session) {
+      removePlayerDraft(window.sessionStorage, PLAYER_DRAFT_STORAGE_KEY, session.roomCode);
+    }
+    draftStore.setState(null);
+  };
+
+  actionFirstController.retryButton.addEventListener('click', () => retryControllerAction?.());
+  actionFirstController.clearDraftButton.addEventListener('click', () => {
+    const title = actionFirstController.clearDraftButton.dataset.confirmationTitle;
+    const message = actionFirstController.clearDraftButton.dataset.confirmationMessage;
+    if (!window.confirm([title, message].filter(Boolean).join('\n\n'))) return;
+    clearDraft();
+    controllerOperation = { status: 'idle' };
+    controllerAttempt = 0;
+    render();
+    window.requestAnimationFrame(() => {
+      actionFirstController.primarySlot
+        .querySelector<HTMLElement>('input, textarea, select, canvas, button')
+        ?.focus({ preventScroll: true });
+    });
+  });
+
+  const scheduleStateRender = (): void => {
+    if (stateRenderScheduled) return;
+    stateRenderScheduled = true;
+    window.setTimeout(() => {
+      stateRenderScheduled = false;
+      const nextActionKey = getActionKey();
+      if (nextActionKey !== renderedActionKey) {
+        render();
+        return;
+      }
+      if (snapshot) {
+        const currentRoster = root.querySelector<HTMLElement>('.controller-roster');
+        if (currentRoster) {
+          controllerRoster.update(
+            snapshot.state,
+            getGamePresentation(getGameDefinition(snapshot.game?.id ?? snapshot.state.gameId).id),
+          );
+          if (currentRoster !== controllerRoster.element) {
+            currentRoster.replaceWith(controllerRoster.element);
+          }
+        }
+      }
+    }, 16);
+  };
 
   const join = (
     roomCodeInput: string,
     nameInput: string,
     avatarInput: string,
     notice: HTMLElement,
+    submit?: HTMLButtonElement,
   ): void => {
     const roomCode = roomCodeInput.trim().toUpperCase();
-    const request: JoinRoomRequest =
+    joinDraft.roomCode = roomCode;
+    joinDraft.name = nameInput;
+    joinDraft.avatar = avatarInput;
+    const payload =
       session?.roomCode === roomCode
-        ? { roomCode, name: nameInput, avatar: avatarInput, playerToken: session.playerToken }
+        ? {
+            roomCode,
+            name: nameInput,
+            avatar: avatarInput,
+            playerToken: session.playerToken,
+          }
         : { roomCode, name: nameInput, avatar: avatarInput };
+    const pending = getOrCreatePendingOperation(
+      window.sessionStorage,
+      PENDING_OPERATION_STORAGE_KEY,
+      'player:join',
+      payload,
+    );
+    const request: JoinRoomActionRequest = { actionId: pending.actionId, ...payload };
 
+    const finishPending = submit ? beginPending(submit) : () => undefined;
     socket.emit('player:join', request, (response: PlayerJoinResponse) => {
+      finishPending();
+      clearPendingOperation(window.sessionStorage, PENDING_OPERATION_STORAGE_KEY, 'player:join');
       if (!isSuccess(response)) {
         if (response.error.code === 'ROOM_NOT_FOUND' || response.error.code === 'UNAUTHORIZED') {
-          session = null;
-          snapshot = null;
-          playerState = null;
-          window.localStorage.removeItem(PLAYER_STORAGE_KEY);
+          const rejectedSession = session;
+          sessionStore.setState(null);
+          snapshotStore.setState(null);
+          privatePlayerStore.setState(null);
+          if (rejectedSession) {
+            removeRoomSession<PlayerSession>(
+              window.localStorage,
+              PLAYER_STORAGE_KEY,
+              rejectedSession.roomCode,
+            );
+          }
+          recoveryState = getRecoveryStateForEventError(response.error, {
+            role: 'player',
+            roomCode,
+          });
           render();
         } else {
-          setNotice(notice, response.error.message, true);
+          recoveryState = getRecoveryStateForEventError(
+            response.error,
+            { role: 'player', roomCode },
+            'Join room',
+          );
+          render();
         }
         return;
       }
-      session = {
+      const joinedSession: PlayerSession = {
         roomCode: response.roomCode,
         playerId: response.playerId,
         playerToken: response.playerToken,
         name: nameInput.trim(),
         avatar: avatarInput,
       };
-      snapshot = response.snapshot;
-      playerState = response.playerState;
+      sessionStore.setState(joinedSession);
+      sessionWasReplaced = false;
+      recoveryState = null;
+      if (!acceptSnapshot(response.snapshot)) return;
+      if (!acceptPlayerState(response.snapshot.revision, response.playerState)) return;
       const joinedGame = response.snapshot.state.gameId;
-      if (joinedGame && getGameFromPathname() !== joinedGame) {
+      if (joinedGame) {
         window.history.replaceState(
           null,
           '',
           buildPlayRoute(getGameDefinition(joinedGame).id, response.roomCode),
         );
       }
-      writeStorage(PLAYER_STORAGE_KEY, session);
+      writeRoomSession(window.localStorage, PLAYER_STORAGE_KEY, joinedSession);
+      persistentNotice = null;
       render();
     });
   };
 
+  const completeControllerMutation = (
+    response: PlayerAnswerResponse,
+    finishPending: () => void,
+    mutationKey: string,
+    acceptedAction: ControllerAcceptedAction,
+    errorLabel: string,
+  ): void => {
+    finishPending();
+    actionIds.delete(mutationKey);
+    if (!isSuccess(response)) {
+      showPlayerEventError(response.error, errorLabel);
+      return;
+    }
+    acceptedControllerAction = acceptedAction;
+    if (!acceptSnapshot(response.snapshot)) return;
+    if (!acceptPlayerState(response.snapshot.revision, response.playerState)) return;
+    clearDraft();
+    persistentNotice = null;
+    render();
+  };
+
+  const createPlayerControllerDependencies = (): PlayerControllerDependencies => ({
+    document,
+    saveDraft,
+    showNotice: setPlayerNotice,
+    createDrawingPad,
+    createDrawingPreview,
+    mutations: {
+      submitAnswer: (intent) => {
+        if (!session) return;
+        const finishPending = beginPending(intent.trigger);
+        const mutationKey = `player:submit-answer:${getActionKey()}`;
+        const request: PlayerSubmitAnswerRequest = {
+          actionId: getClientActionId(actionIds, mutationKey),
+          roomCode: session.roomCode,
+          playerToken: session.playerToken,
+          answer: intent.answer,
+          ...(intent.targetPlayerId ? { targetPlayerId: intent.targetPlayerId } : {}),
+        };
+        socket.emit('player:submit-answer', request, (response: PlayerAnswerResponse) =>
+          completeControllerMutation(
+            response,
+            finishPending,
+            mutationKey,
+            intent.acceptedAction,
+            intent.acceptedAction.title.includes('Description') ||
+              intent.acceptedAction.title.includes('Choice')
+              ? 'Submit alibi'
+              : 'Submit answer',
+          ),
+        );
+      },
+      castVote: (intent) => {
+        if (!session) return;
+        const finishPending = beginPending(intent.trigger);
+        const mutationKey = `player:cast-vote:${getActionKey()}`;
+        const request: PlayerCastVoteRequest = {
+          actionId: getClientActionId(actionIds, mutationKey),
+          roomCode: session.roomCode,
+          playerToken: session.playerToken,
+          entryId: intent.entryId,
+        };
+        const errorLabel =
+          intent.acceptedAction.title === 'Vote accepted'
+            ? 'Submit drawing'
+            : intent.acceptedAction.acceptedLabel === 'Your accusation'
+              ? 'Submit answer'
+              : 'Cast vote';
+        socket.emit('player:cast-vote', request, (response: PlayerAnswerResponse) =>
+          completeControllerMutation(
+            response,
+            finishPending,
+            mutationKey,
+            intent.acceptedAction,
+            errorLabel,
+          ),
+        );
+      },
+      submitAlibi: (intent) => {
+        if (!session) return;
+        const finishPending = beginPending(intent.trigger);
+        const mutationKey = `player:submit-alibi:${getActionKey()}`;
+        const request: PlayerSubmitAlibiRequest = {
+          actionId: getClientActionId(actionIds, mutationKey),
+          roomCode: session.roomCode,
+          playerToken: session.playerToken,
+          alibi: intent.alibi,
+        };
+        socket.emit('player:submit-alibi', request, (response: PlayerAnswerResponse) =>
+          completeControllerMutation(
+            response,
+            finishPending,
+            mutationKey,
+            intent.acceptedAction,
+            'Cast vote',
+          ),
+        );
+      },
+      submitDrawing: (intent) => {
+        if (!session) return;
+        const finishPending = beginPending(intent.trigger);
+        const mutationKey = `player:submit-drawing:${getActionKey()}`;
+        const request: PlayerSubmitDrawingRequest = {
+          actionId: getClientActionId(actionIds, mutationKey),
+          roomCode: session.roomCode,
+          playerToken: session.playerToken,
+          drawing: intent.drawing,
+        };
+        socket.emit('player:submit-drawing', request, (response: PlayerAnswerResponse) =>
+          completeControllerMutation(
+            response,
+            finishPending,
+            mutationKey,
+            intent.acceptedAction,
+            'Cast vote',
+          ),
+        );
+      },
+    },
+  });
+
   const render = (): void => {
-    const page = createPage(
-      root,
+    const previousActionKey = renderedActionKey;
+    const nextActionKey = session && snapshot ? getActionKey() : '';
+    const retainPlayerExperience =
+      playerExperienceInitialized && Boolean(session && snapshot && playerState && !recoveryState);
+    const rebuildPlayerController = !retainPlayerExperience || previousActionKey !== nextActionKey;
+    const previousControls = Array.from(
+      root.querySelectorAll<HTMLElement>(
+        '.answer-form input, .answer-form textarea, .answer-form select, .answer-form button, .drawing-pad canvas, .drawing-pad button, .drawing-pad select',
+      ),
+    );
+    const focusedControlIndex = previousControls.indexOf(document.activeElement as HTMLElement);
+    const focusedControl =
+      focusedControlIndex >= 0 ? previousControls[focusedControlIndex] : undefined;
+    const selection =
+      focusedControl instanceof HTMLInputElement || focusedControl instanceof HTMLTextAreaElement
+        ? { start: focusedControl.selectionStart, end: focusedControl.selectionEnd }
+        : null;
+    const previousScroll = { x: window.scrollX, y: window.scrollY };
+    if (rebuildPlayerController) {
+      activePlayerControllerRender?.dispose();
+      activePlayerControllerRender = null;
+    }
+    const page = updatePage(
+      pageShell,
       session ? `You're in ${session.roomCode}` : 'Join the Riot',
       session
         ? 'Keep this page open and watch the big screen.'
         : 'Enter the code shown on the display.',
       snapshot?.game?.id ?? snapshot?.state.gameId ?? routeGameId,
+      !retainPlayerExperience,
     );
     activeNotice = page.notice;
-    renderConnectionNotice(page, connectionStatus);
+    renderConnectionNotice(connectionNotice, connectionStatus);
+    if (connectionStatus === 'connected') setNotice(page.notice, '', false);
+    if (persistentNotice) {
+      setNotice(page.notice, persistentNotice.message, persistentNotice.isError);
+    }
     setGameTheme(root, snapshot?.state.gameId ?? routeGameId);
 
+    if (recoveryState) {
+      playerExperienceInitialized = false;
+      const clearRecovery = (): void => {
+        recoveryState = null;
+        sessionWasReplaced = false;
+        render();
+      };
+      const rejoin = (): void => {
+        const rejected = session;
+        if (rejected) {
+          removeRoomSession<PlayerSession>(
+            window.localStorage,
+            PLAYER_STORAGE_KEY,
+            rejected.roomCode,
+          );
+        }
+        sessionStore.setState(null);
+        snapshotStore.setState(null);
+        privatePlayerStore.setState(null);
+        clearRecovery();
+      };
+      const retryJoin = (): void => {
+        if (joinDraft.roomCode && joinDraft.name) {
+          recoveryState = { kind: 'initial-connect', role: 'player', roomCode: joinDraft.roomCode };
+          render();
+          join(joinDraft.roomCode, joinDraft.name, joinDraft.avatar, page.notice);
+        } else {
+          clearRecovery();
+        }
+      };
+      page.content.append(
+        createRecoveryPanel(
+          recoveryState,
+          getRecoveryHandlers(recoveryState, {
+            retry: recoveryState.kind === 'action-timeout' ? clearRecovery : retryJoin,
+            rejoin,
+            'edit-room-code': clearRecovery,
+            'return-to-launcher': rejoin,
+          }),
+        ),
+      );
+      return;
+    }
+
     if (!session) {
+      playerExperienceInitialized = false;
       const form = document.createElement('form');
       form.className = routeGameId ? `form themed-join-card join-${routeGameId}` : 'card form';
       if (routeGameId) {
         const game = getGameDefinition(routeGameId);
+        const playerView = getPlayerRouteViewModel(routeGameId);
         const intro = document.createElement('div');
         intro.className = 'themed-join-intro';
         intro.append(createGameArtwork(game, 'themed-join-logo'));
         const copy = document.createElement('div');
         const kicker = document.createElement('span');
         kicker.className = 'experience-eyebrow';
-        kicker.textContent =
-          routeGameId === 'groupthink'
-            ? 'Connect your mind'
-            : routeGameId === 'hot-take'
-              ? 'Claim your backstage pass'
-              : routeGameId === 'suspect'
-                ? 'Join the jury'
-                : 'Grab a marker';
+        kicker.textContent = playerView.joinKicker;
         const heading = document.createElement('h1');
         heading.textContent = `Join ${game.label}`;
         const helper = document.createElement('p');
         helper.className = 'muted';
-        helper.textContent =
-          routeGameId === 'groupthink'
-            ? 'Enter the room code and tune into the consensus reactor.'
-            : routeGameId === 'hot-take'
-              ? 'Enter the room code and step into tonight’s live audience.'
-              : routeGameId === 'suspect'
-                ? 'Enter the room code and keep your answers secret.'
-                : 'Enter the room code and prepare to draw something regrettable.';
+        helper.textContent = playerView.joinHelper;
         copy.append(kicker, heading, helper);
         intro.append(copy);
         form.append(intro);
       }
-      const roomInput = createTextInput(roomFromUrl);
+      const roomInput = createTextInput(joinDraft.roomCode);
       roomInput.autocomplete = 'off';
       roomInput.placeholder = 'RAGE';
       roomInput.maxLength = 6;
-      const nameInput = createTextInput();
+      const nameInput = createTextInput(joinDraft.name);
       nameInput.autocomplete = 'name';
       nameInput.placeholder = 'Your name';
-      const avatarSelect = createAvatarSelect();
+      const avatarSelect = createAvatarSelect(joinDraft.avatar);
       form.append(
         createField('Room code', roomInput),
         createField('Name', nameInput),
@@ -1863,629 +2068,154 @@ function renderPlayer(root: HTMLElement): void {
       form.addEventListener('submit', (event) => {
         event.preventDefault();
         if (!roomInput.value.trim() || !nameInput.value.trim()) {
-          setNotice(page.notice, 'Enter a room code and name.', true);
+          setPlayerNotice('Enter a room code and name.', true);
           return;
         }
-        submit.disabled = true;
-        join(roomInput.value, nameInput.value, avatarSelect.value, page.notice);
+        join(roomInput.value, nameInput.value, avatarSelect.value, page.notice, submit);
       });
       page.content.append(form);
       return;
     }
 
     const state = snapshot?.state;
-    const status = document.createElement('div');
+    const actionKey = getActionKey();
+    if (actionKey && shouldDiscardDraft(playerDraft, actionKey)) {
+      clearDraft();
+    }
+    renderedActionKey = actionKey;
     const activeGame = snapshot?.game?.id ?? state?.gameId;
     const controllerGame = activeGame ? getGameDefinition(activeGame).id : null;
-    status.className = `controller-shell phase-${state?.phase ?? 'lobby'} ${
-      controllerGame === 'groupthink'
-        ? 'consensus-controller'
-        : controllerGame === 'hot-take'
-          ? 'live-heat-controller'
-          : controllerGame === 'suspect'
-            ? 'suspect-controller'
-            : 'drawn-out-controller'
-    }`;
-    if (controllerGame) {
-      const controllerHeader = createExperienceTopbar(
-        controllerGame,
-        session.roomCode,
-        state?.phase ?? 'lobby',
-      );
-      controllerHeader.classList.add('controller-topbar');
-      status.append(controllerHeader);
-      const controllerArt = createStageArtwork(controllerGame, 'controller-art');
-      status.append(controllerArt);
-    }
-    const statusTitle = document.createElement('h2');
-    statusTitle.textContent =
-      state?.phase === 'lobby'
-        ? controllerGame === 'groupthink'
-          ? 'Your mind is in the loop.'
-          : controllerGame === 'hot-take'
-            ? 'Your backstage pass is live.'
-            : controllerGame === 'suspect'
-              ? 'Your case file is open.'
-              : 'Your sketchbook is open.'
-        : controllerGame === 'groupthink'
-          ? 'Send a thought to the reactor.'
-          : controllerGame === 'hot-take'
-            ? 'The stage is yours.'
-            : controllerGame === 'suspect'
-              ? 'Keep your answer secret, then make your accusation.'
-              : 'Art was a mistake. Make it worse.';
-    status.append(statusTitle);
-
-    if (snapshot?.game?.id === 'groupthink' && isGroupthinkPlayerView(playerState)) {
-      appendGroupthinkStatus(status, snapshot);
-      if (state?.phase === 'input' && !playerState.hasSubmitted) {
-        const form = document.createElement('form');
-        form.className = 'answer-form mind-answer-form';
-        const input = createTextInput();
-        input.placeholder = 'Type your answer…';
-        input.maxLength = 500;
-        const submit = createButton('Lock In My Thought', 'submit');
-        form.append(input, submit);
-        form.addEventListener('submit', (event) => {
-          event.preventDefault();
-          if (!input.value.trim() || !session) return;
-          submit.disabled = true;
-          const request: PlayerSubmitAnswerRequest = {
-            roomCode: session.roomCode,
-            playerToken: session.playerToken,
-            answer: input.value,
-          };
-          socket.emit('player:submit-answer', request, (response: PlayerAnswerResponse) => {
-            submit.disabled = false;
-            if (!isSuccess(response)) {
-              setNotice(page.notice, response.error.message, true);
-              return;
-            }
-            snapshot = response.snapshot;
-            playerState = response.playerState;
-            render();
-          });
-        });
-        status.append(form);
-      } else if (playerState.hasSubmitted && state?.phase === 'input') {
-        const waiting = document.createElement('p');
-        waiting.className = 'muted';
-        waiting.textContent = `Submitted: “${playerState.ownAnswer ?? ''}” · waiting for the room.`;
-        status.append(waiting);
-      } else if (state?.phase === 'results' || state?.phase === 'winner') {
-        const waiting = document.createElement('p');
-        waiting.className = 'muted';
-        waiting.textContent = 'Results are on the big screen.';
-        status.append(waiting);
-        appendGroupthinkResults(status, snapshot.game);
-      }
-    } else if (snapshot?.game?.id === 'hot-take' && isHotTakePlayerView(playerState)) {
-      appendHotTakeStatus(status, snapshot);
-      if (state?.phase === 'input' && !playerState.hasSubmitted) {
-        const form = document.createElement('form');
-        form.className = 'answer-form heat-answer-form';
-        let textInput: HTMLInputElement | null = null;
-        let targetSelect: HTMLSelectElement | null = null;
-        if (playerState.promptKind === 'player-targeted') {
-          targetSelect = document.createElement('select');
-          snapshot.state.players
-            .filter((player) => player.id !== session?.playerId)
-            .forEach((player) => {
-              const option = document.createElement('option');
-              option.value = player.id;
-              option.textContent = `${player.avatar} ${player.name}`;
-              targetSelect?.append(option);
-            });
-          form.append(createField('Choose a player', targetSelect));
-        } else {
-          textInput = createTextInput();
-          textInput.placeholder = 'Type your hot take…';
-          textInput.maxLength = 500;
-          form.append(textInput);
-        }
-        const submit = createButton('Drop My Take', 'submit');
-        form.append(submit);
-        form.addEventListener('submit', (event) => {
-          event.preventDefault();
-          if (!session) return;
-          const answer = targetSelect?.value ?? textInput?.value ?? '';
-          if (!answer.trim()) return;
-          submit.disabled = true;
-          const request: PlayerSubmitAnswerRequest = {
-            roomCode: session.roomCode,
-            playerToken: session.playerToken,
-            answer,
-            ...(targetSelect?.value ? { targetPlayerId: targetSelect.value } : {}),
-          };
-          socket.emit('player:submit-answer', request, (response: PlayerAnswerResponse) => {
-            submit.disabled = false;
-            if (!isSuccess(response)) {
-              setNotice(page.notice, response.error.message, true);
-              return;
-            }
-            snapshot = response.snapshot;
-            playerState = response.playerState;
-            render();
-          });
-        });
-        status.append(form);
-      } else if (state?.phase === 'input' && playerState.hasSubmitted) {
-        const waiting = document.createElement('p');
-        waiting.className = 'muted';
-        waiting.textContent = `Submitted: “${playerState.ownAnswer ?? ''}” · waiting for the room.`;
-        status.append(waiting);
-      } else if (state?.phase === 'voting' && !playerState.hasVoted) {
-        const form = document.createElement('form');
-        form.className = 'answer-form heat-answer-form vote-card-form';
-        const legend = document.createElement('h3');
-        legend.textContent = 'Which take deserves the spotlight?';
-        const choices = document.createElement('div');
-        choices.className = 'vote-card-grid';
-        let selectedEntryId = '';
-        playerState.entries.forEach((entry, index) => {
-          const choice = document.createElement('button');
-          choice.type = 'button';
-          choice.className = 'vote-card';
-          choice.setAttribute('aria-pressed', 'false');
-          const number = document.createElement('span');
-          number.textContent = `TAKE ${index + 1}`;
-          const answer = document.createElement('strong');
-          answer.textContent = entry.answer;
-          choice.append(number, answer);
-          choice.addEventListener('click', () => {
-            selectedEntryId = entry.entryId;
-            choices.querySelectorAll<HTMLButtonElement>('.vote-card').forEach((card) => {
-              card.setAttribute('aria-pressed', String(card === choice));
-            });
-          });
-          choices.append(choice);
-        });
-        const submit = createButton('Send It to the Top', 'submit');
-        form.append(legend, choices, submit);
-        form.addEventListener('submit', (event) => {
-          event.preventDefault();
-          if (!session || !selectedEntryId) {
-            setNotice(page.notice, 'Pick a take before voting.', true);
-            return;
-          }
-          submit.disabled = true;
-          const request: PlayerCastVoteRequest = {
-            roomCode: session.roomCode,
-            playerToken: session.playerToken,
-            entryId: selectedEntryId,
-          };
-          socket.emit('player:cast-vote', request, (response: PlayerAnswerResponse) => {
-            submit.disabled = false;
-            if (!isSuccess(response)) {
-              setNotice(page.notice, response.error.message, true);
-              return;
-            }
-            snapshot = response.snapshot;
-            playerState = response.playerState;
-            render();
-          });
-        });
-        status.append(form);
-      } else if (state?.phase === 'voting' && playerState.hasVoted) {
-        const waiting = document.createElement('p');
-        waiting.className = 'muted';
-        waiting.textContent = 'Vote submitted · waiting for the room.';
-        status.append(waiting);
-      } else if (state?.phase === 'results' || state?.phase === 'winner') {
-        const waiting = document.createElement('p');
-        waiting.className = 'muted';
-        waiting.textContent = 'Vote results are on the big screen.';
-        status.append(waiting);
-        if (playerState.ownAnswer) {
-          const own = document.createElement('p');
-          own.className = 'muted';
-          own.textContent = `Your answer: “${playerState.ownAnswer}”`;
-          status.append(own);
-        }
-        appendHotTakeEntries(status, playerState.entries, 'Vote results');
-      }
-    } else if (snapshot?.game?.id === 'suspect' && isSuspectPlayerView(playerState)) {
-      const suspectSnapshot = snapshot;
-      const suspectPlayerState = playerState;
-      appendSuspectStatus(status, snapshot);
-      if (state?.phase === 'input' && !playerState.hasSubmitted) {
-        const form = document.createElement('form');
-        form.className = 'answer-form suspect-answer-form';
-        const choice = document.createElement('select');
-        choice.innerHTML =
-          '<option value="yes">Yes — this applies to me</option><option value="no">No — not me</option>';
-        form.append(createField('Private answer', choice));
-        const submit = createButton('Lock My Answer', 'submit');
-        form.append(submit);
-        form.addEventListener('submit', (event) => {
-          event.preventDefault();
-          if (!session) return;
-          submit.disabled = true;
-          const request: PlayerSubmitAnswerRequest = {
-            roomCode: session.roomCode,
-            playerToken: session.playerToken,
-            answer: choice.value,
-          };
-          socket.emit('player:submit-answer', request, (response: PlayerAnswerResponse) => {
-            submit.disabled = false;
-            if (!isSuccess(response)) {
-              setNotice(page.notice, response.error.message, true);
-              return;
-            }
-            snapshot = response.snapshot;
-            playerState = response.playerState;
-            render();
-          });
-        });
-        status.append(form);
-      } else if (state?.phase === 'input' && playerState.hasSubmitted) {
-        const waiting = document.createElement('p');
-        waiting.className = 'muted';
-        waiting.textContent = `Private answer locked: ${playerState.ownAnswer ? 'Yes' : 'No'} · waiting for the room.`;
-        status.append(waiting);
-      } else if (state?.phase === 'alibi' && playerState.canSubmitAlibi) {
-        const form = document.createElement('form');
-        form.className = 'answer-form suspect-alibi-form';
-        const textarea = document.createElement('textarea');
-        textarea.maxLength = 280;
-        textarea.rows = 4;
-        textarea.placeholder = 'Make your case in 280 characters…';
-        form.append(createField('Your alibi', textarea));
-        const submit = createButton('Submit Alibi', 'submit');
-        form.append(submit);
-        form.addEventListener('submit', (event) => {
-          event.preventDefault();
-          if (!session || !textarea.value.trim()) return;
-          submit.disabled = true;
-          const request: PlayerSubmitAlibiRequest = {
-            roomCode: session.roomCode,
-            playerToken: session.playerToken,
-            alibi: textarea.value,
-          };
-          socket.emit('player:submit-alibi', request, (response: PlayerAnswerResponse) => {
-            submit.disabled = false;
-            if (!isSuccess(response)) {
-              setNotice(page.notice, response.error.message, true);
-              return;
-            }
-            snapshot = response.snapshot;
-            playerState = response.playerState;
-            render();
-          });
-        });
-        status.append(form);
-      } else if (state?.phase === 'alibi') {
-        const waiting = document.createElement('p');
-        waiting.className = 'muted';
-        waiting.textContent =
-          playerState.alibiPlayerId === session?.playerId
-            ? 'Your alibi is locked. Watch the jury.'
-            : 'The accused player is preparing an alibi.';
-        status.append(waiting);
-      } else if (state?.phase === 'voting' && !playerState.hasVoted) {
-        const form = document.createElement('form');
-        form.className = 'answer-form suspect-vote-form';
-        const selects: HTMLSelectElement[] = [];
-        const addSelect = (label: string): HTMLSelectElement => {
-          const select = document.createElement('select');
-          suspectPlayerState.candidatePlayerIds.forEach((playerId) => {
-            const player = suspectSnapshot.state.players.find(
-              (candidate) => candidate.id === playerId,
-            );
-            const option = document.createElement('option');
-            option.value = playerId;
-            option.textContent = `${player?.avatar ?? '🕵️'} ${player?.name ?? 'Unknown player'}`;
-            select.append(option);
-          });
-          form.append(createField(label, select));
-          selects.push(select);
-          return select;
-        };
-        if (suspectPlayerState.roundType === 'double-trouble') {
-          addSelect('First suspect');
-          addSelect('Second suspect');
-        } else {
-          addSelect(suspectPlayerState.roundType === 'most-likely' ? 'Most likely' : 'Suspect');
-        }
-        const noMatch = document.createElement('label');
-        noMatch.className = 'checkbox-field';
-        const noMatchInput = document.createElement('input');
-        noMatchInput.type = 'checkbox';
-        const noMatchText = document.createElement('span');
-        noMatchText.textContent = 'No match — call the accusation fake';
-        noMatch.append(noMatchInput, noMatchText);
-        if (suspectPlayerState.roundType === 'most-likely') noMatch.hidden = true;
-        form.append(noMatch);
-        const submit = createButton('Submit Accusation', 'submit');
-        form.append(submit);
-        form.addEventListener('submit', (event) => {
-          event.preventDefault();
-          if (!session) return;
-          const targets = noMatchInput.checked
-            ? []
-            : selects.map((select) => select.value).filter(Boolean);
-          if (
-            suspectPlayerState.roundType === 'double-trouble' &&
-            targets.length === 2 &&
-            targets[0] === targets[1]
-          ) {
-            setNotice(page.notice, 'Choose two different suspects.', true);
-            return;
-          }
-          if (!targets.length && suspectPlayerState.roundType === 'most-likely') {
-            setNotice(page.notice, 'Choose the player who fits best.', true);
-            return;
-          }
-          submit.disabled = true;
-          const entryId =
-            targets.length === 0
-              ? 'none'
-              : targets.length === 1
-                ? `player:${targets[0]}`
-                : `players:${targets.join(',')}`;
-          const request: PlayerCastVoteRequest = {
-            roomCode: session.roomCode,
-            playerToken: session.playerToken,
-            entryId,
-          };
-          socket.emit('player:cast-vote', request, (response: PlayerAnswerResponse) => {
-            submit.disabled = false;
-            if (!isSuccess(response)) {
-              setNotice(page.notice, response.error.message, true);
-              return;
-            }
-            snapshot = response.snapshot;
-            playerState = response.playerState;
-            render();
-          });
-        });
-        status.append(form);
-      } else if (state?.phase === 'voting' && playerState.hasVoted) {
-        const waiting = document.createElement('p');
-        waiting.className = 'muted';
-        waiting.textContent = 'Accusation locked · waiting for the jury.';
-        status.append(waiting);
-      } else if (state?.phase === 'results' || state?.phase === 'winner') {
-        const waiting = document.createElement('p');
-        waiting.className = 'muted';
-        waiting.textContent = 'The case results are on the big screen.';
-        status.append(waiting);
-        appendSuspectResults(
-          status,
-          suspectSnapshot.game as SuspectPublicView,
-          suspectSnapshot.state,
-        );
-      }
-    } else if (snapshot?.game?.id === 'drawn-out' && isDrawnOutPlayerView(playerState)) {
-      const drawnGame = snapshot.game;
-      const drawnState = snapshot.state;
-      appendDrawnOutStatus(status, drawnGame);
-      const instruction = document.createElement('p');
-      instruction.className = 'drawn-out-instruction';
-      instruction.textContent = playerState.instruction;
-      status.append(instruction);
-
-      if (playerState.isFakeArtist) {
-        const warning = document.createElement('p');
-        warning.className = 'drawn-out-fake-warning';
-        warning.textContent = 'You are the fake artist. Blend in and do not panic.';
-        status.append(warning);
-      } else if (playerState.privatePrompt) {
-        const prompt = document.createElement('p');
-        prompt.className = 'prompt drawn-out-private-prompt';
-        prompt.textContent = playerState.privatePrompt;
-        status.append(prompt);
-      }
-
-      if (playerState.task === 'draw') {
-        if (playerState.mode === 'fake-artist' && playerState.drawing) {
-          const existingLabel = document.createElement('strong');
-          existingLabel.textContent = 'Shared drawing so far';
-          status.append(
-            existingLabel,
-            createDrawingPreview(playerState.drawing, 'controller-drawing'),
-          );
-        }
-        const pad = createDrawingPad();
-        const submit = createButton('Submit My Strokes');
-        submit.addEventListener('click', () => {
-          if (!session) return;
-          const drawing = pad.getDrawing();
-          if (!drawing.strokes.length) {
-            setNotice(page.notice, 'Add at least one stroke before submitting.', true);
-            return;
-          }
-          submit.disabled = true;
-          const request: PlayerSubmitDrawingRequest = {
-            roomCode: session.roomCode,
-            playerToken: session.playerToken,
-            drawing,
-          };
-          socket.emit('player:submit-drawing', request, (response: PlayerAnswerResponse) => {
-            submit.disabled = false;
-            if (!isSuccess(response)) {
-              setNotice(page.notice, response.error.message, true);
-              return;
-            }
-            snapshot = response.snapshot;
-            playerState = response.playerState;
-            render();
-          });
-        });
-        status.append(pad.element, submit);
-      } else if (playerState.task === 'describe' || playerState.task === 'guess') {
-        if (playerState.task === 'describe' && playerState.drawing) {
-          status.append(createDrawingPreview(playerState.drawing, 'controller-drawing'));
-        }
-        if (!playerState.hasSubmitted) {
-          const form = document.createElement('form');
-          form.className =
-            playerState.task === 'guess'
-              ? 'answer-form drawn-out-choice-form'
-              : 'answer-form drawn-out-text-form';
-          let answer = '';
-          if (playerState.task === 'guess') {
-            const legend = document.createElement('h3');
-            legend.textContent = 'What was the original prompt?';
-            const choices = document.createElement('div');
-            choices.className = 'drawn-out-choice-grid';
-            playerState.guessOptions.forEach((option, index) => {
-              const choice = document.createElement('button');
-              choice.type = 'button';
-              choice.className = 'drawn-out-choice';
-              choice.setAttribute('aria-pressed', 'false');
-              choice.textContent = `${index + 1}. ${option.text}`;
-              choice.addEventListener('click', () => {
-                answer = option.id;
-                choices.querySelectorAll<HTMLButtonElement>('.drawn-out-choice').forEach((card) => {
-                  card.setAttribute('aria-pressed', String(card === choice));
-                });
-              });
-              choices.append(choice);
-            });
-            form.append(legend, choices);
-          } else {
-            const input = createTextInput();
-            input.maxLength = 180;
-            input.placeholder = 'Describe what you think this is…';
-            input.addEventListener('input', () => {
-              answer = input.value;
-            });
-            form.append(input);
-          }
-          const submit = createButton(
-            playerState.task === 'guess' ? 'Lock My Choice' : 'Pass This Description',
-            'submit',
-          );
-          form.append(submit);
-          form.addEventListener('submit', (event) => {
-            event.preventDefault();
-            if (!session || !answer.trim()) {
-              setNotice(
-                page.notice,
-                playerState?.id === 'drawn-out' && playerState.task === 'guess'
-                  ? 'Choose one of the four prompts first.'
-                  : 'Add a description first.',
-                true,
-              );
-              return;
-            }
-            submit.disabled = true;
-            const request: PlayerSubmitAnswerRequest = {
-              roomCode: session.roomCode,
-              playerToken: session.playerToken,
-              answer,
-            };
-            socket.emit('player:submit-answer', request, (response: PlayerAnswerResponse) => {
-              submit.disabled = false;
-              if (!isSuccess(response)) {
-                setNotice(page.notice, response.error.message, true);
-                return;
-              }
-              snapshot = response.snapshot;
-              playerState = response.playerState;
-              render();
-            });
-          });
-          status.append(form);
-        } else if (playerState.task === 'guess') {
-          const waiting = document.createElement('p');
-          waiting.className = 'muted';
-          waiting.textContent = `Choice locked: “${playerState.ownGuess ?? 'Mystery prompt'}” · waiting for the room.`;
-          status.append(waiting);
-        }
-      } else if (playerState.task === 'vote' && !playerState.hasSubmitted) {
-        const form = document.createElement('form');
-        form.className = 'answer-form drawn-out-vote-form';
-        const select = document.createElement('select');
-        playerState.candidatePlayerIds.forEach((playerId) => {
-          const player = drawnState.players.find((candidate) => candidate.id === playerId);
-          const option = document.createElement('option');
-          option.value = playerId;
-          option.textContent = `${player?.avatar ?? '🎨'} ${player?.name ?? 'Player'}`;
-          select.append(option);
-        });
-        form.append(createField('Suspicious artist', select));
-        const submit = createButton('Accuse This Artist', 'submit');
-        form.append(submit);
-        form.addEventListener('submit', (event) => {
-          event.preventDefault();
-          if (!session || !select.value) return;
-          submit.disabled = true;
-          const request: PlayerCastVoteRequest = {
-            roomCode: session.roomCode,
-            playerToken: session.playerToken,
-            entryId: select.value,
-          };
-          socket.emit('player:cast-vote', request, (response: PlayerAnswerResponse) => {
-            submit.disabled = false;
-            if (!isSuccess(response)) {
-              setNotice(page.notice, response.error.message, true);
-              return;
-            }
-            snapshot = response.snapshot;
-            playerState = response.playerState;
-            render();
-          });
-        });
-        status.append(form);
-      } else if (drawnGame.status === 'results' || drawnGame.status === 'complete') {
-        if (drawnGame.drawing) status.append(createDrawingPreview(drawnGame.drawing));
-        appendDrawnOutResults(status, drawnGame, snapshot.state);
-      } else {
-        const waiting = document.createElement('p');
-        waiting.className = 'muted';
-        waiting.textContent = playerState.hasSubmitted
-          ? 'Locked in. Watch the big screen.'
-          : 'Another artist has the marker.';
-        status.append(waiting);
-      }
-    } else {
+    const controllerModel = controllerGame && state ? getControllerModel() : null;
+    const previousControllerRender = activePlayerControllerRender;
+    const controllerRender =
+      snapshot && playerState && session
+        ? rebuildPlayerController || !activePlayerControllerRender
+          ? renderPlayerController(
+              snapshot,
+              playerState,
+              { playerId: session.playerId, draft: playerDraft },
+              createPlayerControllerDependencies(),
+            )
+          : activePlayerControllerRender
+        : null;
+    const controllerWasRebuilt = controllerRender !== previousControllerRender;
+    activePlayerControllerRender = controllerRender;
+    const status = controllerRender?.element ?? document.createElement('div');
+    if (!controllerRender) {
+      status.className = 'action-first-controller__legacy-supplemental';
       const waiting = document.createElement('p');
       waiting.className = 'muted';
       waiting.textContent = state ? 'Look at the big screen.' : 'Connecting to the room…';
       status.append(waiting);
     }
-    page.content.append(status);
-
-    if (snapshot) {
-      const roomStrip = createExperienceRoster(
-        snapshot.state,
-        getGameDefinition(snapshot.game?.id ?? snapshot.state.gameId).id,
-      );
-      roomStrip.classList.add('controller-roster');
-      page.content.append(roomStrip);
+    if (controllerModel) {
+      const primaryControl = controllerRender?.primaryControl ?? null;
+      if (controllerWasRebuilt) {
+        status
+          .querySelectorAll<HTMLElement>(
+            ':scope > .prompt, :scope > .pill, :scope > .muted, :scope > .drawn-out-instruction, :scope > .drawn-out-private-prompt',
+          )
+          .forEach((duplicate) => duplicate.remove());
+      }
+      retryControllerAction = controllerRender?.retry
+        ? () => {
+            controllerOperation = { status: 'idle' };
+            persistentNotice = null;
+            controllerRender.retry?.();
+          }
+        : null;
+      actionFirstController.update(controllerModel, {
+        ...(primaryControl ? { primaryControl } : {}),
+        ...(status.childElementCount > 0 ? { supplemental: status } : {}),
+      });
+      renderedActionKey = controllerModel.actionKey;
+      page.content.append(actionFirstController.element);
+      playerExperienceInitialized = true;
+    } else {
+      retryControllerAction = null;
+      page.content.append(status);
     }
 
-    const leave = createButton('Leave Room');
-    leave.className = 'secondary';
-    leave.addEventListener('click', () => {
-      const currentSession = session;
-      if (currentSession) {
+    if (snapshot) {
+      controllerRoster.update(
+        snapshot.state,
+        getGamePresentation(getGameDefinition(snapshot.game?.id ?? snapshot.state.gameId).id),
+      );
+      page.content.append(controllerRoster.element);
+    }
+
+    if (!leaveButton) {
+      const leave = createButton('Leave Room');
+      leave.className = 'secondary';
+      leave.addEventListener('click', () => {
+        const currentSession = session;
+        if (!currentSession) return;
+        const finishPending = beginPending(leave);
         socket.emit(
           'player:leave',
           {
+            actionId: window.crypto.randomUUID(),
             roomCode: currentSession.roomCode,
             playerToken: currentSession.playerToken,
           },
-          () => undefined,
+          (response: LeaveRoomResponse) => {
+            finishPending();
+            if (!isSuccess(response)) {
+              showPlayerEventError(response.error, 'Leave room');
+              return;
+            }
+            const previousGame = getGameDefinition(snapshot?.state.gameId ?? routeGameId).id;
+            sessionStore.setState(null);
+            snapshotStore.setState(null);
+            privatePlayerStore.setState(null);
+            removeRoomSession<PlayerSession>(
+              window.localStorage,
+              PLAYER_STORAGE_KEY,
+              currentSession.roomCode,
+            );
+            removePlayerDraft(
+              window.sessionStorage,
+              PLAYER_DRAFT_STORAGE_KEY,
+              currentSession.roomCode,
+            );
+            setPlayerNotice('You left the room.', false);
+            window.history.replaceState(null, '', buildPlayRoute(previousGame));
+            render();
+          },
         );
-      }
-      session = null;
-      snapshot = null;
-      playerState = null;
-      window.localStorage.removeItem(PLAYER_STORAGE_KEY);
-      render();
-    });
-    page.content.append(leave);
+      });
+      leaveButton = leave;
+    }
+    if (leaveButton) page.content.append(leaveButton);
+
+    if (previousActionKey && previousActionKey === actionKey && focusedControlIndex >= 0) {
+      window.requestAnimationFrame(() => {
+        const controls = root.querySelectorAll<HTMLElement>(
+          '.answer-form input, .answer-form textarea, .answer-form select, .answer-form button, .drawing-pad canvas, .drawing-pad button, .drawing-pad select',
+        );
+        const control = controls[focusedControlIndex];
+        control?.focus({ preventScroll: true });
+        if (
+          selection &&
+          (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement)
+        ) {
+          control.setSelectionRange(selection.start, selection.end);
+        }
+        window.scrollTo(previousScroll.x, previousScroll.y);
+      });
+    }
   };
 
   socket.on('connect', () => {
-    connectionStatus = 'connected';
+    connectionStore.setState('connected');
+    reconnectAttempt = 0;
+    recoveryState = null;
     if (!session) {
       render();
       return;
     }
+    recoveryState = { kind: 'initial-connect', role: 'player', roomCode: session.roomCode };
+    render();
     join(
       session.roomCode,
       session.name,
@@ -2495,77 +2225,215 @@ function renderPlayer(root: HTMLElement): void {
   });
 
   socket.on('disconnect', () => {
-    connectionStatus = 'reconnecting';
-    render();
+    if (sessionWasReplaced) {
+      setPlayerNotice(
+        'This seat moved to another tab or device. Reload this page to take control here.',
+        true,
+      );
+      render();
+      return;
+    }
+    connectionStore.setState('reconnecting');
+    reconnectAttempt += 1;
+    recoveryState = {
+      kind: 'reconnecting',
+      role: 'player',
+      roomCode: session?.roomCode ?? joinDraft.roomCode,
+      attempt: reconnectAttempt,
+    };
+    if (activeNotice) {
+      setNotice(activeNotice, 'Connection lost. Reconnecting automatically…', true);
+    }
   });
 
   socket.on('connect_error', () => {
-    connectionStatus = 'reconnecting';
-    render();
+    connectionStore.setState('reconnecting');
+    reconnectAttempt += 1;
+    recoveryState = {
+      kind: 'server-unavailable',
+      role: 'player',
+      roomCode: session?.roomCode ?? joinDraft.roomCode,
+      attempt: reconnectAttempt,
+    };
+    if (activeNotice) {
+      setNotice(activeNotice, 'Connection lost. Reconnecting automatically…', true);
+    }
   });
 
   socket.on('room:state', (nextSnapshot) => {
-    if (session?.roomCode === nextSnapshot.state.roomCode) {
-      snapshot = nextSnapshot;
-      render();
+    const parsed = parseRoomSnapshot(nextSnapshot);
+    if (!parsed.ok) {
+      acceptSnapshot(nextSnapshot);
+      return;
+    }
+    if (session?.roomCode === parsed.value.state.roomCode) {
+      if (!acceptSnapshot(parsed.value)) return;
+      if (playerState && privatePlayerStore.getRevision() !== parsed.value.revision) return;
+      scheduleStateRender();
     }
   });
 
-  socket.on('player:state', (nextPlayerState) => {
-    if (session?.roomCode) {
-      playerState = nextPlayerState;
-      render();
+  socket.on('player:state', (update) => {
+    const parsed = parsePlayerStateUpdate(update);
+    if (!parsed.ok) {
+      setPlayerNotice(parsed.message, true);
+      return;
     }
+    if (
+      session?.roomCode !== parsed.value.roomCode ||
+      !acceptPlayerState(parsed.value.revision, parsed.value.state)
+    )
+      return;
+    const currentSnapshot = snapshotStore.getState();
+    if (!currentSnapshot || currentSnapshot.revision !== parsed.value.revision) return;
+    scheduleStateRender();
+  });
+
+  socket.on('player:removed', (notice) => {
+    if (session?.roomCode !== notice.roomCode) return;
+    const removedSession = session;
+    const previousGame = getGameDefinition(snapshot?.state.gameId ?? routeGameId).id;
+    sessionStore.setState(null);
+    snapshotStore.clear();
+    privatePlayerStore.setState(null);
+    removeRoomSession<PlayerSession>(
+      window.localStorage,
+      PLAYER_STORAGE_KEY,
+      removedSession.roomCode,
+    );
+    removePlayerDraft(window.sessionStorage, PLAYER_DRAFT_STORAGE_KEY, removedSession.roomCode);
+    setPlayerNotice('The host removed you from the room.', true);
+    window.history.replaceState(null, '', buildPlayRoute(previousGame));
+    render();
+  });
+
+  socket.on('room:closed', (notice) => {
+    if (session?.roomCode !== notice.roomCode) return;
+    const closedSession = session;
+    const previousGame = getGameDefinition(snapshot?.state.gameId ?? routeGameId).id;
+    sessionStore.setState(null);
+    snapshotStore.setState(null);
+    privatePlayerStore.setState(null);
+    removeRoomSession<PlayerSession>(
+      window.localStorage,
+      PLAYER_STORAGE_KEY,
+      closedSession.roomCode,
+    );
+    removePlayerDraft(window.sessionStorage, PLAYER_DRAFT_STORAGE_KEY, closedSession.roomCode);
+    setPlayerNotice('The host closed the room.', true);
+    window.history.replaceState(null, '', buildPlayRoute(previousGame));
+    render();
+  });
+
+  socket.on('session:replaced', (notice) => {
+    if (session?.roomCode !== notice.roomCode || notice.role !== 'player') return;
+    sessionWasReplaced = true;
+    connectionStore.setState('connected');
+    recoveryState = { kind: 'stale-session', role: 'player', roomCode: session.roomCode };
+    setPlayerNotice(
+      'This seat moved to another tab or device. Reload this page to take control here.',
+      true,
+    );
+    render();
   });
 
   render();
 }
 
 function renderDisplay(root: HTMLElement): void {
-  const roomCode = new URLSearchParams(window.location.search).get('room')?.toUpperCase() ?? '';
-  const routeGameId = getGameFromPathname();
+  const roomCode = getRoomCodeFromSearch(window.location.search);
+  const routeGameId = getGameFromPathname(window.location.pathname);
+  const displayView = getDisplayRouteViewModel(roomCode, routeGameId);
   const socket = window.io();
   const sound = createSoundController();
-  let connectionStatus: ConnectionStatus = 'connecting';
-  let snapshot: RoomSnapshot | null = null;
-  const page = createPage(
-    root,
-    roomCode
-      ? `Room ${roomCode}`
-      : routeGameId
-        ? `${getGameDefinition(routeGameId).label} Display`
-        : 'Display',
-    roomCode ? 'Players, grab your phones.' : 'Open this page with a room code to watch a lobby.',
-    routeGameId,
-  );
-  root.classList.add('display-page');
-  const fit = (): void => {
-    window.requestAnimationFrame(() => fitDisplayExperience(root));
+  const connectionNotice = createConnectionNoticeComponent(document);
+  const pageShell = createPageShellComponent(root, connectionNotice.element, document);
+  const experienceShell = createRoomStageShellComponent('display-experience', document);
+  const experienceRoster = createRosterComponent(document);
+  const displayJoin = createPhaseAwareJoinComponent(document);
+  const displayDensity = createTvDensityLayoutComponent(document);
+  const displayAudio = document.createElement('div');
+  displayAudio.className = 'display-audio-control';
+  displayAudio.append(sound.button);
+  displayJoin.element.append(displayAudio);
+  const connectionStore = createConnectionStore();
+  let connectionStatus = connectionStore.getState();
+  connectionStore.subscribe((state) => {
+    connectionStatus = state;
+  });
+  const snapshotStore = createPublicSnapshotStore<RoomSnapshot>();
+  let snapshot = snapshotStore.getState();
+  snapshotStore.subscribe((state) => {
+    snapshot = state;
+  });
+  let roomClosed = false;
+  let reconnectAttempt = 0;
+  let recoveryState: RecoveryState | null = { kind: 'initial-connect', role: 'display', roomCode };
+  let densityPageIndex = 0;
+  let densityKey = '';
+  let activeDensity: LiveDisplayDensityViewModel | null = null;
+  let pageRotationTimer: number | null = null;
+  const page = updatePage(pageShell, displayView.title, displayView.subtitle, routeGameId);
+  const acceptSnapshot = (payload: unknown): boolean => {
+    const parsed = parseRoomSnapshot(payload);
+    if (!parsed.ok) {
+      recoveryState =
+        parsed.error === 'incompatible-version'
+          ? { kind: 'incompatible-client', role: 'display', roomCode, errorCode: parsed.error }
+          : { kind: 'server-unavailable', role: 'display', roomCode, errorCode: parsed.error };
+      setNotice(page.notice, parsed.message, true);
+      render();
+      return false;
+    }
+    return snapshotStore.acceptSnapshot(parsed.value);
   };
-  window.addEventListener('resize', fit, { passive: true });
-  if ('ResizeObserver' in window) {
-    const observer = new ResizeObserver(fit);
-    observer.observe(root);
-  }
+  root.classList.add('display-page');
 
   const render = (): void => {
+    if (pageRotationTimer !== null) {
+      window.clearTimeout(pageRotationTimer);
+      pageRotationTimer = null;
+    }
     page.content.replaceChildren();
-    renderConnectionNotice(page, connectionStatus);
+    renderConnectionNotice(connectionNotice, connectionStatus);
+    if (connectionStatus === 'connected') setNotice(page.notice, '', false);
     const activeGame = snapshot?.game?.id ?? snapshot?.state.gameId ?? routeGameId;
     setGameTheme(root, activeGame);
     updatePageBrand(page, activeGame);
-    if (activeGame && roomCode && getGameFromPathname() !== activeGame) {
+    if (activeGame && roomCode && getGameFromPathname(window.location.pathname) !== activeGame) {
       window.history.replaceState(
         null,
         '',
         buildDisplayRoute(getGameDefinition(activeGame).id, roomCode),
       );
     }
+    if (recoveryState) {
+      const returnToLauncher = (): void => {
+        window.location.assign(routes.host);
+      };
+      page.content.append(
+        createRecoveryPanel(
+          recoveryState,
+          getRecoveryHandlers(recoveryState, {
+            'return-to-launcher': returnToLauncher,
+            'edit-room-code': returnToLauncher,
+            rejoin: returnToLauncher,
+          }),
+        ),
+      );
+      return;
+    }
     if (!roomCode) {
       const empty = document.createElement('div');
       empty.className = 'card center';
-      empty.textContent = 'Use /display?room=CODE after the host creates a room.';
+      empty.textContent = displayView.emptyMessage;
       page.content.append(empty);
+      return;
+    }
+
+    if (roomClosed) {
+      recoveryState = { kind: 'room-missing', role: 'display', roomCode };
+      render();
       return;
     }
 
@@ -2580,61 +2448,122 @@ function renderDisplay(root: HTMLElement): void {
     const state = snapshot.state;
     const displayGame = getGameDefinition(activeGame).id;
     sound.phaseChanged(state.phase, displayGame);
-    page.content.append(createDisplayExperience(snapshot, sound));
-    fit();
+    const densityView = createLiveDisplayDensityViewModel(snapshot, {
+      width: window.innerWidth,
+      height: window.innerHeight,
+    });
+    if (densityKey !== densityView.key) {
+      densityKey = densityView.key;
+      densityPageIndex = 0;
+    } else {
+      densityPageIndex = getTvDensityPage(densityView.plan, densityPageIndex).index;
+    }
+    activeDensity = densityView;
+    page.content.append(
+      updateDisplayExperience(
+        experienceShell,
+        experienceRoster,
+        displayJoin,
+        displayDensity,
+        snapshot,
+        densityView,
+        densityPageIndex,
+      ),
+    );
+    if (densityView.plan.hasPagination) {
+      pageRotationTimer = window.setTimeout(() => {
+        densityPageIndex = advanceTvDensityPage(densityView.plan, densityPageIndex);
+        render();
+      }, DISPLAY_PAGE_ROTATION_MS);
+    }
   };
 
+  const showRelativePage = (direction: 1 | -1): void => {
+    if (!activeDensity?.plan.hasPagination) return;
+    densityPageIndex = advanceTvDensityPage(activeDensity.plan, densityPageIndex, direction);
+    render();
+  };
+  displayDensity.previousButton.addEventListener('click', () => showRelativePage(-1));
+  displayDensity.nextButton.addEventListener('click', () => showRelativePage(1));
+  window.addEventListener(
+    'resize',
+    () => {
+      window.requestAnimationFrame(render);
+    },
+    { passive: true },
+  );
+
   socket.on('connect', () => {
-    connectionStatus = 'connected';
+    connectionStore.setState('connected');
+    reconnectAttempt = 0;
+    recoveryState = null;
     if (!roomCode) {
       render();
       return;
     }
     const request: DisplayWatchRequest = { roomCode };
+    recoveryState = { kind: 'initial-connect', role: 'display', roomCode };
+    render();
     socket.emit('display:watch', request, (response: RoomStateResponse) => {
       if (!isSuccess(response)) {
-        setNotice(page.notice, response.error.message, true);
+        recoveryState = getRecoveryStateForEventError(response.error, {
+          role: 'display',
+          roomCode,
+        });
+        render();
         return;
       }
-      snapshot = response.snapshot;
+      recoveryState = null;
+      if (!acceptSnapshot(response.snapshot)) return;
+      roomClosed = false;
       render();
     });
   });
 
   socket.on('disconnect', () => {
-    connectionStatus = 'reconnecting';
+    connectionStore.setState('reconnecting');
+    reconnectAttempt += 1;
+    recoveryState = { kind: 'reconnecting', role: 'display', roomCode, attempt: reconnectAttempt };
     render();
   });
 
   socket.on('connect_error', () => {
-    connectionStatus = 'reconnecting';
+    connectionStore.setState('reconnecting');
+    reconnectAttempt += 1;
+    recoveryState = {
+      kind: 'server-unavailable',
+      role: 'display',
+      roomCode,
+      attempt: reconnectAttempt,
+    };
     render();
   });
 
   socket.on('room:state', (nextSnapshot) => {
-    if (nextSnapshot.state.roomCode === roomCode) {
-      snapshot = nextSnapshot;
+    const parsed = parseRoomSnapshot(nextSnapshot);
+    if (!parsed.ok) {
+      acceptSnapshot(nextSnapshot);
+      return;
+    }
+    if (parsed.value.state.roomCode === roomCode) {
+      if (!acceptSnapshot(parsed.value)) return;
       render();
     }
+  });
+
+  socket.on('room:closed', (notice) => {
+    if (notice.roomCode !== roomCode) return;
+    snapshotStore.setState(null);
+    roomClosed = true;
+    recoveryState = { kind: 'room-missing', role: 'display', roomCode };
+    render();
   });
 
   render();
 }
 
-function readStorage<T>(key: string): T | null {
-  try {
-    const value = window.localStorage.getItem(key);
-    return value ? (JSON.parse(value) as T) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeStorage<T>(key: string, value: T): void {
-  window.localStorage.setItem(key, JSON.stringify(value));
-}
-
 if (typeof document !== 'undefined') {
+  installMotionVisibility(document);
   window.setInterval(() => {
     document.querySelectorAll<HTMLElement>('[data-deadline-at]').forEach(updateCountdown);
   }, 1_000);

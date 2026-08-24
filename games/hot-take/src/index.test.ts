@@ -60,8 +60,9 @@ test('runs anonymous answers through voting and server-side scoring', () => {
   session = revealHotTakeVotes(session);
   const publicView = getHotTakePublicView(session, 3, playerNames);
   assert.equal(publicView.status, 'results');
-  assert.equal(publicView.entries[0]?.voteCount, 2);
-  assert.equal(publicView.entries[0]?.points, 2 * HOT_TAKE_POINTS_PER_VOTE);
+  const winningEntry = publicView.entries.find((entry) => entry.entryId === p1Entry);
+  assert.equal(winningEntry?.voteCount, 2);
+  assert.equal(winningEntry?.points, 2 * HOT_TAKE_POINTS_PER_VOTE);
   assert.equal(publicView.roundScores.find((score) => score.playerId === 'p1')?.points, 200);
   assert.equal(publicView.roundScores.find((score) => score.playerId === 'p2')?.points, 100);
 });
@@ -82,6 +83,48 @@ test('resolves player-targeted prompts without exposing answer ownership', () =>
   assert.equal(
     publicView.entries.some((entry) => entry.answer === 'p2'),
     false,
+  );
+});
+
+test('creates one stable ballot order independent of submission timing', () => {
+  const base = createHotTakeSession([prompts[0]!], 1, 1_000, 30_000);
+  const answers = {
+    p1: { entryId: 'entry-alpha', display: 'A', targetPlayerId: null },
+    p2: { entryId: 'entry-bravo', display: 'B', targetPlayerId: null },
+    p3: { entryId: 'entry-charlie', display: 'C', targetPlayerId: null },
+  };
+  const reverseAnswers = {
+    p3: answers.p3,
+    p2: answers.p2,
+    p1: answers.p1,
+  };
+
+  const first = revealHotTakeAnswers({ ...base, answers }, 2_000, 10_000);
+  const second = revealHotTakeAnswers({ ...base, answers: reverseAnswers }, 2_000, 10_000);
+  const ballotOrder = first.entries.map((entry) => entry.entryId);
+
+  assert.deepEqual(
+    second.entries.map((entry) => entry.entryId),
+    ballotOrder,
+  );
+  assert.deepEqual(
+    getHotTakePublicView(first, 3, playerNames).entries.map((entry) => entry.entryId),
+    ballotOrder,
+  );
+  const restored = JSON.parse(JSON.stringify(first)) as typeof first;
+  assert.deepEqual(
+    getHotTakePublicView(restored, 3, playerNames).entries.map((entry) => entry.entryId),
+    ballotOrder,
+  );
+  assert.deepEqual(
+    getHotTakePlayerView(first, 'not-an-owner', playerNames).entries.map((entry) => entry.entryId),
+    ballotOrder,
+  );
+
+  const results = revealHotTakeVotes(first);
+  assert.deepEqual(
+    results.entries.map((entry) => entry.entryId),
+    ballotOrder,
   );
 });
 

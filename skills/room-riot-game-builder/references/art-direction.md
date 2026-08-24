@@ -53,8 +53,14 @@ Generate each asset in a separate image-generation call so its canvas and transp
 
 - Use lowercase kebab-case names such as `<game>-icon-v2.png`, `<game>-stage-v2.png`, and `<game>-bg-v2.png` while revising.
 - Preserve the currently approved asset until the user accepts the replacement.
-- Update the game catalog, CSS background URL, renderer/alt text, asset-copy pipeline if explicit, server static handling if explicit, and `scripts/verify-deployment.mjs`.
+- Treat PNG files as lossless source masters. Add every approved asset to
+  `apps/web/asset-manifest.json`, run `apps/web/scripts/optimize-assets.py`, and reference only the
+  generated WebP path from production catalog/CSS code.
+- Update the game catalog, CSS background URL, renderer/alt text, server static verification, and
+  `scripts/verify-deployment.mjs`.
 - Avoid enlarging a bitmap beyond its source resolution. Compress or resize assets whose dimensions materially exceed their rendered use.
+- Keep each production WebP at or below 350 KiB and the aggregate manifest at or below 3 MiB; the
+  web build enforces both budgets.
 - Keep essential instructions, text, or state out of raster art.
 
 ## Visual QA
@@ -79,3 +85,7 @@ $bitmap.Dispose()
 For an icon or stage sticker, expect an alpha-capable format and `CornerAlpha` of `0`. For a background, expect corner alpha `255`; also scan all pixels or use an image tool to confirm no accidental transparency remains.
 
 Finally, build and view the real game card, host screen, player controller, and 16:9 display. Check long prompts, dense results, names near the maximum length, and both wide and narrower desktop viewports. The display must not require scrolling, and decoration must not compete with state or controls.
+
+After visual approval, run the production build and confirm that `apps/web/dist/assets` contains the
+manifest WebPs plus the fingerprinted CSS, but none of the PNG masters. Exercise the asset URLs
+through the compiled server so MIME type and cache behavior are covered as well as local files.

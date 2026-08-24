@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#080b16" />
+    <title>Room Riot Design System</title>
+    <link rel="stylesheet" href="/assets/__ROOM_RIOT_STYLES__" />
+  </head>
+  <body>
+    <main class="page showcase-page">
+      <header class="page-header">
+        <span class="game-kicker">Internal production reference</span>
+        <h1>Room Riot Design System</h1>
+        <p class="muted">Shared interaction states, stage components, and all four game themes.</p>
+      </header>
+
+      <section class="card showcase-section" aria-labelledby="showcase-actions">
+        <h2 id="showcase-actions">Actions and feedback</h2>
+        <div class="showcase-grid">
+          <button>Default</button>
+          <button class="is-hover">Hover</button>
+          <button class="is-focus">Focus</button>
+          <button class="is-active">Active</button>
+          <button disabled>Disabled</button>
+          <button class="is-loading" aria-busy="true">Loading…</button>
+          <button class="secondary">Secondary</button>
+          <button class="danger">Danger</button>
+        </div>
+        <div class="showcase-stack">
+          <p class="notice">Connection restored. You are back in the room.</p>
+          <p class="notice success">Answer accepted.</p>
+          <p class="notice warning">Ten seconds left — finish your answer.</p>
+          <p class="notice error">That room expired. Check the code and try again.</p>
+        </div>
+      </section>
+
+      <section class="card showcase-section" aria-labelledby="showcase-stage">
+        <h2 id="showcase-stage">Stage essentials</h2>
+        <div class="showcase-stage-grid">
+          <article class="showcase-prompt">
+            <span class="game-kicker">Round 2 of 5</span>
+            <p class="prompt">What harmless opinion would start a ridiculous argument?</p>
+            <span class="pill">18s left</span>
+          </article>
+          <article class="experience-meter">
+            <div class="experience-progress-heading">
+              <span>Room progress</span><strong>3/4</strong>
+            </div>
+            <progress class="experience-meter-track" max="4" value="3" aria-label="3 of 4 ready">
+              3 of 4
+            </progress>
+            <ol class="player-list showcase-roster">
+              <li><span>😎 Avery</span><strong>1,250</strong></li>
+              <li><span>👽 Morgan · Reconnecting</span><strong>980</strong></li>
+              <li><span>🦆 Riley · Queued</span><strong>740</strong></li>
+            </ol>
+          </article>
+        </div>
+      </section>
+
+      <section class="showcase-themes" aria-labelledby="showcase-themes">
+        <h2 id="showcase-themes">Game themes</h2>
+        <div class="showcase-theme-grid">
+          <article class="card phase-card game-groupthink">
+            <span>Groupthink</span><strong>Consensus Lab</strong>
+            <p>Match minds.</p>
+            <div class="showcase-theme-actions">
+              <button>Default</button><button class="is-hover">Hover</button
+              ><button class="is-focus">Focus</button> <button class="is-active">Active</button
+              ><button disabled>Disabled</button><button class="is-loading">Loading</button>
+            </div>
+            <div class="showcase-status-row">
+              <b class="success">Success</b><b class="warning">Warning</b><b class="error">Error</b>
+            </div>
+          </article>
+          <article class="card phase-card game-hot-take">
+            <span>Hot Take</span><strong>Live Heat</strong>
+            <p>Say it louder.</p>
+            <div class="showcase-theme-actions">
+              <button>Default</button><button class="is-hover">Hover</button
+              ><button class="is-focus">Focus</button> <button class="is-active">Active</button
+              ><button disabled>Disabled</button><button class="is-loading">Loading</button>
+            </div>
+            <div class="showcase-status-row">
+              <b class="success">Success</b><b class="warning">Warning</b><b class="error">Error</b>
+            </div>
+          </article>
+          <article class="card phase-card game-suspect">
+            <span>Suspect</span><strong>Case File</strong>
+            <p>Everybody looks guilty.</p>
+            <div class="showcase-theme-actions">
+              <button>Default</button><button class="is-hover">Hover</button
+              ><button class="is-focus">Focus</button> <button class="is-active">Active</button
+              ><button disabled>Disabled</button><button class="is-loading">Loading</button>
+            </div>
+            <div class="showcase-status-row">
+              <b class="success">Success</b><b class="warning">Warning</b><b class="error">Error</b>
+            </div>
+          </article>
+          <article class="card phase-card game-drawn-out">
+            <span>Drawn Out</span><strong>Sketch Disaster</strong>
+            <p>Art was a mistake.</p>
+            <div class="showcase-theme-actions">
+              <button>Default</button><button class="is-hover">Hover</button
+              ><button class="is-focus">Focus</button> <button class="is-active">Active</button
+              ><button disabled>Disabled</button><button class="is-loading">Loading</button>
+            </div>
+            <div class="showcase-status-row">
+              <b class="success">Success</b><b class="warning">Warning</b><b class="error">Error</b>
+            </div>
+          </article>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

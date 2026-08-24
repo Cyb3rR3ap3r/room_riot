@@ -4,13 +4,22 @@ Locally hosted party games for a shared screen and everyone’s phone.
 
 ## Current status
 
-Milestones 0 through 4 are implemented, and the Milestone 5 stability/polish work is in the repository. The remaining validation is physical: install on the TrueNAS SCALE server and run the multi-device LAN checklist. The platform includes playable Groupthink and Hot Take loops with server-side scoring, automatic deadlines, anonymous voting, targeted prompts, QR joining, reconnect notices, reconnectable host/player sessions, responsive display/player layouts, and shared host/player/display browser flows.
+Room Riot is a playable pre-production build, not a signed-off production release. Groupthink, Hot
+Take, Suspect, and Drawn Out have complete server-owned round loops, QR joining, reconnectable
+sessions, responsive host/player/display routes, automated tests, and compiled deployment checks.
+Gameplay-integrity and fairness hardening is underway; client architecture, premium UI passes,
+accessibility, persistence, observability, performance budgets, browser automation, physical-device
+coverage, and release sign-off remain tracked work.
 
 See [BUILD_PLAN.md](./BUILD_PLAN.md) for the implementation roadmap.
+See [docs/AAA_PRODUCTION_TRACKER.md](./docs/AAA_PRODUCTION_TRACKER.md) for the prioritized UI,
+gameplay, and production-readiness backlog.
 See [deploy/truenas/README.md](./deploy/truenas/README.md) for TrueNAS SCALE installation, upgrades, backups, and LAN verification.
 See [docs/QA_CHECKLIST.md](./docs/QA_CHECKLIST.md) for the Milestone 5 device and network test matrix.
 
-Pushing to `main` runs the GitHub Actions validation/build workflow, publishes the TrueNAS-ready image to GitHub Container Registry, and uploads a deployment bundle with the immutable commit tag.
+Pull requests to `main` run the validation/build workflow without publishing. After a validated push
+to `main`, GitHub Actions publishes the TrueNAS-ready image to GitHub Container Registry and uploads
+a deployment bundle with the immutable commit tag.
 
 ## Development
 

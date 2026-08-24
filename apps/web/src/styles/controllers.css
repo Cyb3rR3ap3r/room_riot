@@ -1,0 +1,637 @@
+/* Game-specific join screens */
+.themed-join-card {
+  display: grid;
+  width: min(34rem, 100%);
+  gap: 1rem;
+  margin: clamp(1rem, 6vh, 4.5rem) auto;
+  border: 1px solid color-mix(in srgb, var(--game-primary) 45%, transparent);
+  padding: clamp(1rem, 4vw, 2rem);
+  background: rgba(3, 10, 27, 0.94);
+  box-shadow: 0 2rem 6rem rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(18px) saturate(1.2);
+}
+
+.join-groupthink {
+  border-radius: 2rem;
+  background:
+    radial-gradient(circle at 50% 8%, rgba(35, 237, 242, 0.2), transparent 35%),
+    linear-gradient(155deg, rgba(9, 38, 75, 0.97), rgba(2, 12, 32, 0.98));
+}
+
+.join-hot-take {
+  border-radius: 0.45rem;
+  clip-path: polygon(
+    0 0,
+    calc(100% - 1.2rem) 0,
+    100% 1.2rem,
+    100% 100%,
+    1rem 100%,
+    0 calc(100% - 1rem)
+  );
+  background:
+    radial-gradient(circle at 50% 110%, rgba(255, 91, 24, 0.28), transparent 38%),
+    linear-gradient(150deg, rgba(55, 8, 73, 0.98), rgba(15, 3, 30, 0.98));
+}
+
+.join-suspect {
+  border-radius: 0.8rem;
+  background:
+    radial-gradient(circle at 50% 8%, rgba(255, 179, 26, 0.14), transparent 35%),
+    linear-gradient(155deg, rgba(35, 14, 46, 0.98), rgba(5, 8, 25, 0.98));
+}
+
+.themed-join-intro {
+  display: grid;
+  align-items: center;
+  grid-template-columns: 8.5rem 1fr;
+  gap: 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--game-primary) 24%, transparent);
+  padding-bottom: 1rem;
+}
+
+.themed-join-logo {
+  width: 8.5rem;
+  height: 8.5rem;
+  object-fit: contain;
+  filter: drop-shadow(0 0.8rem 1rem rgba(0, 0, 0, 0.5));
+}
+
+.themed-join-intro h1 {
+  margin: 0.25rem 0;
+  font:
+    900 clamp(1.7rem, 7vw, 2.5rem) / 1 'Arial Black',
+    'Trebuchet MS',
+    sans-serif;
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+}
+
+.join-hot-take .themed-join-intro h1 {
+  color: white;
+  font-style: italic;
+  text-shadow: 0.16rem 0.16rem 0 #781bd0;
+}
+
+.themed-join-intro p {
+  margin: 0;
+  line-height: 1.35;
+}
+
+.themed-join-card .field {
+  gap: 0.45rem;
+}
+
+.themed-join-card .field > span {
+  color: var(--game-primary);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.join-groupthink input,
+.join-groupthink select {
+  border-radius: 999px;
+}
+
+.join-groupthink button {
+  border-radius: 999px;
+  background: linear-gradient(135deg, #45f7ff, #27d8ef);
+}
+
+.join-hot-take input,
+.join-hot-take select {
+  border-radius: 0.2rem;
+  border-color: rgba(255, 45, 167, 0.5);
+}
+
+.join-hot-take button {
+  border-radius: 0.2rem;
+  background: linear-gradient(135deg, var(--game-accent), #ff511f 46%, var(--game-primary));
+  clip-path: polygon(0.5rem 0, 100% 0, calc(100% - 0.5rem) 100%, 0 100%);
+}
+
+.join-suspect input,
+.join-suspect select {
+  border-color: rgba(255, 179, 26, 0.5);
+  border-radius: 0.35rem;
+}
+
+.join-suspect button {
+  border-radius: 0.35rem;
+  background: linear-gradient(135deg, var(--game-accent), var(--game-primary));
+  color: #1b0820;
+}
+
+/* Phone controllers */
+.player-page[data-game-id] {
+  display: grid;
+  min-height: 100svh;
+  place-items: start center;
+}
+
+.player-page[data-game-id] > .content {
+  width: min(34rem, 100%);
+}
+
+.controller-shell {
+  position: relative;
+  display: flex;
+  min-height: calc(100svh - 8rem);
+  overflow: hidden;
+  align-items: stretch;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0 1.1rem 1.4rem;
+  background: rgba(3, 10, 25, 0.92);
+  box-shadow: 0 1.8rem 5rem rgba(0, 0, 0, 0.55);
+}
+
+.consensus-controller {
+  border: 1px solid rgba(35, 237, 242, 0.4);
+  border-radius: 2rem;
+  background:
+    radial-gradient(circle at 50% 14%, rgba(35, 237, 242, 0.18), transparent 30%),
+    linear-gradient(160deg, rgba(8, 35, 69, 0.96), rgba(2, 11, 31, 0.98));
+}
+
+.live-heat-controller {
+  border: 1px solid rgba(255, 45, 167, 0.48);
+  border-radius: 0.6rem;
+  clip-path: polygon(
+    0 0,
+    calc(100% - 1.3rem) 0,
+    100% 1.3rem,
+    100% 100%,
+    1rem 100%,
+    0 calc(100% - 1rem)
+  );
+  background:
+    radial-gradient(circle at 50% 115%, rgba(255, 75, 24, 0.3), transparent 42%),
+    linear-gradient(155deg, rgba(48, 8, 66, 0.97), rgba(13, 3, 27, 0.98));
+}
+
+.suspect-controller {
+  border: 1px solid rgba(255, 61, 127, 0.48);
+  border-radius: 0.8rem;
+  background:
+    radial-gradient(circle at 50% 14%, rgba(255, 179, 26, 0.16), transparent 30%),
+    linear-gradient(160deg, rgba(35, 14, 46, 0.97), rgba(5, 8, 25, 0.98));
+}
+
+.controller-topbar {
+  min-height: 4.6rem;
+  margin-inline: -1.1rem;
+  padding-inline: 1rem;
+}
+
+.controller-topbar .experience-logo {
+  width: 3.5rem;
+  height: 3.5rem;
+}
+
+.controller-topbar .experience-title strong {
+  font-size: 1.25rem;
+}
+
+.controller-topbar .experience-live-status small,
+.controller-topbar .experience-live-status strong {
+  display: none;
+}
+
+.controller-art {
+  width: min(13rem, 58vw);
+  height: 10rem;
+  margin: 0 auto -1.5rem;
+}
+
+.controller-shell > h2 {
+  margin: 0;
+  text-align: center;
+}
+
+.controller-shell .prompt {
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--game-primary) 35%, transparent);
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.22);
+  font-size: clamp(1.25rem, 6vw, 1.8rem);
+  line-height: 1.15;
+  text-align: center;
+}
+
+.consensus-controller .prompt {
+  border-radius: 1.5rem;
+}
+
+.live-heat-controller .prompt {
+  border-radius: 0.2rem;
+  font-style: italic;
+  text-transform: uppercase;
+  transform: rotate(-0.5deg);
+}
+
+.suspect-controller .prompt {
+  border-color: rgba(255, 179, 26, 0.38);
+  border-radius: 0.45rem;
+}
+
+.suspect-answer-form select,
+.suspect-alibi-form textarea,
+.suspect-vote-form select {
+  border-color: rgba(255, 179, 26, 0.5);
+  border-radius: 0.35rem;
+}
+
+.suspect-controller button:not(.secondary) {
+  border-radius: 0.35rem;
+  background: linear-gradient(135deg, var(--game-accent), var(--game-primary));
+  color: #1b0820;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.checkbox-field input {
+  width: 1rem;
+  height: 1rem;
+}
+
+.controller-shell .pill {
+  align-self: center;
+}
+
+.controller-shell .answer-form {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.mind-answer-form input {
+  border-radius: 999px;
+  padding-inline: 1.25rem;
+}
+
+.heat-answer-form input,
+.heat-answer-form select {
+  border-radius: 0.2rem;
+  border-color: rgba(255, 45, 167, 0.55);
+}
+
+.vote-card-form h3 {
+  margin: 0;
+  color: var(--game-accent);
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.vote-card-grid {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.vote-card {
+  display: grid;
+  min-height: 5rem;
+  justify-items: start;
+  border: 1px solid rgba(255, 45, 167, 0.32);
+  border-radius: 0.25rem;
+  padding: 0.8rem 1rem;
+  background: linear-gradient(135deg, rgba(92, 22, 126, 0.75), rgba(25, 6, 42, 0.9));
+  color: white;
+  text-align: left;
+  clip-path: polygon(0.45rem 0, 100% 0, calc(100% - 0.45rem) 100%, 0 100%);
+}
+
+.vote-card > span {
+  color: var(--game-primary);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+}
+
+.vote-card[aria-pressed='true'] {
+  border-color: var(--game-accent);
+  background: linear-gradient(135deg, rgba(255, 181, 30, 0.92), rgba(255, 45, 167, 0.88));
+  color: #150318;
+  box-shadow: 0 0 1.5rem rgba(255, 45, 167, 0.45);
+  transform: translateY(-2px) rotate(-0.4deg);
+}
+
+.controller-roster {
+  width: min(34rem, 100%);
+  max-height: 12rem;
+  margin: 0.75rem auto 0;
+  overflow: auto;
+}
+
+.controller-roster .mind-grid,
+.controller-roster .audience-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.player-page[data-game-id] > .content > button.secondary:last-child {
+  display: flex;
+  width: min(34rem, 100%);
+  margin: 0.75rem auto 0;
+}
+
+/* Retained action-first controller shell. Existing game forms mount into the primary slot. */
+.action-first-controller {
+  display: grid;
+  width: min(34rem, 100%);
+  min-height: calc(100svh - var(--space-safe-top) - var(--space-safe-bottom));
+  align-content: start;
+  gap: var(--space-4);
+  margin-inline: auto;
+  border: 1px solid color-mix(in srgb, var(--game-primary) 48%, transparent);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  padding-bottom: var(--space-safe-bottom);
+  background:
+    radial-gradient(
+      circle at 50% 0,
+      color-mix(in srgb, var(--game-primary) 16%, transparent),
+      transparent 24rem
+    ),
+    rgba(3, 10, 25, 0.96);
+  box-shadow: var(--elevation-2);
+}
+
+.action-first-controller__summary {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.action-first-controller__summary h2,
+.action-first-controller__summary p {
+  margin: 0;
+}
+
+.action-first-controller__eyebrow {
+  color: var(--game-accent);
+  font-size: 0.72rem;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.action-first-controller__instruction {
+  color: var(--color-muted);
+  line-height: var(--leading-body);
+}
+
+.action-first-controller__deadline {
+  justify-self: start;
+  border: 1px solid color-mix(in srgb, var(--game-primary) 42%, transparent);
+  border-radius: var(--radius-pill);
+  padding: var(--space-2) var(--space-3);
+  color: var(--game-primary);
+  font-variant-numeric: tabular-nums;
+  font-weight: 950;
+}
+
+.action-first-controller__deadline:empty {
+  display: none;
+}
+
+.action-first-controller__deadline[data-urgency='soon'] {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+.action-first-controller__deadline[data-urgency='expired'] {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+.action-first-controller__prompt {
+  margin: 0;
+  border-inline-start: 0.3rem solid var(--game-primary);
+  padding: var(--space-3) var(--space-4);
+  background: color-mix(in srgb, var(--game-primary) 9%, transparent);
+  font-size: var(--type-controller-lg);
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.action-first-controller__primary {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.action-first-controller__primary > * {
+  width: 100%;
+}
+
+.action-first-controller__receipt,
+.action-first-controller__waiting,
+.action-first-controller__recovery {
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-surface-solid) 88%, transparent);
+}
+
+.action-first-controller__receipt {
+  border-color: color-mix(in srgb, var(--color-success) 52%, transparent);
+}
+
+.action-first-controller__receipt h3,
+.action-first-controller__receipt p,
+.action-first-controller__waiting,
+.action-first-controller__recovery p {
+  margin: 0;
+}
+
+.action-first-controller__receipt p + p {
+  margin-top: var(--space-2);
+  color: var(--color-muted);
+}
+
+.action-first-controller__recovery {
+  display: grid;
+  gap: var(--space-3);
+  border-color: color-mix(in srgb, var(--color-error) 52%, transparent);
+}
+
+.action-first-controller__recovery button,
+.action-first-controller__clear {
+  width: 100%;
+}
+
+.action-first-controller__clear {
+  background: transparent;
+  color: var(--color-muted);
+}
+
+.action-first-controller.layout-action .action-first-controller__primary {
+  position: sticky;
+  z-index: 2;
+  bottom: max(var(--space-2), env(safe-area-inset-bottom));
+}
+
+@media (max-height: 650px) and (orientation: landscape) {
+  .action-first-controller {
+    min-height: auto;
+    grid-template-columns: minmax(12rem, 0.85fr) minmax(18rem, 1.15fr);
+  }
+
+  .action-first-controller__summary,
+  .action-first-controller__prompt {
+    grid-column: 1;
+  }
+
+  .action-first-controller__primary,
+  .action-first-controller__receipt,
+  .action-first-controller__waiting,
+  .action-first-controller__recovery,
+  .action-first-controller__clear,
+  .action-first-controller__supplemental {
+    grid-column: 2;
+  }
+
+  .action-first-controller__primary {
+    grid-row: 1 / span 3;
+    align-self: start;
+  }
+
+  .action-first-controller__primary .answer-form {
+    align-content: start;
+    margin-top: 0;
+  }
+}
+
+@keyframes experience-pulse {
+  50% {
+    opacity: 0.5;
+    transform: scale(0.75);
+  }
+}
+
+@keyframes reactor-float {
+  50% {
+    transform: translateY(-0.45rem) scale(1.015);
+  }
+}
+
+@keyframes stage-breathe {
+  50% {
+    filter: drop-shadow(0 1.2rem 1.6rem rgba(255, 45, 167, 0.3));
+    transform: scale(1.025);
+  }
+}
+
+@media (max-width: 1050px) {
+  .experience-grid {
+    grid-template-columns: minmax(12rem, 0.8fr) minmax(25rem, 2fr);
+  }
+
+  .mind-roster,
+  .audience-roster,
+  .jury-roster {
+    grid-column: 1 / -1;
+  }
+
+  .mind-grid,
+  .audience-grid,
+  .jury-grid {
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .page[data-game-id] {
+    padding: 0.5rem;
+  }
+
+  .experience-shell {
+    min-height: calc(100svh - 1rem);
+  }
+
+  .experience-grid {
+    display: flex;
+    min-height: auto;
+    flex-direction: column;
+  }
+
+  .experience-topbar {
+    min-height: 4.6rem;
+    padding-inline: 0.75rem;
+  }
+
+  .experience-logo {
+    width: 3.4rem;
+    height: 3.4rem;
+  }
+
+  .experience-title strong {
+    font-size: 1.2rem;
+  }
+
+  .experience-title .experience-eyebrow {
+    font-size: 0.58rem;
+  }
+
+  .experience-live-status small {
+    display: none;
+  }
+
+  .lab-room-pass,
+  .heat-room-pass,
+  .suspect-room-pass {
+    min-height: 24rem;
+  }
+
+  .consensus-stage,
+  .heat-stage,
+  .suspect-stage {
+    min-height: 32rem;
+  }
+
+  .experience-controls {
+    position: sticky;
+    right: auto;
+    bottom: 0.5rem;
+    width: 100%;
+    margin-top: 0.8rem;
+    transform: none;
+  }
+
+  .host-experience {
+    padding-bottom: 0;
+  }
+
+  .display-experience .mind-roster,
+  .display-experience .audience-roster,
+  .display-experience .jury-roster {
+    margin-bottom: 1rem;
+  }
+
+  .player-page[data-game-id] > .content {
+    width: 100%;
+  }
+
+  .controller-shell {
+    min-height: calc(100svh - 5rem);
+  }
+
+  .themed-join-card {
+    margin: 0;
+    min-height: calc(100svh - 1rem);
+    align-content: center;
+  }
+
+  .themed-join-intro {
+    grid-template-columns: 6rem 1fr;
+  }
+
+  .themed-join-logo {
+    width: 6rem;
+    height: 6rem;
+  }
+}

@@ -4,106 +4,50 @@ import {
   CreateRoomRequestSchema,
   JoinRoomRequestSchema,
   PlayerIdSchema,
+  ROOM_RIOT_PROTOCOL_VERSION,
   RoomCodeSchema,
   SessionTokenSchema,
+  SupportedGameIdSchema,
 } from '@room-riot/contracts';
 import type {
   CreateRoomRequest,
-  ContentMode,
   DrawingData,
   JoinRoomRequest,
   PlayerId,
-  PromptMode,
   RoomCode,
   RoomSettings,
   SessionToken,
+  SupportedGameId,
 } from '@room-riot/contracts';
-import {
-  DRAWN_OUT_GAME_ID,
-  DRAWN_OUT_GUESS_DURATION_MS,
-  DRAWN_OUT_TURN_DURATION_MS,
-  advanceDrawnOutRound,
-  createDrawnOutSession,
-  expireDrawnOutStep,
-  getDrawnOutPlayerView,
-  getDrawnOutPublicView,
-  loadDrawnOutPrompts,
-  revealDrawnOutStep,
-  submitDrawnOutDrawing,
-  submitDrawnOutText,
-  submitDrawnOutVote,
-} from '@room-riot/drawn-out';
-import type {
-  DrawnOutPlayerView,
-  DrawnOutPrompt,
-  DrawnOutPublicView,
-  DrawnOutSessionState,
-} from '@room-riot/drawn-out';
+import { DRAWN_OUT_GAME_ID, revealDrawnOutStep } from '@room-riot/drawn-out';
+import type { DrawnOutSessionState } from '@room-riot/drawn-out';
 import {
   GROUPTHINK_GAME_ID,
-  GROUPTHINK_INPUT_DURATION_MS,
   advanceGroupthinkRound,
   allPlayersSubmitted,
-  createGroupthinkSession,
-  getGroupthinkPlayerView,
-  getGroupthinkPublicView,
-  loadGroupthinkPrompts,
   revealGroupthink,
   submitGroupthinkAnswer,
 } from '@room-riot/groupthink';
-import type {
-  GroupthinkPlayerView,
-  GroupthinkPrompt,
-  GroupthinkPublicView,
-  GroupthinkSessionState,
-} from '@room-riot/groupthink';
+import type { GroupthinkSessionState } from '@room-riot/groupthink';
 import {
   HOT_TAKE_GAME_ID,
-  HOT_TAKE_INPUT_DURATION_MS,
-  HOT_TAKE_VOTING_DURATION_MS,
-  advanceHotTakeRound,
   allHotTakePlayersSubmitted,
   allHotTakePlayersVoted,
-  createHotTakeSession,
-  getHotTakePlayerView,
-  getHotTakePublicView,
-  loadHotTakePrompts,
   revealHotTakeAnswers,
   revealHotTakeVotes,
   submitHotTakeAnswer,
-  submitHotTakeVote,
 } from '@room-riot/hot-take';
-import type {
-  HotTakePlayerView,
-  HotTakePrompt,
-  HotTakePublicView,
-  HotTakeSessionState,
-} from '@room-riot/hot-take';
+import type { HotTakeSessionState } from '@room-riot/hot-take';
 import {
-  SUSPECT_ALIBI_DURATION_MS,
   SUSPECT_GAME_ID,
-  SUSPECT_INPUT_DURATION_MS,
-  SUSPECT_VOTING_DURATION_MS,
-  advanceSuspectRound,
   allSuspectPlayersAnswered,
   allSuspectPlayersVoted,
-  createSuspectSession,
   expireSuspectAlibi,
-  getSuspectPlayerView,
-  getSuspectPublicView,
-  loadSuspectPrompts,
   revealSuspectAnswers,
   revealSuspectVotes,
-  submitSuspectAlibi,
   submitSuspectAnswer,
-  submitSuspectVote,
 } from '@room-riot/suspect';
-import type {
-  SuspectPlayerView,
-  SuspectPrompt,
-  SuspectPublicView,
-  SuspectSessionState,
-} from '@room-riot/suspect';
+import type { SuspectSessionState } from '@room-riot/suspect';
 import {
   addPlayerScores,
   addPlayer,
@@ -114,12 +58,16 @@ import {
   toPublicRoomState,
 } from '@room-riot/game-engine';
 import type { PublicRoomState, RoomState } from '@room-riot/game-engine';
-import {
-  generateDrawnOutPrompts,
-  generateGroupthinkPrompts,
-  generateHotTakePrompts,
-  generateSuspectPrompts,
-} from './prompt-generator.js';
+import { ServerGameRegistry } from './game-registry.js';
+import type {
+  GameActionContext,
+  GameRuntimeSlots,
+  GameTransition,
+  PlayerGameView,
+  PublicGameView,
+} from './game-registry.js';
+
+export type { PlayerGameView, PublicGameView } from './game-registry.js';
 
 const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const ROOM_CODE_LENGTH = 4;
@@ -128,16 +76,11 @@ export type SocketBinding =
   | { readonly kind: 'host'; readonly roomCode: RoomCode }
   | { readonly kind: 'player'; readonly roomCode: RoomCode; readonly playerId: PlayerId };
 
-interface RoomSession {
+interface RoomSession extends GameRuntimeSlots {
   state: RoomState;
-  groupthink?: GroupthinkSessionState;
-  hotTake?: HotTakeSessionState;
-  suspect?: SuspectSessionState;
-  drawnOut?: DrawnOutSessionState;
-  groupthinkPrompts?: readonly GroupthinkPrompt[];
-  hotTakePrompts?: readonly HotTakePrompt[];
-  suspectPrompts?: readonly SuspectPrompt[];
-  drawnOutPrompts?: readonly DrawnOutPrompt[];
+  roundPlayerIds: readonly PlayerId[];
+  snapshotRevision: number;
+  snapshotFingerprint: string | null;
   readonly hostToken: SessionToken;
   lastActivityAt: number;
   hostSocketId?: string;
@@ -145,9 +88,17 @@ interface RoomSession {
   readonly playerSocketIds: Map<PlayerId, string>;
 }
 
+const DEFAULT_RECONNECT_GRACE_MS = 15_000;
+
 export class RoomManagerError extends Error {
   constructor(
-    readonly code: 'ROOM_NOT_FOUND' | 'ROOM_FULL' | 'ROOM_LIMIT' | 'UNAUTHORIZED' | 'INVALID_STATE',
+    readonly code:
+      | 'ROOM_NOT_FOUND'
+      | 'ROOM_FULL'
+      | 'ROOM_LIMIT'
+      | 'PLAYER_LIMIT'
+      | 'UNAUTHORIZED'
+      | 'INVALID_STATE',
     message: string,
   ) {
     super(message);
@@ -169,19 +120,33 @@ export interface JoinedRoom {
   readonly playerState: PlayerGameView | null;
 }
 
-export type PublicGameView =
-  GroupthinkPublicView | HotTakePublicView | SuspectPublicView | DrawnOutPublicView;
-export type PlayerGameView =
-  GroupthinkPlayerView | HotTakePlayerView | SuspectPlayerView | DrawnOutPlayerView;
-
 export interface RoomSnapshot {
+  readonly protocolVersion: typeof ROOM_RIOT_PROTOCOL_VERSION;
+  /** Monotonic room-local ordering for rejecting stale cached/reordered snapshots. */
+  readonly revision: number;
   readonly state: PublicRoomState;
   readonly game: PublicGameView | null;
+  readonly roster: {
+    readonly roundPlayerIds: readonly PlayerId[];
+    readonly queuedPlayerIds: readonly PlayerId[];
+  };
 }
 
 export interface PlayerGameUpdate {
   readonly snapshot: RoomSnapshot;
   readonly playerState: PlayerGameView | null;
+}
+
+export interface RemovedPlayer {
+  readonly roomCode: RoomCode;
+  readonly playerId: PlayerId;
+  readonly socketId: string | null;
+  readonly snapshot: RoomSnapshot;
+}
+
+export interface ClosedRoom {
+  readonly roomCode: RoomCode;
+  readonly socketIds: readonly string[];
 }
 
 export interface RoomManagerOptions {
@@ -197,6 +162,8 @@ export interface RoomManagerOptions {
   readonly roomIdleTtlMs?: number;
   readonly cleanupIntervalMs?: number;
   readonly randomizePrompts?: boolean;
+  /** Server-owned time in which an interrupted player may reclaim the same identity. */
+  readonly reconnectGraceMs?: number;
 }
 
 export type RoomSnapshotListener = (roomCode: RoomCode, snapshot: RoomSnapshot) => void;
@@ -204,80 +171,39 @@ export type RoomSnapshotListener = (roomCode: RoomCode, snapshot: RoomSnapshot) 
 export class RoomManager {
   private readonly rooms = new Map<RoomCode, RoomSession>();
   private readonly socketBindings = new Map<string, SocketBinding>();
-  private readonly groupthinkPrompts = new Map<ContentMode, readonly GroupthinkPrompt[]>();
-  private readonly hotTakePrompts = new Map<ContentMode, readonly HotTakePrompt[]>();
-  private readonly suspectPrompts = new Map<ContentMode, readonly SuspectPrompt[]>();
-  private readonly drawnOutPrompts = new Map<ContentMode, readonly DrawnOutPrompt[]>();
-  private readonly lastGroupthinkPromptIds = new Map<ContentMode, string>();
-  private readonly lastHotTakePromptIds = new Map<ContentMode, string>();
-  private readonly lastSuspectPromptIds = new Map<ContentMode, string>();
-  private readonly lastDrawnOutPromptIds = new Map<ContentMode, string>();
+  private readonly gameRegistry: ServerGameRegistry;
   private readonly inputTimers = new Map<RoomCode, ReturnType<typeof setTimeout>>();
+  private readonly reconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly snapshotListeners = new Set<RoomSnapshotListener>();
-  private readonly groupthinkInputDurationMs: number;
-  private readonly hotTakeInputDurationMs: number;
-  private readonly hotTakeVotingDurationMs: number;
-  private readonly suspectInputDurationMs: number;
-  private readonly suspectAlibiDurationMs: number;
-  private readonly suspectVotingDurationMs: number;
-  private readonly drawnOutTurnDurationMs: number;
-  private readonly drawnOutGuessDurationMs: number;
   private readonly maxRooms: number;
   private readonly roomIdleTtlMs: number;
   private readonly cleanupTimer: ReturnType<typeof setInterval>;
   private readonly randomizePrompts: boolean;
+  private readonly reconnectGraceMs: number;
 
   constructor(options: RoomManagerOptions = {}) {
-    const groupthinkInputDurationMs =
-      options.groupthinkInputDurationMs ?? GROUPTHINK_INPUT_DURATION_MS;
-    const hotTakeInputDurationMs = options.hotTakeInputDurationMs ?? HOT_TAKE_INPUT_DURATION_MS;
-    const hotTakeVotingDurationMs = options.hotTakeVotingDurationMs ?? HOT_TAKE_VOTING_DURATION_MS;
-    const suspectInputDurationMs = options.suspectInputDurationMs ?? SUSPECT_INPUT_DURATION_MS;
-    const suspectAlibiDurationMs = options.suspectAlibiDurationMs ?? SUSPECT_ALIBI_DURATION_MS;
-    const suspectVotingDurationMs = options.suspectVotingDurationMs ?? SUSPECT_VOTING_DURATION_MS;
-    const drawnOutTurnDurationMs = options.drawnOutTurnDurationMs ?? DRAWN_OUT_TURN_DURATION_MS;
-    const drawnOutGuessDurationMs = options.drawnOutGuessDurationMs ?? DRAWN_OUT_GUESS_DURATION_MS;
     const maxRooms = options.maxRooms ?? 1_000;
     const roomIdleTtlMs = options.roomIdleTtlMs ?? 6 * 60 * 60 * 1_000;
     const cleanupIntervalMs = options.cleanupIntervalMs ?? 60_000;
     const randomizePrompts = options.randomizePrompts ?? true;
+    const reconnectGraceMs = options.reconnectGraceMs ?? DEFAULT_RECONNECT_GRACE_MS;
     if (
-      !Number.isInteger(groupthinkInputDurationMs) ||
-      groupthinkInputDurationMs < 1 ||
-      !Number.isInteger(hotTakeInputDurationMs) ||
-      hotTakeInputDurationMs < 1 ||
-      !Number.isInteger(hotTakeVotingDurationMs) ||
-      hotTakeVotingDurationMs < 1 ||
-      !Number.isInteger(suspectInputDurationMs) ||
-      suspectInputDurationMs < 1 ||
-      !Number.isInteger(suspectAlibiDurationMs) ||
-      suspectAlibiDurationMs < 1 ||
-      !Number.isInteger(suspectVotingDurationMs) ||
-      suspectVotingDurationMs < 1 ||
-      !Number.isInteger(drawnOutTurnDurationMs) ||
-      drawnOutTurnDurationMs < 1 ||
-      !Number.isInteger(drawnOutGuessDurationMs) ||
-      drawnOutGuessDurationMs < 1 ||
       !Number.isInteger(maxRooms) ||
       maxRooms < 1 ||
       !Number.isInteger(roomIdleTtlMs) ||
       roomIdleTtlMs < 1 ||
       !Number.isInteger(cleanupIntervalMs) ||
-      cleanupIntervalMs < 1
+      cleanupIntervalMs < 1 ||
+      !Number.isInteger(reconnectGraceMs) ||
+      reconnectGraceMs < 0
     ) {
-      throw new Error('Game timers must be positive integers.');
+      throw new Error('Room limits and timers must be valid integers.');
     }
-    this.groupthinkInputDurationMs = groupthinkInputDurationMs;
-    this.hotTakeInputDurationMs = hotTakeInputDurationMs;
-    this.hotTakeVotingDurationMs = hotTakeVotingDurationMs;
-    this.suspectInputDurationMs = suspectInputDurationMs;
-    this.suspectAlibiDurationMs = suspectAlibiDurationMs;
-    this.suspectVotingDurationMs = suspectVotingDurationMs;
-    this.drawnOutTurnDurationMs = drawnOutTurnDurationMs;
-    this.drawnOutGuessDurationMs = drawnOutGuessDurationMs;
+    this.gameRegistry = new ServerGameRegistry(options);
     this.maxRooms = maxRooms;
     this.roomIdleTtlMs = roomIdleTtlMs;
     this.randomizePrompts = randomizePrompts;
+    this.reconnectGraceMs = reconnectGraceMs;
     this.cleanupTimer = setInterval(() => this.cleanupExpiredRooms(), cleanupIntervalMs);
     this.cleanupTimer.unref?.();
   }
@@ -286,6 +212,8 @@ export class RoomManager {
     clearInterval(this.cleanupTimer);
     this.inputTimers.forEach((timer) => clearTimeout(timer));
     this.inputTimers.clear();
+    this.reconnectTimers.forEach((timer) => clearTimeout(timer));
+    this.reconnectTimers.clear();
   }
 
   subscribe(listener: RoomSnapshotListener): () => void {
@@ -301,19 +229,32 @@ export class RoomManager {
     const request = CreateRoomRequestSchema.parse(input);
     const roomCode = this.createRoomCode();
     const hostToken = SessionTokenSchema.parse(randomUUID());
-    const settings = normalizeSettings(request.settings);
+    const settings = normalizeSettings(request.settings) ?? {};
+    if (request.gameId) {
+      const limits = this.gameRegistry.playerLimits(
+        request.gameId,
+        settings.drawnOutMode ?? 'classic',
+      );
+      if (request.settings?.maxPlayers === undefined) {
+        settings.maxPlayers = limits.maximum;
+      }
+    }
     const now = Date.now();
     const initialState = createInitialRoomState({
       roomCode,
       now,
-      ...(settings ? { settings } : {}),
+      settings,
     });
+    if (request.gameId) this.assertSupportedRoomCapacity(request.gameId, initialState.settings);
     const state: RoomState = request.gameId
       ? { ...initialState, gameId: request.gameId }
       : initialState;
 
     this.rooms.set(roomCode, {
       state,
+      roundPlayerIds: [],
+      snapshotRevision: 0,
+      snapshotFingerprint: null,
       hostToken,
       lastActivityAt: now,
       playerTokens: new Map(),
@@ -334,6 +275,7 @@ export class RoomManager {
     if (request.playerToken) {
       const existingPlayerId = session.playerTokens.get(request.playerToken);
       if (existingPlayerId) {
+        this.cancelReconnectExpiry(session.state.roomCode, existingPlayerId);
         session.state = setPlayerConnectionStatus(session.state, existingPlayerId, 'connected');
         return {
           roomCode: session.state.roomCode,
@@ -343,9 +285,13 @@ export class RoomManager {
           playerState: this.getPrivatePlayerState(session, existingPlayerId),
         };
       }
+      throw new RoomManagerError('UNAUTHORIZED', 'Player session has expired or was revoked.');
     }
 
-    if (Object.keys(session.state.players).length >= session.state.settings.maxPlayers) {
+    if (
+      Object.values(session.state.players).filter((player) => player.status !== 'removed').length >=
+      session.state.settings.maxPlayers
+    ) {
       throw new RoomManagerError('ROOM_FULL', `Room ${session.state.roomCode} is full.`);
     }
 
@@ -367,7 +313,7 @@ export class RoomManager {
     };
   }
 
-  startGame(roomCodeInput: string, hostTokenInput: string, gameId: string): RoomSnapshot {
+  startGame(roomCodeInput: string, hostTokenInput: string, gameIdInput: string): RoomSnapshot {
     const roomCode = RoomCodeSchema.parse(roomCodeInput);
     const hostToken = SessionTokenSchema.parse(hostTokenInput);
     const session = this.requireRoom(roomCode);
@@ -376,150 +322,28 @@ export class RoomManager {
     if (session.state.phase !== 'lobby') {
       throw new RoomManagerError('INVALID_STATE', 'A game can only be started from the lobby.');
     }
-    if (
-      gameId !== GROUPTHINK_GAME_ID &&
-      gameId !== HOT_TAKE_GAME_ID &&
-      gameId !== SUSPECT_GAME_ID &&
-      gameId !== DRAWN_OUT_GAME_ID
-    ) {
+    const parsedGameId = SupportedGameIdSchema.safeParse(gameIdInput);
+    if (!parsedGameId.success) {
       throw new RoomManagerError('INVALID_STATE', 'That game is not available.');
     }
-    if (gameId === HOT_TAKE_GAME_ID && Object.keys(session.state.players).length < 3) {
-      throw new RoomManagerError('INVALID_STATE', 'Hot Take requires at least three players.');
-    }
-    if (gameId === SUSPECT_GAME_ID && Object.keys(session.state.players).length < 4) {
-      throw new RoomManagerError('INVALID_STATE', 'Suspect requires at least four players.');
-    }
-    if (gameId === DRAWN_OUT_GAME_ID && Object.keys(session.state.players).length < 3) {
-      throw new RoomManagerError('INVALID_STATE', 'Drawn Out requires at least three players.');
-    }
+    const gameId = parsedGameId.data;
+    this.assertSupportedRoomCapacity(gameId, session.state.settings);
+    this.assertSupportedPlayerCount(
+      gameId,
+      session.state.settings,
+      Object.keys(session.state.players).length,
+    );
     session.state = setGame(session.state, gameId);
-    delete session.groupthink;
-    delete session.groupthinkPrompts;
-    delete session.hotTake;
-    delete session.hotTakePrompts;
-    delete session.suspect;
-    delete session.suspectPrompts;
-    delete session.drawnOut;
-    delete session.drawnOutPrompts;
-    if (session.state.gameId === GROUPTHINK_GAME_ID) {
-      delete session.hotTake;
-      delete session.hotTakePrompts;
-      const prompts = this.getGroupthinkPrompts(
-        session.state.settings.contentMode,
-        session.state.settings.promptMode,
-      );
-      session.groupthinkPrompts = prompts;
-      session.groupthink = createGroupthinkSession(
-        prompts,
-        session.state.settings.roundCount,
-        Date.now(),
-        this.groupthinkInputDurationMs,
-        this.randomizePrompts,
-        this.randomizePrompts
-          ? this.lastGroupthinkPromptIds.get(session.state.settings.contentMode)
-          : undefined,
-      );
-      if (this.randomizePrompts) {
-        this.lastGroupthinkPromptIds.set(
-          session.state.settings.contentMode,
-          session.groupthink.prompt.id,
-        );
-      }
-      session.state = setPhase(session.state, 'input');
-      this.scheduleGroupthinkDeadline(roomCode, session);
-    } else if (session.state.gameId === HOT_TAKE_GAME_ID) {
-      delete session.groupthink;
-      delete session.groupthinkPrompts;
-      const prompts = this.getHotTakePrompts(
-        session.state.settings.contentMode,
-        session.state.settings.promptMode,
-      );
-      session.hotTakePrompts = prompts;
-      session.hotTake = createHotTakeSession(
-        prompts,
-        session.state.settings.roundCount,
-        Date.now(),
-        this.hotTakeInputDurationMs,
-        this.randomizePrompts,
-        this.randomizePrompts
-          ? this.lastHotTakePromptIds.get(session.state.settings.contentMode)
-          : undefined,
-      );
-      if (this.randomizePrompts) {
-        this.lastHotTakePromptIds.set(
-          session.state.settings.contentMode,
-          session.hotTake.prompt.id,
-        );
-      }
-      session.state = setPhase(session.state, 'input');
-      this.scheduleHotTakeDeadline(roomCode, session);
-    } else if (session.state.gameId === SUSPECT_GAME_ID) {
-      delete session.groupthink;
-      delete session.groupthinkPrompts;
-      delete session.hotTake;
-      delete session.hotTakePrompts;
-      const prompts = this.getSuspectPrompts(
-        session.state.settings.contentMode,
-        session.state.settings.promptMode,
-      );
-      session.suspectPrompts = prompts;
-      session.suspect = createSuspectSession(
-        prompts,
-        session.state.settings.roundCount,
-        Date.now(),
-        this.suspectInputDurationMs,
-        this.suspectAlibiDurationMs,
-        this.suspectVotingDurationMs,
-        this.randomizePrompts,
-        this.randomizePrompts
-          ? this.lastSuspectPromptIds.get(session.state.settings.contentMode)
-          : undefined,
-      );
-      if (this.randomizePrompts) {
-        this.lastSuspectPromptIds.set(
-          session.state.settings.contentMode,
-          session.suspect.prompt.id,
-        );
-      }
-      session.state = setPhase(
-        session.state,
-        session.suspect.status === 'voting' ? 'voting' : 'input',
-      );
-      this.scheduleSuspectDeadline(roomCode, session);
-    } else if (session.state.gameId === DRAWN_OUT_GAME_ID) {
-      const prompts = this.getDrawnOutPrompts(
-        session.state.settings.contentMode,
-        session.state.settings.promptMode,
-      );
-      const playerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
-      session.drawnOutPrompts = prompts;
-      session.drawnOut = createDrawnOutSession(
-        prompts,
-        playerIds,
-        session.state.settings.drawnOutMode,
-        session.state.settings.roundCount,
-        Date.now(),
-        this.drawnOutTurnDurationMs,
-        this.randomizePrompts,
-        this.randomizePrompts
-          ? this.lastDrawnOutPromptIds.get(session.state.settings.contentMode)
-          : undefined,
-      );
-      if (this.randomizePrompts) {
-        this.lastDrawnOutPromptIds.set(
-          session.state.settings.contentMode,
-          session.drawnOut.prompt.id,
-        );
-      }
-      session.state = setPhase(session.state, drawnOutRoomPhase(session.drawnOut.status));
-      this.scheduleDrawnOutDeadline(roomCode, session);
-    } else {
-      delete session.groupthink;
-      delete session.hotTake;
-      delete session.suspect;
-      this.clearGameDeadline(roomCode);
-    }
+    session.roundPlayerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
+    const phase = this.gameRegistry.start(
+      gameId,
+      session,
+      this.getRoundPlayerIds(session),
+      session.state.settings,
+      this.randomizePrompts,
+    );
+    session.state = setPhase(session.state, phase);
+    this.scheduleCurrentGameDeadline(roomCode, session);
     return this.getSnapshot(session);
   }
 
@@ -530,6 +354,42 @@ export class RoomManager {
 
     this.assertHost(session, hostToken);
     return this.getSnapshot(session);
+  }
+
+  leavePlayer(roomCodeInput: string, playerTokenInput: string): RemovedPlayer {
+    const roomCode = RoomCodeSchema.parse(roomCodeInput);
+    const playerToken = SessionTokenSchema.parse(playerTokenInput);
+    const session = this.requireRoom(roomCode);
+    const playerId = session.playerTokens.get(playerToken);
+    if (!playerId) throw new RoomManagerError('UNAUTHORIZED', 'Player authorization failed.');
+    return this.removePlayer(session, playerId);
+  }
+
+  removePlayerByHost(
+    roomCodeInput: string,
+    hostTokenInput: string,
+    playerIdInput: string,
+  ): RemovedPlayer {
+    const session = this.requireAuthorizedSession(roomCodeInput, hostTokenInput);
+    const playerId = PlayerIdSchemaFromInput(playerIdInput);
+    if (!session.state.players[playerId] || session.state.players[playerId].status === 'removed') {
+      throw new RoomManagerError('INVALID_STATE', 'That player is no longer in the room.');
+    }
+    return this.removePlayer(session, playerId);
+  }
+
+  closeRoom(roomCodeInput: string, hostTokenInput: string): ClosedRoom {
+    const roomCode = RoomCodeSchema.parse(roomCodeInput);
+    const hostToken = SessionTokenSchema.parse(hostTokenInput);
+    const session = this.requireRoom(roomCode);
+    this.assertHost(session, hostToken);
+    const socketIds = [
+      ...(session.hostSocketId ? [session.hostSocketId] : []),
+      ...session.playerSocketIds.values(),
+    ];
+    this.removeRoom(roomCode, session);
+    session.playerTokens.clear();
+    return { roomCode, socketIds };
   }
 
   getRoomSnapshot(roomCodeInput: string): RoomSnapshot {
@@ -575,6 +435,10 @@ export class RoomManager {
       throw new RoomManagerError('UNAUTHORIZED', 'Player session is not part of this room.');
     }
 
+    if (session.state.players[parsedPlayerId]?.status === 'removed') {
+      throw new RoomManagerError('UNAUTHORIZED', 'Player session has expired or was revoked.');
+    }
+
     const currentBinding = this.socketBindings.get(socketId);
     if (
       !currentBinding ||
@@ -589,6 +453,8 @@ export class RoomManager {
       this.socketBindings.delete(previousSocketId);
     }
     session.playerSocketIds.set(parsedPlayerId, socketId);
+    this.cancelReconnectExpiry(roomCode, parsedPlayerId);
+    session.state = setPlayerConnectionStatus(session.state, parsedPlayerId, 'connected');
     this.socketBindings.set(socketId, {
       kind: 'player',
       roomCode,
@@ -599,6 +465,25 @@ export class RoomManager {
 
   disconnectSocket(socketId: string): RoomSnapshot | null {
     return this.releaseSocket(socketId);
+  }
+
+  /** Deterministic expiry hook used by cleanup and tests; production also schedules exact timers. */
+  expireDisconnectedPlayers(now = Date.now()): number {
+    let expired = 0;
+    this.rooms.forEach((session) => {
+      Object.values(session.state.players).forEach((player) => {
+        if (
+          player.status !== 'disconnected' ||
+          player.reconnectDeadlineAt === null ||
+          player.reconnectDeadlineAt > now
+        ) {
+          return;
+        }
+        this.expireDisconnectedPlayer(session, player.id);
+        expired += 1;
+      });
+    });
+    return expired;
   }
 
   getSocketBinding(socketId: string): SocketBinding | null {
@@ -655,7 +540,16 @@ export class RoomManager {
 
     if (session.playerSocketIds.get(binding.playerId) !== socketId) return null;
     session.playerSocketIds.delete(binding.playerId);
-    session.state = setPlayerConnectionStatus(session.state, binding.playerId, 'disconnected');
+    const now = Date.now();
+    const reconnectDeadlineAt = now + this.reconnectGraceMs;
+    session.state = setPlayerConnectionStatus(
+      session.state,
+      binding.playerId,
+      'disconnected',
+      now,
+      reconnectDeadlineAt,
+    );
+    this.scheduleReconnectExpiry(session, binding.playerId, reconnectDeadlineAt);
     return this.getSnapshot(session);
   }
 
@@ -683,12 +577,10 @@ export class RoomManager {
     this.expireGameIfNeeded(session);
     const playerId = PlayerIdSchemaFromInput(playerIdInput);
     const game = this.requireGroupthink(session);
-    if (!session.state.players[playerId]) {
-      throw new RoomManagerError('UNAUTHORIZED', 'Player session is not part of this room.');
-    }
+    this.assertActiveRoundPlayer(session, playerId);
     session.groupthink = submitGroupthinkAnswer(game, playerId, answer, Date.now());
 
-    const playerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
+    const playerIds = this.getRoundPlayerIds(session);
     if (allPlayersSubmitted(session.groupthink, playerIds)) {
       session.groupthink = revealGroupthink(session.groupthink);
       session.state = setPhase(session.state, 'results');
@@ -713,50 +605,20 @@ export class RoomManager {
     const targetPlayerId = targetPlayerIdInput
       ? PlayerIdSchemaFromInput(targetPlayerIdInput)
       : undefined;
-
-    if (session.state.gameId === GROUPTHINK_GAME_ID) {
-      if (targetPlayerId) {
-        throw new RoomManagerError('INVALID_STATE', 'Groupthink does not accept player targets.');
-      }
-      return this.submitGroupthinkAnswer(roomCodeInput, playerId, answer);
-    }
-
-    if (session.state.gameId === HOT_TAKE_GAME_ID) {
-      return this.submitHotTakeAnswer(roomCodeInput, playerId, answer, targetPlayerId);
-    }
-
-    if (session.state.gameId === SUSPECT_GAME_ID) {
-      if (targetPlayerId) {
-        throw new RoomManagerError(
-          'INVALID_STATE',
-          'Suspect answers are private Yes or No choices.',
-        );
-      }
-      return this.submitSuspectAnswer(roomCodeInput, playerId, answer);
-    }
-
-    if (session.state.gameId === DRAWN_OUT_GAME_ID) {
-      if (targetPlayerId) {
-        throw new RoomManagerError('INVALID_STATE', 'Drawn Out text does not accept a target.');
-      }
-      const game = this.requireDrawnOut(session);
-      session.drawnOut = submitDrawnOutText(
-        game,
-        playerId,
-        answer,
-        Date.now(),
-        this.drawnOutTurnDurationMs,
-      );
-      session.state = setPhase(session.state, drawnOutRoomPhase(session.drawnOut.status));
-      if (session.drawnOut.status === 'results') this.clearGameDeadline(session.state.roomCode);
-      else this.scheduleDrawnOutDeadline(session.state.roomCode, session);
-      return {
-        snapshot: this.getSnapshot(session),
-        playerState: this.getPrivatePlayerState(session, playerId),
-      };
-    }
-
-    throw new RoomManagerError('INVALID_STATE', 'This room is not running a playable game.');
+    this.assertActiveRoundPlayer(session, playerId);
+    const now = Date.now();
+    const transition = this.gameRegistry.submitAnswer(
+      session.state.gameId,
+      this.getGameActionContext(session, now),
+      playerId,
+      answer,
+      targetPlayerId,
+    );
+    this.applyGameTransition(session, transition, now);
+    return {
+      snapshot: this.getSnapshot(session),
+      playerState: this.getPrivatePlayerState(session, playerId),
+    };
   }
 
   submitDrawing(
@@ -767,21 +629,15 @@ export class RoomManager {
     const session = this.requireRoom(roomCodeInput);
     this.expireGameIfNeeded(session);
     const playerId = PlayerIdSchemaFromInput(playerIdInput);
-    if (!session.state.players[playerId]) {
-      throw new RoomManagerError('UNAUTHORIZED', 'Player session is not part of this room.');
-    }
-    const game = this.requireDrawnOut(session);
-    session.drawnOut = submitDrawnOutDrawing(
-      game,
+    this.assertActiveRoundPlayer(session, playerId);
+    const now = Date.now();
+    const transition = this.gameRegistry.submitDrawing(
+      session.state.gameId,
+      this.getGameActionContext(session, now),
       playerId,
       drawing,
-      Date.now(),
-      this.drawnOutTurnDurationMs,
-      this.drawnOutGuessDurationMs,
     );
-    session.state = setPhase(session.state, drawnOutRoomPhase(session.drawnOut.status));
-    if (session.drawnOut.status === 'results') this.clearGameDeadline(session.state.roomCode);
-    else this.scheduleDrawnOutDeadline(session.state.roomCode, session);
+    this.applyGameTransition(session, transition, now);
     return {
       snapshot: this.getSnapshot(session),
       playerState: this.getPrivatePlayerState(session, playerId),
@@ -797,28 +653,26 @@ export class RoomManager {
     this.expireGameIfNeeded(session);
     const playerId = PlayerIdSchemaFromInput(playerIdInput);
     const game = this.requireSuspect(session);
-    if (!session.state.players[playerId]) {
-      throw new RoomManagerError('UNAUTHORIZED', 'Player session is not part of this room.');
-    }
+    this.assertActiveRoundPlayer(session, playerId);
     const normalized = answer.trim().toLowerCase();
     if (normalized !== 'yes' && normalized !== 'no') {
       throw new RoomManagerError('INVALID_STATE', 'Suspect answers must be Yes or No.');
     }
     session.suspect = submitSuspectAnswer(game, playerId, normalized === 'yes', Date.now());
-    const playerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
+    const playerIds = this.getRoundPlayerIds(session);
     if (allSuspectPlayersAnswered(session.suspect, playerIds)) {
       session.suspect = revealSuspectAnswers(
         session.suspect,
         playerIds,
         Date.now(),
-        this.suspectAlibiDurationMs,
-        this.suspectVotingDurationMs,
+        this.gameRegistry.duration('suspect', 'alibi'),
+        this.gameRegistry.duration('suspect', 'voting'),
       );
       session.state = setPhase(
         session.state,
         session.suspect.status === 'alibi' ? 'alibi' : 'voting',
       );
-      this.scheduleSuspectDeadline(session.state.roomCode, session);
+      this.scheduleCurrentGameDeadline(session.state.roomCode, session);
     }
     return {
       snapshot: this.getSnapshot(session),
@@ -834,16 +688,15 @@ export class RoomManager {
     const session = this.requireRoom(roomCodeInput);
     this.expireGameIfNeeded(session);
     const playerId = PlayerIdSchemaFromInput(playerIdInput);
-    const game = this.requireSuspect(session);
-    session.suspect = submitSuspectAlibi(
-      game,
+    this.assertActiveRoundPlayer(session, playerId);
+    const now = Date.now();
+    const transition = this.gameRegistry.submitAlibi(
+      session.state.gameId,
+      this.getGameActionContext(session, now),
       playerId,
       alibi,
-      Date.now(),
-      this.suspectVotingDurationMs,
     );
-    session.state = setPhase(session.state, 'voting');
-    this.scheduleSuspectDeadline(session.state.roomCode, session);
+    this.applyGameTransition(session, transition, now);
     return {
       snapshot: this.getSnapshot(session),
       playerState: this.getPrivatePlayerState(session, playerId),
@@ -859,7 +712,8 @@ export class RoomManager {
     const session = this.requireRoom(roomCodeInput);
     const playerId = PlayerIdSchemaFromInput(playerIdInput);
     const game = this.requireHotTake(session);
-    const playerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
+    this.assertActiveRoundPlayer(session, playerId);
+    const playerIds = this.getRoundPlayerIds(session);
     session.hotTake = submitHotTakeAnswer(
       game,
       playerId,
@@ -873,10 +727,10 @@ export class RoomManager {
       session.hotTake = revealHotTakeAnswers(
         session.hotTake,
         Date.now(),
-        this.hotTakeVotingDurationMs,
+        this.gameRegistry.duration('hot-take', 'voting'),
       );
       session.state = setPhase(session.state, 'voting');
-      this.scheduleHotTakeDeadline(session.state.roomCode, session);
+      this.scheduleCurrentGameDeadline(session.state.roomCode, session);
     }
 
     return {
@@ -889,31 +743,15 @@ export class RoomManager {
     const session = this.requireRoom(roomCodeInput);
     this.expireGameIfNeeded(session);
     const playerId = PlayerIdSchemaFromInput(playerIdInput);
-    if (session.state.gameId === SUSPECT_GAME_ID) {
-      return this.castSuspectVote(roomCodeInput, playerId, entryId);
-    }
-    if (session.state.gameId === DRAWN_OUT_GAME_ID) {
-      const game = this.requireDrawnOut(session);
-      const targetPlayerId = PlayerIdSchemaFromInput(entryId);
-      session.drawnOut = submitDrawnOutVote(game, playerId, targetPlayerId, Date.now());
-      session.state = setPhase(session.state, drawnOutRoomPhase(session.drawnOut.status));
-      if (session.drawnOut.status === 'results') this.clearGameDeadline(session.state.roomCode);
-      else this.scheduleDrawnOutDeadline(session.state.roomCode, session);
-      return {
-        snapshot: this.getSnapshot(session),
-        playerState: this.getPrivatePlayerState(session, playerId),
-      };
-    }
-    const game = this.requireHotTake(session);
-    const playerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
-    session.hotTake = submitHotTakeVote(game, playerId, entryId, Date.now());
-
-    if (allHotTakePlayersVoted(session.hotTake, playerIds)) {
-      session.hotTake = revealHotTakeVotes(session.hotTake);
-      session.state = setPhase(session.state, 'results');
-      this.clearGameDeadline(session.state.roomCode);
-    }
-
+    this.assertActiveRoundPlayer(session, playerId);
+    const now = Date.now();
+    const transition = this.gameRegistry.castVote(
+      session.state.gameId,
+      this.getGameActionContext(session, now),
+      playerId,
+      entryId,
+    );
+    this.applyGameTransition(session, transition, now);
     return {
       snapshot: this.getSnapshot(session),
       playerState: this.getPrivatePlayerState(session, playerId),
@@ -924,15 +762,15 @@ export class RoomManager {
     const session = this.requireRoom(roomCodeInput);
     this.expireGameIfNeeded(session);
     const playerId = PlayerIdSchemaFromInput(playerIdInput);
-    const game = this.requireSuspect(session);
-    const playerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
-    const targets = parseSuspectVoteChoice(choice);
-    session.suspect = submitSuspectVote(game, playerId, targets, playerIds, Date.now());
-    if (allSuspectPlayersVoted(session.suspect, playerIds)) {
-      session.suspect = revealSuspectVotes(session.suspect);
-      session.state = setPhase(session.state, 'results');
-      this.clearGameDeadline(session.state.roomCode);
-    }
+    this.assertActiveRoundPlayer(session, playerId);
+    const now = Date.now();
+    const transition = this.gameRegistry.castVote(
+      session.state.gameId,
+      this.getGameActionContext(session, now),
+      playerId,
+      choice,
+    );
+    this.applyGameTransition(session, transition, now);
     return {
       snapshot: this.getSnapshot(session),
       playerState: this.getPrivatePlayerState(session, playerId),
@@ -950,87 +788,13 @@ export class RoomManager {
 
   revealResults(roomCodeInput: string, hostTokenInput: string): RoomSnapshot {
     const session = this.requireAuthorizedSession(roomCodeInput, hostTokenInput);
-
-    if (session.state.gameId === GROUPTHINK_GAME_ID) {
-      return this.revealGroupthinkResults(roomCodeInput, hostTokenInput);
-    }
-
-    if (session.state.gameId === SUSPECT_GAME_ID) {
-      const game = this.requireSuspect(session);
-      const playerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
-      if (session.state.phase === 'input') {
-        session.suspect = revealSuspectAnswers(
-          game,
-          playerIds,
-          Date.now(),
-          this.suspectAlibiDurationMs,
-          this.suspectVotingDurationMs,
-        );
-        session.state = setPhase(
-          session.state,
-          session.suspect.status === 'alibi' ? 'alibi' : 'voting',
-        );
-        this.scheduleSuspectDeadline(session.state.roomCode, session);
-        return this.getSnapshot(session);
-      }
-      if (session.state.phase === 'alibi') {
-        session.suspect = expireSuspectAlibi(game, Date.now(), this.suspectVotingDurationMs);
-        session.state = setPhase(session.state, 'voting');
-        this.scheduleSuspectDeadline(session.state.roomCode, session);
-        return this.getSnapshot(session);
-      }
-      if (session.state.phase === 'voting') {
-        session.suspect = revealSuspectVotes(game);
-        session.state = setPhase(session.state, 'results');
-        this.clearGameDeadline(session.state.roomCode);
-        return this.getSnapshot(session);
-      }
-      throw new RoomManagerError('INVALID_STATE', 'This Suspect round is not waiting for results.');
-    }
-
-    if (session.state.gameId === DRAWN_OUT_GAME_ID) {
-      const game = this.requireDrawnOut(session);
-      session.drawnOut = revealDrawnOutStep(
-        game,
-        Date.now(),
-        this.drawnOutTurnDurationMs,
-        this.drawnOutGuessDurationMs,
-      );
-      session.state = setPhase(session.state, drawnOutRoomPhase(session.drawnOut.status));
-      if (session.drawnOut.status === 'results') this.clearGameDeadline(session.state.roomCode);
-      else this.scheduleDrawnOutDeadline(session.state.roomCode, session);
-      return this.getSnapshot(session);
-    }
-
-    if (session.state.gameId !== HOT_TAKE_GAME_ID || !session.hotTake) {
-      throw new RoomManagerError('INVALID_STATE', 'This room is not running a playable game.');
-    }
-
-    if (session.state.phase === 'input') {
-      session.hotTake = revealHotTakeAnswers(
-        session.hotTake,
-        Date.now(),
-        this.hotTakeVotingDurationMs,
-      );
-      if (Object.keys(session.hotTake.answers).length < 2) {
-        session.hotTake = revealHotTakeVotes(session.hotTake);
-        session.state = setPhase(session.state, 'results');
-        this.clearGameDeadline(session.state.roomCode);
-        return this.getSnapshot(session);
-      }
-      session.state = setPhase(session.state, 'voting');
-      this.scheduleHotTakeDeadline(session.state.roomCode, session);
-      return this.getSnapshot(session);
-    }
-
-    if (session.state.phase === 'voting') {
-      session.hotTake = revealHotTakeVotes(session.hotTake);
-      session.state = setPhase(session.state, 'results');
-      this.clearGameDeadline(session.state.roomCode);
-      return this.getSnapshot(session);
-    }
-
-    throw new RoomManagerError('INVALID_STATE', 'This round is not waiting for results.');
+    const now = Date.now();
+    const transition = this.gameRegistry.reveal(
+      session.state.gameId,
+      this.getGameActionContext(session, now),
+    );
+    this.applyGameTransition(session, transition, now);
+    return this.getSnapshot(session);
   }
 
   advanceGroupthink(roomCodeInput: string, hostTokenInput: string): RoomSnapshot {
@@ -1040,23 +804,25 @@ export class RoomManager {
       throw new RoomManagerError('INVALID_STATE', 'Results must be revealed before scoring.');
     }
 
-    session.state = addPlayerScores(session.state, game.roundScores);
+    this.applyRoundScores(session, game.roundScores);
+    this.purgeRemovedPlayers(session);
+    if (game.roundNumber < game.totalRounds) this.activateQueuedPlayers(session);
     session.groupthink = advanceGroupthinkRound(
       game,
       session.groupthinkPrompts ??
-        this.getGroupthinkPrompts(
+        this.gameRegistry.getGroupthinkPrompts(
           session.state.settings.contentMode,
           session.state.settings.promptMode,
         ),
       Date.now(),
-      this.groupthinkInputDurationMs,
+      this.gameRegistry.duration('groupthink', 'input'),
     );
     session.state = setPhase(
       session.state,
       session.groupthink.status === 'complete' ? 'winner' : 'input',
     );
     if (session.groupthink.status === 'input') {
-      this.scheduleGroupthinkDeadline(session.state.roomCode, session);
+      this.scheduleCurrentGameDeadline(session.state.roomCode, session);
     } else {
       this.clearGameDeadline(session.state.roomCode);
     }
@@ -1065,363 +831,74 @@ export class RoomManager {
 
   advanceRound(roomCodeInput: string, hostTokenInput: string): RoomSnapshot {
     const session = this.requireAuthorizedSession(roomCodeInput, hostTokenInput);
-    if (session.state.gameId === GROUPTHINK_GAME_ID) {
-      return this.advanceGroupthink(roomCodeInput, hostTokenInput);
-    }
-    if (session.state.gameId === SUSPECT_GAME_ID) {
-      return this.advanceSuspect(roomCodeInput, hostTokenInput);
-    }
-    if (session.state.gameId === DRAWN_OUT_GAME_ID) {
-      return this.advanceDrawnOut(roomCodeInput, hostTokenInput);
-    }
-    if (session.state.gameId !== HOT_TAKE_GAME_ID || !session.hotTake) {
-      throw new RoomManagerError('INVALID_STATE', 'This room is not running a playable game.');
-    }
     if (session.state.phase !== 'results') {
       throw new RoomManagerError('INVALID_STATE', 'Results must be revealed before advancing.');
     }
-
-    session.state = addPlayerScores(session.state, session.hotTake.roundScores);
-    session.hotTake = advanceHotTakeRound(
-      session.hotTake,
-      session.hotTakePrompts ??
-        this.getHotTakePrompts(
-          session.state.settings.contentMode,
-          session.state.settings.promptMode,
-        ),
-      Date.now(),
-      this.hotTakeInputDurationMs,
+    const now = Date.now();
+    const transition = this.gameRegistry.advance(
+      session.state.gameId,
+      this.getGameActionContext(session, now),
+      (roundScores, hasNextRound) => {
+        this.applyRoundScores(session, roundScores);
+        this.purgeRemovedPlayers(session);
+        if (hasNextRound) this.activateQueuedPlayers(session);
+        return this.getRoundPlayerIds(session);
+      },
     );
-    session.state = setPhase(
-      session.state,
-      session.hotTake.status === 'complete' ? 'winner' : 'input',
-    );
-    if (session.hotTake.status === 'input') {
-      this.scheduleHotTakeDeadline(session.state.roomCode, session);
-    } else {
-      this.clearGameDeadline(session.state.roomCode);
-    }
-    return this.getSnapshot(session);
-  }
-
-  private advanceSuspect(roomCodeInput: string, hostTokenInput: string): RoomSnapshot {
-    const session = this.requireAuthorizedSession(roomCodeInput, hostTokenInput);
-    const game = this.requireSuspect(session);
-    if (session.state.phase !== 'results') {
-      throw new RoomManagerError('INVALID_STATE', 'Results must be revealed before advancing.');
-    }
-    session.state = addPlayerScores(session.state, game.roundScores);
-    session.suspect = advanceSuspectRound(
-      game,
-      session.suspectPrompts ??
-        this.getSuspectPrompts(
-          session.state.settings.contentMode,
-          session.state.settings.promptMode,
-        ),
-      Date.now(),
-      this.suspectInputDurationMs,
-      this.suspectAlibiDurationMs,
-      this.suspectVotingDurationMs,
-    );
-    session.state = setPhase(
-      session.state,
-      session.suspect.status === 'complete'
-        ? 'winner'
-        : session.suspect.status === 'voting'
-          ? 'voting'
-          : 'input',
-    );
-    if (session.suspect.status === 'complete') this.clearGameDeadline(session.state.roomCode);
-    else this.scheduleSuspectDeadline(session.state.roomCode, session);
-    return this.getSnapshot(session);
-  }
-
-  private advanceDrawnOut(roomCodeInput: string, hostTokenInput: string): RoomSnapshot {
-    const session = this.requireAuthorizedSession(roomCodeInput, hostTokenInput);
-    const game = this.requireDrawnOut(session);
-    if (session.state.phase !== 'results') {
-      throw new RoomManagerError('INVALID_STATE', 'Results must be revealed before advancing.');
-    }
-    session.state = addPlayerScores(session.state, game.roundScores);
-    session.drawnOut = advanceDrawnOutRound(
-      game,
-      session.drawnOutPrompts ??
-        this.getDrawnOutPrompts(
-          session.state.settings.contentMode,
-          session.state.settings.promptMode,
-        ),
-      Date.now(),
-      this.drawnOutTurnDurationMs,
-    );
-    session.state = setPhase(session.state, drawnOutRoomPhase(session.drawnOut.status));
-    if (session.drawnOut.status === 'complete') this.clearGameDeadline(session.state.roomCode);
-    else this.scheduleDrawnOutDeadline(session.state.roomCode, session);
+    this.applyGameTransition(session, transition, now);
     return this.getSnapshot(session);
   }
 
   private expireGameIfNeeded(session: RoomSession, now = Date.now()): void {
-    if (session.groupthink?.status === 'input' && session.groupthink.inputDeadlineAt !== null) {
-      if (now >= session.groupthink.inputDeadlineAt) {
-        session.groupthink = revealGroupthink(session.groupthink);
-        session.state = setPhase(session.state, 'results', now);
-        this.clearGameDeadline(session.state.roomCode);
-      }
-      return;
-    }
+    if (!session.state.gameId) return;
+    const deadlineAt = this.gameRegistry.deadlineAt(session.state.gameId, session);
+    if (deadlineAt === null || now < deadlineAt) return;
+    const transition = this.gameRegistry.expire(
+      session.state.gameId,
+      this.getGameActionContext(session, now),
+    );
+    this.applyGameTransition(session, transition, now);
+  }
 
-    if (session.drawnOut?.deadlineAt !== null && session.drawnOut?.deadlineAt !== undefined) {
-      if (now >= session.drawnOut.deadlineAt) {
-        session.drawnOut = expireDrawnOutStep(
-          session.drawnOut,
-          now,
-          this.drawnOutTurnDurationMs,
-          this.drawnOutGuessDurationMs,
-        );
-        session.state = setPhase(session.state, drawnOutRoomPhase(session.drawnOut.status), now);
-        if (session.drawnOut.status === 'results') this.clearGameDeadline(session.state.roomCode);
-        else this.scheduleDrawnOutDeadline(session.state.roomCode, session);
-      }
-      return;
-    }
+  private getGameActionContext(session: RoomSession, now: number): GameActionContext {
+    return {
+      slots: session,
+      playerIds: this.getRoundPlayerIds(session),
+      playerNames: Object.fromEntries(
+        Object.values(session.state.players).map((player) => [player.id, player.name]),
+      ),
+      settings: session.state.settings,
+      now,
+    };
+  }
 
-    const suspect = session.suspect;
-    if (suspect) {
-      const playerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
-      if (
-        suspect.status === 'input' &&
-        suspect.inputDeadlineAt !== null &&
-        now >= suspect.inputDeadlineAt
-      ) {
-        session.suspect = revealSuspectAnswers(
-          suspect,
-          playerIds,
-          now,
-          this.suspectAlibiDurationMs,
-          this.suspectVotingDurationMs,
-        );
-        session.state = setPhase(
-          session.state,
-          session.suspect.status === 'alibi' ? 'alibi' : 'voting',
-          now,
-        );
-        this.scheduleSuspectDeadline(session.state.roomCode, session);
-        return;
-      }
-      if (
-        suspect.status === 'alibi' &&
-        suspect.alibiDeadlineAt !== null &&
-        now >= suspect.alibiDeadlineAt
-      ) {
-        session.suspect = expireSuspectAlibi(suspect, now, this.suspectVotingDurationMs);
-        session.state = setPhase(session.state, 'voting', now);
-        this.scheduleSuspectDeadline(session.state.roomCode, session);
-        return;
-      }
-      if (
-        suspect.status === 'voting' &&
-        suspect.votingDeadlineAt !== null &&
-        now >= suspect.votingDeadlineAt
-      ) {
-        session.suspect = revealSuspectVotes(suspect);
-        session.state = setPhase(session.state, 'results', now);
-        this.clearGameDeadline(session.state.roomCode);
-      }
-      return;
-    }
-
-    const game = session.hotTake;
-    if (!game) return;
-    if (game.status === 'input' && game.inputDeadlineAt !== null && now >= game.inputDeadlineAt) {
-      session.hotTake = revealHotTakeAnswers(game, now, this.hotTakeVotingDurationMs);
-      if (Object.keys(session.hotTake.answers).length < 2) {
-        session.hotTake = revealHotTakeVotes(session.hotTake);
-        session.state = setPhase(session.state, 'results', now);
-        this.clearGameDeadline(session.state.roomCode);
-      } else {
-        session.state = setPhase(session.state, 'voting', now);
-        this.scheduleHotTakeDeadline(session.state.roomCode, session);
-      }
-      return;
-    }
-
-    if (
-      game.status === 'voting' &&
-      game.votingDeadlineAt !== null &&
-      now >= game.votingDeadlineAt
-    ) {
-      session.hotTake = revealHotTakeVotes(game);
-      session.state = setPhase(session.state, 'results', now);
+  private applyGameTransition(session: RoomSession, transition: GameTransition, now: number): void {
+    session.state = setPhase(session.state, transition.phase, now);
+    if (transition.scheduleDeadline) {
+      this.scheduleCurrentGameDeadline(session.state.roomCode, session);
+    } else {
       this.clearGameDeadline(session.state.roomCode);
     }
   }
 
-  private scheduleGroupthinkDeadline(roomCode: RoomCode, session: RoomSession): void {
+  private scheduleCurrentGameDeadline(roomCode: RoomCode, session: RoomSession): void {
     this.clearGameDeadline(roomCode);
-    const deadlineAt = session.groupthink?.inputDeadlineAt;
-    if (!deadlineAt || session.groupthink?.status !== 'input') return;
-
+    if (!session.state.gameId) return;
+    const gameId = session.state.gameId;
+    const deadlineAt = this.gameRegistry.deadlineAt(gameId, session);
+    if (deadlineAt === null) return;
     const timer = setTimeout(
       () => {
         const current = this.rooms.get(roomCode);
-        if (
-          !current ||
-          current.groupthink?.status !== 'input' ||
-          current.groupthink.inputDeadlineAt !== deadlineAt
-        ) {
-          return;
-        }
-
-        current.groupthink = revealGroupthink(current.groupthink);
-        current.state = setPhase(current.state, 'results');
-        this.inputTimers.delete(roomCode);
-        this.notifySnapshotListeners(roomCode, this.getSnapshot(current));
-      },
-      Math.max(0, deadlineAt - Date.now()),
-    );
-    timer.unref?.();
-    this.inputTimers.set(roomCode, timer);
-  }
-
-  private scheduleHotTakeDeadline(roomCode: RoomCode, session: RoomSession): void {
-    this.clearGameDeadline(roomCode);
-    const game = session.hotTake;
-    const deadlineAt =
-      game?.status === 'input'
-        ? game.inputDeadlineAt
-        : game?.status === 'voting'
-          ? game.votingDeadlineAt
-          : null;
-    if (!deadlineAt || !game || (game.status !== 'input' && game.status !== 'voting')) return;
-
-    const status = game.status;
-    const timer = setTimeout(
-      () => {
-        const current = this.rooms.get(roomCode);
-        if (
-          !current ||
-          current.hotTake?.status !== status ||
-          (status === 'input'
-            ? current.hotTake.inputDeadlineAt
-            : current.hotTake.votingDeadlineAt) !== deadlineAt
-        ) {
-          return;
-        }
-
-        if (status === 'input') {
-          current.hotTake = revealHotTakeAnswers(
-            current.hotTake,
-            Date.now(),
-            this.hotTakeVotingDurationMs,
-          );
-          if (Object.keys(current.hotTake.answers).length < 2) {
-            current.hotTake = revealHotTakeVotes(current.hotTake);
-            current.state = setPhase(current.state, 'results');
-            this.inputTimers.delete(roomCode);
-          } else {
-            current.state = setPhase(current.state, 'voting');
-            this.scheduleHotTakeDeadline(roomCode, current);
-          }
-        } else {
-          current.hotTake = revealHotTakeVotes(current.hotTake);
-          current.state = setPhase(current.state, 'results');
-          this.inputTimers.delete(roomCode);
-        }
-        this.notifySnapshotListeners(roomCode, this.getSnapshot(current));
-      },
-      Math.max(0, deadlineAt - Date.now()),
-    );
-    timer.unref?.();
-    this.inputTimers.set(roomCode, timer);
-  }
-
-  private scheduleSuspectDeadline(roomCode: RoomCode, session: RoomSession): void {
-    this.clearGameDeadline(roomCode);
-    const game = session.suspect;
-    const deadlineAt =
-      game?.status === 'input'
-        ? game.inputDeadlineAt
-        : game?.status === 'alibi'
-          ? game.alibiDeadlineAt
-          : game?.status === 'voting'
-            ? game.votingDeadlineAt
-            : null;
-    if (!deadlineAt || !game || !['input', 'alibi', 'voting'].includes(game.status)) return;
-
-    const status = game.status;
-    const timer = setTimeout(
-      () => {
-        const current = this.rooms.get(roomCode);
-        if (!current || current.suspect?.status !== status) return;
-        const currentDeadline =
-          status === 'input'
-            ? current.suspect.inputDeadlineAt
-            : status === 'alibi'
-              ? current.suspect.alibiDeadlineAt
-              : current.suspect.votingDeadlineAt;
+        if (!current || current.state.gameId !== gameId) return;
+        const currentDeadline = this.gameRegistry.deadlineAt(gameId, current);
         if (currentDeadline !== deadlineAt) return;
-
         const now = Date.now();
-        const playerIds = Object.keys(current.state.players).map(PlayerIdSchemaFromInput);
-        if (status === 'input') {
-          current.suspect = revealSuspectAnswers(
-            current.suspect,
-            playerIds,
-            now,
-            this.suspectAlibiDurationMs,
-            this.suspectVotingDurationMs,
-          );
-          current.state = setPhase(
-            current.state,
-            current.suspect.status === 'alibi' ? 'alibi' : 'voting',
-          );
-          this.scheduleSuspectDeadline(roomCode, current);
-        } else if (status === 'alibi') {
-          current.suspect = expireSuspectAlibi(current.suspect, now, this.suspectVotingDurationMs);
-          current.state = setPhase(current.state, 'voting');
-          this.scheduleSuspectDeadline(roomCode, current);
-        } else {
-          current.suspect = revealSuspectVotes(current.suspect);
-          current.state = setPhase(current.state, 'results');
-          this.inputTimers.delete(roomCode);
-        }
-        this.notifySnapshotListeners(roomCode, this.getSnapshot(current));
-      },
-      Math.max(0, deadlineAt - Date.now()),
-    );
-    timer.unref?.();
-    this.inputTimers.set(roomCode, timer);
-  }
-
-  private scheduleDrawnOutDeadline(roomCode: RoomCode, session: RoomSession): void {
-    this.clearGameDeadline(roomCode);
-    const deadlineAt = session.drawnOut?.deadlineAt;
-    if (
-      !deadlineAt ||
-      !session.drawnOut ||
-      ['results', 'complete'].includes(session.drawnOut.status)
-    ) {
-      return;
-    }
-    const status = session.drawnOut.status;
-    const timer = setTimeout(
-      () => {
-        const current = this.rooms.get(roomCode);
-        if (
-          !current ||
-          current.drawnOut?.status !== status ||
-          current.drawnOut.deadlineAt !== deadlineAt
-        ) {
-          return;
-        }
-        current.drawnOut = expireDrawnOutStep(
-          current.drawnOut,
-          Date.now(),
-          this.drawnOutTurnDurationMs,
-          this.drawnOutGuessDurationMs,
+        const transition = this.gameRegistry.expire(
+          gameId,
+          this.getGameActionContext(current, now),
         );
-        current.state = setPhase(current.state, drawnOutRoomPhase(current.drawnOut.status));
-        if (current.drawnOut.status === 'results') this.inputTimers.delete(roomCode);
-        else this.scheduleDrawnOutDeadline(roomCode, current);
+        this.applyGameTransition(current, transition, now);
         this.notifySnapshotListeners(roomCode, this.getSnapshot(current));
       },
       Math.max(0, deadlineAt - Date.now()),
@@ -1458,12 +935,308 @@ export class RoomManager {
       if (binding.roomCode === roomCode) this.socketBindings.delete(socketId);
     });
     session.playerSocketIds.clear();
+    Object.keys(session.state.players).forEach((playerId) =>
+      this.cancelReconnectExpiry(roomCode, PlayerIdSchemaFromInput(playerId)),
+    );
     delete session.hostSocketId;
+  }
+
+  private removePlayer(session: RoomSession, playerId: PlayerId): RemovedPlayer {
+    const roomCode = session.state.roomCode;
+    const player = session.state.players[playerId];
+    if (!player || player.status === 'removed') {
+      throw new RoomManagerError('UNAUTHORIZED', 'Player authorization failed.');
+    }
+
+    const socketId = session.playerSocketIds.get(playerId) ?? null;
+    this.cancelReconnectExpiry(roomCode, playerId);
+    if (socketId) this.socketBindings.delete(socketId);
+    session.playerSocketIds.delete(playerId);
+    for (const [token, tokenPlayerId] of session.playerTokens) {
+      if (tokenPlayerId === playerId) session.playerTokens.delete(token);
+    }
+
+    if (session.roundPlayerIds.includes(playerId)) {
+      session.state = setPlayerConnectionStatus(session.state, playerId, 'removed');
+      this.reconcileRemovedRoundPlayer(session, playerId);
+    } else {
+      const players = { ...session.state.players };
+      delete players[playerId];
+      session.state = { ...session.state, players, updatedAt: Date.now() };
+    }
+
+    return { roomCode, playerId, socketId, snapshot: this.getSnapshot(session) };
+  }
+
+  private reconnectTimerKey(roomCode: RoomCode, playerId: PlayerId): string {
+    return `${roomCode}:${playerId}`;
+  }
+
+  private cancelReconnectExpiry(roomCode: RoomCode, playerId: PlayerId): void {
+    const key = this.reconnectTimerKey(roomCode, playerId);
+    const timer = this.reconnectTimers.get(key);
+    if (timer) clearTimeout(timer);
+    this.reconnectTimers.delete(key);
+  }
+
+  private scheduleReconnectExpiry(
+    session: RoomSession,
+    playerId: PlayerId,
+    reconnectDeadlineAt: number,
+  ): void {
+    const roomCode = session.state.roomCode;
+    this.cancelReconnectExpiry(roomCode, playerId);
+    const timer = setTimeout(
+      () => {
+        const current = this.rooms.get(roomCode);
+        const player = current?.state.players[playerId];
+        if (
+          !current ||
+          player?.status !== 'disconnected' ||
+          player.reconnectDeadlineAt !== reconnectDeadlineAt
+        ) {
+          return;
+        }
+        const removed = this.expireDisconnectedPlayer(current, playerId);
+        this.notifySnapshotListeners(roomCode, removed.snapshot);
+      },
+      Math.max(0, reconnectDeadlineAt - Date.now()),
+    );
+    timer.unref?.();
+    this.reconnectTimers.set(this.reconnectTimerKey(roomCode, playerId), timer);
+  }
+
+  private expireDisconnectedPlayer(session: RoomSession, playerId: PlayerId): RemovedPlayer {
+    const player = session.state.players[playerId];
+    if (!player || player.status !== 'disconnected') {
+      throw new RoomManagerError('INVALID_STATE', 'That player is no longer reconnecting.');
+    }
+    return this.removePlayer(session, playerId);
+  }
+
+  private reconcileRemovedRoundPlayer(session: RoomSession, playerId: PlayerId): void {
+    const playerIds = this.getRoundPlayerIds(session);
+    const now = Date.now();
+
+    if (
+      session.groupthink?.status === 'input' &&
+      (playerIds.length === 0 || allPlayersSubmitted(session.groupthink, playerIds))
+    ) {
+      session.groupthink = revealGroupthink(session.groupthink);
+      session.state = setPhase(session.state, 'results', now);
+      this.clearGameDeadline(session.state.roomCode);
+      return;
+    }
+
+    if (
+      session.hotTake?.status === 'input' &&
+      (playerIds.length === 0 || allHotTakePlayersSubmitted(session.hotTake, playerIds))
+    ) {
+      session.hotTake = revealHotTakeAnswers(
+        session.hotTake,
+        now,
+        this.gameRegistry.duration('hot-take', 'voting'),
+      );
+      if (Object.keys(session.hotTake.answers).length < 2) {
+        session.hotTake = revealHotTakeVotes(session.hotTake);
+        session.state = setPhase(session.state, 'results', now);
+        this.clearGameDeadline(session.state.roomCode);
+      } else {
+        session.state = setPhase(session.state, 'voting', now);
+        this.scheduleCurrentGameDeadline(session.state.roomCode, session);
+      }
+      return;
+    }
+
+    if (session.hotTake?.status === 'voting') {
+      const eligibleVoters = playerIds.filter(
+        (id) =>
+          session.hotTake?.answers[id] &&
+          Object.keys(session.hotTake.answers).some((ownerId) => ownerId !== id),
+      );
+      if (eligibleVoters.length === 0 || allHotTakePlayersVoted(session.hotTake, playerIds)) {
+        session.hotTake = revealHotTakeVotes(session.hotTake);
+        session.state = setPhase(session.state, 'results', now);
+        this.clearGameDeadline(session.state.roomCode);
+      }
+      return;
+    }
+
+    if (
+      session.suspect?.status === 'input' &&
+      (playerIds.length === 0 || allSuspectPlayersAnswered(session.suspect, playerIds))
+    ) {
+      session.suspect = revealSuspectAnswers(
+        session.suspect,
+        playerIds,
+        now,
+        this.gameRegistry.duration('suspect', 'alibi'),
+        this.gameRegistry.duration('suspect', 'voting'),
+      );
+      session.state = setPhase(
+        session.state,
+        session.suspect.status === 'alibi' ? 'alibi' : 'voting',
+        now,
+      );
+      this.scheduleCurrentGameDeadline(session.state.roomCode, session);
+      return;
+    }
+
+    if (session.suspect?.status === 'alibi' && session.suspect.alibiPlayerId === playerId) {
+      session.suspect = expireSuspectAlibi(
+        session.suspect,
+        now,
+        this.gameRegistry.duration('suspect', 'voting'),
+      );
+      session.state = setPhase(session.state, 'voting', now);
+      this.scheduleCurrentGameDeadline(session.state.roomCode, session);
+      return;
+    }
+
+    if (
+      session.suspect?.status === 'voting' &&
+      (playerIds.length === 0 || allSuspectPlayersVoted(session.suspect, playerIds))
+    ) {
+      session.suspect = revealSuspectVotes(session.suspect);
+      session.state = setPhase(session.state, 'results', now);
+      this.clearGameDeadline(session.state.roomCode);
+      return;
+    }
+
+    if (session.drawnOut) this.reconcileRemovedDrawnOutPlayer(session, playerId, now);
+  }
+
+  private reconcileRemovedDrawnOutPlayer(
+    session: RoomSession,
+    playerId: PlayerId,
+    now: number,
+  ): void {
+    let game = this.requireDrawnOut(session);
+    if (game.activePlayerId === playerId) {
+      game = revealDrawnOutStep(
+        game,
+        now,
+        this.gameRegistry.duration('drawn-out', 'turn'),
+        this.gameRegistry.duration('drawn-out', 'guess'),
+      );
+    }
+    for (let skipped = 0; skipped < game.playerOrder.length; skipped += 1) {
+      const activePlayerId = game.activePlayerId;
+      if (
+        !activePlayerId ||
+        session.state.players[activePlayerId]?.status !== 'removed' ||
+        !['telephone', 'fake-drawing'].includes(game.status)
+      ) {
+        break;
+      }
+      game = revealDrawnOutStep(
+        game,
+        now,
+        this.gameRegistry.duration('drawn-out', 'turn'),
+        this.gameRegistry.duration('drawn-out', 'guess'),
+      );
+    }
+
+    const activePlayers = this.getRoundPlayerIds(session);
+    if (
+      game.status === 'guessing' &&
+      activePlayers
+        .filter((id) => id !== game.artistPlayerId)
+        .every((id) => game.guesses[id] !== undefined)
+    ) {
+      game = revealDrawnOutStep(
+        game,
+        now,
+        this.gameRegistry.duration('drawn-out', 'turn'),
+        this.gameRegistry.duration('drawn-out', 'guess'),
+      );
+    } else if (
+      game.status === 'fake-voting' &&
+      activePlayers.every((id) => game.votes[id] !== undefined)
+    ) {
+      game = revealDrawnOutStep(
+        game,
+        now,
+        this.gameRegistry.duration('drawn-out', 'turn'),
+        this.gameRegistry.duration('drawn-out', 'guess'),
+      );
+    }
+
+    session.drawnOut = game;
+    session.state = setPhase(session.state, drawnOutRoomPhase(game.status), now);
+    if (game.status === 'results') this.clearGameDeadline(session.state.roomCode);
+    else this.scheduleCurrentGameDeadline(session.state.roomCode, session);
   }
 
   private assertHost(session: RoomSession, hostToken: SessionToken): void {
     if (session.hostToken !== hostToken) {
       throw new RoomManagerError('UNAUTHORIZED', 'Host authorization failed.');
+    }
+  }
+
+  private getRoundPlayerIds(session: RoomSession): readonly PlayerId[] {
+    return session.roundPlayerIds.filter(
+      (playerId) => session.state.players[playerId]?.status !== 'removed',
+    );
+  }
+
+  private assertActiveRoundPlayer(session: RoomSession, playerId: PlayerId): void {
+    if (!session.state.players[playerId] || session.state.players[playerId].status === 'removed') {
+      throw new RoomManagerError('UNAUTHORIZED', 'Player session is not part of this room.');
+    }
+    if (!session.roundPlayerIds.includes(playerId)) {
+      throw new RoomManagerError(
+        'INVALID_STATE',
+        'This player is spectating the current round and will join the next round.',
+      );
+    }
+  }
+
+  private activateQueuedPlayers(session: RoomSession): void {
+    const nextRoundPlayerIds = Object.values(session.state.players)
+      .filter((player) => player.status !== 'removed')
+      .map((player) => player.id);
+    const queuedPlayerIds = nextRoundPlayerIds.filter(
+      (playerId) => !session.roundPlayerIds.includes(playerId),
+    );
+    if (queuedPlayerIds.length === 0) return;
+
+    session.roundPlayerIds = nextRoundPlayerIds;
+    if (session.drawnOut) {
+      session.drawnOut = {
+        ...session.drawnOut,
+        playerOrder: [
+          ...session.drawnOut.playerOrder.filter((playerId) =>
+            nextRoundPlayerIds.includes(playerId),
+          ),
+          ...queuedPlayerIds,
+        ],
+      };
+    }
+  }
+
+  private applyRoundScores(session: RoomSession, scores: Readonly<Record<string, number>>): void {
+    const activeScores = Object.fromEntries(
+      Object.entries(scores).filter(
+        ([playerId]) => session.state.players[playerId]?.status !== 'removed',
+      ),
+    );
+    session.state = addPlayerScores(session.state, activeScores);
+  }
+
+  private purgeRemovedPlayers(session: RoomSession): void {
+    const players = Object.fromEntries(
+      Object.entries(session.state.players).filter(([, player]) => player.status !== 'removed'),
+    ) as RoomState['players'];
+    session.state = { ...session.state, players, updatedAt: Date.now() };
+    session.roundPlayerIds = session.roundPlayerIds.filter((playerId) =>
+      Boolean(players[playerId]),
+    );
+    if (session.drawnOut) {
+      session.drawnOut = {
+        ...session.drawnOut,
+        playerOrder: session.drawnOut.playerOrder.filter((playerId) => Boolean(players[playerId])),
+      };
     }
   }
 
@@ -1507,91 +1280,77 @@ export class RoomManager {
     const playerNames = Object.fromEntries(
       Object.values(session.state.players).map((player) => [player.id, player.name]),
     );
-    return {
+    const visibleState = {
       state: toPublicRoomState(session.state),
-      game:
-        session.groupthink && session.state.gameId === GROUPTHINK_GAME_ID
-          ? getGroupthinkPublicView(session.groupthink, Object.keys(session.state.players).length)
-          : session.hotTake && session.state.gameId === HOT_TAKE_GAME_ID
-            ? getHotTakePublicView(
-                session.hotTake,
-                Object.keys(session.state.players).length,
-                playerNames,
-              )
-            : session.suspect && session.state.gameId === SUSPECT_GAME_ID
-              ? getSuspectPublicView(session.suspect, Object.keys(session.state.players).length)
-              : session.drawnOut && session.state.gameId === DRAWN_OUT_GAME_ID
-                ? getDrawnOutPublicView(session.drawnOut, Object.keys(session.state.players).length)
-                : null,
+      roster: {
+        roundPlayerIds: session.roundPlayerIds,
+        queuedPlayerIds:
+          session.state.phase === 'lobby'
+            ? []
+            : Object.keys(session.state.players)
+                .map(PlayerIdSchemaFromInput)
+                .filter(
+                  (playerId) =>
+                    session.state.players[playerId]?.status !== 'removed' &&
+                    !session.roundPlayerIds.includes(playerId),
+                ),
+      },
+      game: this.gameRegistry.publicView(session.state.gameId, {
+        slots: session,
+        playerIds: this.getRoundPlayerIds(session),
+        playerNames,
+      }),
+    };
+    const fingerprint = JSON.stringify(visibleState);
+    if (session.snapshotFingerprint !== fingerprint) {
+      session.snapshotRevision += 1;
+      session.snapshotFingerprint = fingerprint;
+    }
+    return {
+      protocolVersion: ROOM_RIOT_PROTOCOL_VERSION,
+      revision: session.snapshotRevision,
+      ...visibleState,
     };
   }
 
   private getPrivatePlayerState(session: RoomSession, playerId: PlayerId): PlayerGameView | null {
+    if (!session.roundPlayerIds.includes(playerId)) return null;
     const playerNames = Object.fromEntries(
       Object.values(session.state.players).map((player) => [player.id, player.name]),
     );
-    if (session.groupthink && session.state.gameId === GROUPTHINK_GAME_ID) {
-      return getGroupthinkPlayerView(session.groupthink, playerId);
-    }
-    if (session.hotTake && session.state.gameId === HOT_TAKE_GAME_ID) {
-      return getHotTakePlayerView(session.hotTake, playerId, playerNames);
-    }
-    if (session.suspect && session.state.gameId === SUSPECT_GAME_ID) {
-      const playerIds = Object.keys(session.state.players).map(PlayerIdSchemaFromInput);
-      return getSuspectPlayerView(session.suspect, playerId, playerIds);
-    }
-    if (session.drawnOut && session.state.gameId === DRAWN_OUT_GAME_ID) {
-      return getDrawnOutPlayerView(session.drawnOut, playerId);
-    }
-    return null;
+    return this.gameRegistry.playerView(
+      session.state.gameId,
+      {
+        slots: session,
+        playerIds: this.getRoundPlayerIds(session),
+        playerNames,
+      },
+      playerId,
+    );
   }
 
-  private getGroupthinkPrompts(
-    contentMode: ContentMode,
-    promptMode: PromptMode = 'default',
-  ): readonly GroupthinkPrompt[] {
-    if (promptMode === 'ai') return generateGroupthinkPrompts(contentMode);
-    const cached = this.groupthinkPrompts.get(contentMode);
-    if (cached) return cached;
-    const prompts = loadGroupthinkPrompts(contentMode);
-    this.groupthinkPrompts.set(contentMode, prompts);
-    return prompts;
+  private assertSupportedRoomCapacity(gameId: SupportedGameId, settings: RoomSettings): void {
+    const limits = this.gameRegistry.playerLimits(gameId, settings.drawnOutMode);
+    if (settings.maxPlayers < limits.minimum || settings.maxPlayers > limits.maximum) {
+      throw new RoomManagerError(
+        'PLAYER_LIMIT',
+        `${gameId} rooms support a capacity of ${limits.minimum} to ${limits.maximum} players.`,
+      );
+    }
   }
 
-  private getHotTakePrompts(
-    contentMode: ContentMode,
-    promptMode: PromptMode = 'default',
-  ): readonly HotTakePrompt[] {
-    if (promptMode === 'ai') return generateHotTakePrompts(contentMode);
-    const cached = this.hotTakePrompts.get(contentMode);
-    if (cached) return cached;
-    const prompts = loadHotTakePrompts(contentMode);
-    this.hotTakePrompts.set(contentMode, prompts);
-    return prompts;
-  }
-
-  private getSuspectPrompts(
-    contentMode: ContentMode,
-    promptMode: PromptMode = 'default',
-  ): readonly SuspectPrompt[] {
-    if (promptMode === 'ai') return generateSuspectPrompts(contentMode);
-    const cached = this.suspectPrompts.get(contentMode);
-    if (cached) return cached;
-    const prompts = loadSuspectPrompts(contentMode);
-    this.suspectPrompts.set(contentMode, prompts);
-    return prompts;
-  }
-
-  private getDrawnOutPrompts(
-    contentMode: ContentMode,
-    promptMode: PromptMode = 'default',
-  ): readonly DrawnOutPrompt[] {
-    if (promptMode === 'ai') return generateDrawnOutPrompts(contentMode);
-    const cached = this.drawnOutPrompts.get(contentMode);
-    if (cached) return cached;
-    const prompts = loadDrawnOutPrompts(contentMode);
-    this.drawnOutPrompts.set(contentMode, prompts);
-    return prompts;
+  private assertSupportedPlayerCount(
+    gameId: SupportedGameId,
+    settings: RoomSettings,
+    playerCount: number,
+  ): void {
+    const limits = this.gameRegistry.playerLimits(gameId, settings.drawnOutMode);
+    if (playerCount < limits.minimum || playerCount > limits.maximum) {
+      throw new RoomManagerError(
+        'PLAYER_LIMIT',
+        `${gameId} requires ${limits.minimum} to ${limits.maximum} players; this room has ${playerCount}.`,
+      );
+    }
   }
 
   private createRoomCode(): RoomCode {
@@ -1638,20 +1397,4 @@ function PlayerIdSchemaFromUuid(): PlayerId {
 
 function PlayerIdSchemaFromInput(input: string): PlayerId {
   return PlayerIdSchema.parse(input);
-}
-
-function parseSuspectVoteChoice(choice: string): readonly PlayerId[] {
-  if (choice === 'none') return [];
-  const [prefix, value] = choice.split(':', 2);
-  if (!value || (prefix !== 'player' && prefix !== 'players')) {
-    throw new RoomManagerError('INVALID_STATE', 'That accusation choice is invalid.');
-  }
-  const values = value.split(',').filter(Boolean);
-  if (prefix === 'player' && values.length !== 1) {
-    throw new RoomManagerError('INVALID_STATE', 'That accusation choice is invalid.');
-  }
-  if (prefix === 'players' && values.length !== 2) {
-    throw new RoomManagerError('INVALID_STATE', 'That accusation choice is invalid.');
-  }
-  return values.map(PlayerIdSchemaFromInput);
 }

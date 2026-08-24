@@ -1,0 +1,94 @@
+/* Shared-screen display mode: explicit density layouts, never whole-screen scaling. */
+.display-page[data-game-id] {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.display-page[data-game-id] > .notice {
+  flex: 0 0 auto;
+}
+
+.display-page[data-game-id] > .content {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.display-page[data-game-id] .display-experience {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  margin-inline: auto;
+  padding: max(5vh, env(safe-area-inset-top)) max(5vw, env(safe-area-inset-right))
+    max(5vh, env(safe-area-inset-bottom)) max(5vw, env(safe-area-inset-left));
+  overflow: hidden;
+  font-size: clamp(18px, 2.222vh, 48px);
+}
+
+@media (min-height: 1080px) {
+  .display-page[data-game-id] .display-experience {
+    font-size: clamp(24px, 2.222vh, 48px);
+  }
+}
+
+.display-page[data-game-id] .display-experience .experience-grid {
+  min-height: 0;
+  height: calc(100% - 5.5rem);
+  overflow: hidden;
+}
+
+.display-page[data-game-id] .display-experience .consensus-stage,
+.display-page[data-game-id] .display-experience .heat-stage,
+.display-page[data-game-id] .display-experience .suspect-stage,
+.display-page[data-game-id] .display-experience .stage-copy,
+.display-page[data-game-id] .display-experience .mind-roster,
+.display-page[data-game-id] .display-experience .audience-roster,
+.display-page[data-game-id] .display-experience .jury-roster,
+.display-page[data-game-id] .display-experience .lab-room-pass,
+.display-page[data-game-id] .display-experience .heat-room-pass,
+.display-page[data-game-id] .display-experience .suspect-room-pass {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.display-page[data-game-id] .display-experience.density-compact .experience-grid {
+  gap: clamp(0.5rem, 1vw, 1rem);
+}
+
+.display-page[data-game-id]
+  .display-experience.display-density-stage.density-paged
+  .experience-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.display-page[data-game-id]
+  .display-experience.display-density-stage.density-paged
+  .experience-grid
+  > :last-child {
+  display: none;
+}
+
+.display-page[data-game-id]
+  .display-experience.display-density-roster.density-paged
+  .tv-density__items {
+  grid-template-columns: minmax(0, 1fr);
+  font-size: 0.72em;
+}
+
+.display-page[data-game-id]
+  .display-experience.display-density-roster.density-paged
+  .tv-density__prompt {
+  display: none;
+}
+
+.display-page[data-game-id] .tv-density-shell,
+.display-page[data-game-id] .phase-aware-join {
+  max-height: 100%;
+  overflow: hidden;
+}

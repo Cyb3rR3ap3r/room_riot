@@ -17,6 +17,13 @@ export const DRAWN_OUT_POINTS_CHAIN_LINK = 50;
 export const DRAWN_OUT_POINTS_CHAIN_RESEMBLANCE = 100;
 export const DRAWN_OUT_POINTS_FAKE_VOTE = 100;
 export const DRAWN_OUT_POINTS_FAKE_SURVIVAL = 150;
+export const DRAWN_OUT_MAX_PLAYERS = 10;
+export const DRAWN_OUT_MAX_STROKES_PER_TURN = 16;
+export const DRAWN_OUT_MAX_POINTS_PER_STROKE = 256;
+export const DRAWN_OUT_MAX_POINTS_PER_TURN =
+  DRAWN_OUT_MAX_STROKES_PER_TURN * DRAWN_OUT_MAX_POINTS_PER_STROKE;
+export const DRAWN_OUT_MAX_TOTAL_STROKES = DRAWN_OUT_MAX_PLAYERS * DRAWN_OUT_MAX_STROKES_PER_TURN;
+export const DRAWN_OUT_MAX_TOTAL_POINTS = DRAWN_OUT_MAX_PLAYERS * DRAWN_OUT_MAX_POINTS_PER_TURN;
 
 export const DrawnOutModeSchema = z.enum(['classic', 'telephone', 'fake-artist']);
 export type DrawnOutMode = z.infer<typeof DrawnOutModeSchema>;
@@ -99,6 +106,9 @@ export interface DrawnOutPublicView {
   readonly chain: readonly DrawnOutChainEntry[];
   readonly guesses: readonly DrawnOutGuessView[];
   readonly votes: readonly DrawnOutVoteView[];
+  readonly completedTurnCount: number;
+  readonly guessCount: number;
+  readonly voteCount: number;
   readonly submittedCount: number;
   readonly totalPlayers: number;
   readonly roundScores: readonly { readonly playerId: PlayerId; readonly points: number }[];
@@ -185,6 +195,9 @@ export function createDrawnOutSession(
   avoidFirstPromptId?: string,
 ): DrawnOutSessionState {
   if (playerIds.length < 3) throw new Error('Drawn Out requires at least three players.');
+  if (playerIds.length > DRAWN_OUT_MAX_PLAYERS) {
+    throw new Error(`Drawn Out supports at most ${DRAWN_OUT_MAX_PLAYERS} players.`);
+  }
   if (!Number.isInteger(totalRounds) || totalRounds < 1) {
     throw new Error('Drawn Out requires at least one round.');
   }
@@ -216,8 +229,17 @@ export function submitDrawnOutDrawing(
   guessDurationMs = DRAWN_OUT_GUESS_DURATION_MS,
 ): DrawnOutSessionState {
   assertBeforeDeadline(session, now);
-  const drawing = DrawingDataSchema.parse(drawingInput);
+  const parsedDrawing = DrawingDataSchema.safeParse(drawingInput);
+  if (!parsedDrawing.success) {
+    throw new Error('Drawing data is invalid or exceeds the supported canvas budget.');
+  }
+  const drawing = parsedDrawing.data;
   if (drawing.strokes.length === 0) throw new Error('Add at least one stroke before submitting.');
+  if (drawing.strokes.length > DRAWN_OUT_MAX_STROKES_PER_TURN) {
+    throw new Error(
+      `A drawing turn can contain at most ${DRAWN_OUT_MAX_STROKES_PER_TURN} strokes.`,
+    );
+  }
 
   if (session.status === 'drawing') {
     if (session.artistPlayerId !== playerId) throw new Error('Only the featured artist can draw.');
@@ -236,9 +258,18 @@ export function submitDrawnOutDrawing(
 
   if (session.status === 'fake-drawing') {
     assertActivePlayer(session, playerId);
-    const combined = DrawingDataSchema.parse({
-      strokes: [...(session.drawing?.strokes ?? []), ...drawing.strokes],
-    });
+    const combinedStrokes = [...(session.drawing?.strokes ?? []), ...drawing.strokes];
+    if (combinedStrokes.length > DRAWN_OUT_MAX_TOTAL_STROKES) {
+      throw new Error('The shared canvas has reached its total stroke budget.');
+    }
+    const combinedPointCount = combinedStrokes.reduce(
+      (total, stroke) => total + stroke.points.length,
+      0,
+    );
+    if (combinedPointCount > DRAWN_OUT_MAX_TOTAL_POINTS) {
+      throw new Error('The shared canvas has reached its total point budget.');
+    }
+    const combined: DrawingData = { strokes: combinedStrokes };
     const currentIndex = session.playerOrder.indexOf(playerId);
     const nextPlayer = session.playerOrder[currentIndex + 1] ?? null;
     return nextPlayer
@@ -372,6 +403,7 @@ export function advanceDrawnOutRound(
   prompts: readonly DrawnOutPrompt[],
   now = Date.now(),
   turnDurationMs = DRAWN_OUT_TURN_DURATION_MS,
+  activePlayerIds: readonly PlayerId[] = session.playerOrder,
 ): DrawnOutSessionState {
   if (session.status !== 'results') throw new Error('Results must be revealed before advancing.');
   if (session.roundNumber >= session.totalRounds) {
@@ -384,7 +416,12 @@ export function advanceDrawnOutRound(
     ordered.find((prompt) => !session.usedPromptIds.includes(prompt.id)) ??
     prompts[session.roundNumber % prompts.length];
   if (!nextPrompt) throw new Error('Drawn Out could not select the next prompt.');
-  const rotatedPlayers = [...session.playerOrder.slice(1), session.playerOrder[0]!];
+  const retainedPlayers = session.playerOrder.filter((playerId) =>
+    activePlayerIds.includes(playerId),
+  );
+  const addedPlayers = activePlayerIds.filter((playerId) => !retainedPlayers.includes(playerId));
+  const nextPlayers = [...retainedPlayers, ...addedPlayers];
+  const rotatedPlayers = [...nextPlayers.slice(1), nextPlayers[0]!];
   const next = createRoundState(
     session.mode,
     nextPrompt,
@@ -400,7 +437,7 @@ export function advanceDrawnOutRound(
 
 export function getDrawnOutPublicView(
   session: DrawnOutSessionState,
-  totalPlayers: number,
+  _totalPlayers: number,
 ): DrawnOutPublicView {
   const reveal = session.status === 'results' || session.status === 'complete';
   const guesses = reveal
@@ -437,17 +474,40 @@ export function getDrawnOutPublicView(
           .map(([playerId, count]) => ({ playerId, count }))
           .sort((a, b) => b.count - a.count)
       : [],
-    submittedCount:
-      session.status === 'guessing'
-        ? Object.keys(session.guesses).length
-        : session.status === 'fake-voting'
-          ? Object.keys(session.votes).length
-          : session.chain.length,
-    totalPlayers,
+    completedTurnCount: completedDrawingTurns(session),
+    guessCount: Object.keys(session.guesses).length,
+    voteCount: Object.keys(session.votes).length,
+    submittedCount: currentPhaseSubmissionCount(session),
+    totalPlayers: session.playerOrder.length,
     roundScores: reveal
       ? Object.entries(session.roundScores).map(([playerId, points]) => ({ playerId, points }))
       : [],
   };
+}
+
+function completedDrawingTurns(session: DrawnOutSessionState): number {
+  if (session.mode === 'classic') return session.status === 'drawing' ? 0 : 1;
+  if (session.mode === 'telephone') {
+    // The initial phrase seeds the chain but is not a completed player turn.
+    return Math.max(0, session.chain.length - 1);
+  }
+  if (session.status === 'fake-drawing') {
+    const activeIndex = session.activePlayerId
+      ? session.playerOrder.indexOf(session.activePlayerId)
+      : session.playerOrder.length;
+    return Math.max(0, activeIndex);
+  }
+  return session.playerOrder.length;
+}
+
+function currentPhaseSubmissionCount(session: DrawnOutSessionState): number {
+  if (session.status === 'drawing') return 0;
+  if (session.status === 'guessing') return Object.keys(session.guesses).length;
+  if (session.status === 'telephone') return completedDrawingTurns(session);
+  if (session.status === 'fake-drawing') return completedDrawingTurns(session);
+  if (session.status === 'fake-voting') return Object.keys(session.votes).length;
+  if (session.mode === 'classic') return Object.keys(session.guesses).length;
+  return completedDrawingTurns(session);
 }
 
 export function getDrawnOutPlayerView(

@@ -1,0 +1,42 @@
+.game-groupthink {
+  --game-accent: #29e9f4;
+  --game-accent-strong: #2374ff;
+  --game-glow: rgba(41, 233, 244, 0.2);
+  --game-surface: rgba(10, 54, 91, 0.66);
+}
+
+.game-hot-take {
+  --game-accent: #ff3ea9;
+  --game-accent-strong: #9d46ff;
+  --game-glow: rgba(255, 62, 169, 0.2);
+  --game-surface: rgba(84, 21, 86, 0.66);
+}
+
+.game-suspect {
+  --game-accent: #ffb31a;
+  --game-accent-strong: #ff3d7f;
+  --game-glow: rgba(255, 61, 127, 0.2);
+  --game-surface: rgba(46, 19, 48, 0.72);
+}
+
+.page.game-groupthink,
+.page.game-hot-take,
+.page.game-suspect {
+  background:
+    radial-gradient(circle at 100% 0, var(--game-glow), transparent 28rem),
+    radial-gradient(circle at 0 100%, var(--game-glow), transparent 24rem);
+}
+
+.page.game-groupthink .phase-card,
+.game-detail.game-groupthink {
+  border-color: color-mix(in srgb, var(--game-accent) 65%, transparent);
+  background: linear-gradient(135deg, rgba(41, 233, 244, 0.13), transparent 48%), var(--surface);
+}
+
+.page.game-hot-take .phase-card,
+.game-detail.game-hot-take,
+.page.game-suspect .phase-card,
+.game-detail.game-suspect {
+  border-color: color-mix(in srgb, var(--game-accent) 65%, transparent);
+  background: linear-gradient(135deg, rgba(255, 62, 169, 0.14), transparent 48%), var(--surface);
+}

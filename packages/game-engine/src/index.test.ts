@@ -30,6 +30,8 @@ test('adds validated players without mutating the prior state', () => {
     status: 'connected',
     score: 0,
     joinedAt: 200,
+    disconnectedAt: null,
+    reconnectDeadlineAt: null,
   });
   assert.equal(updated.updatedAt, 200);
 });

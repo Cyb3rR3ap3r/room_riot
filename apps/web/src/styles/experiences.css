@@ -1,0 +1,655 @@
+/* Game experiences -------------------------------------------------- */
+.page[data-game-id] {
+  width: 100%;
+  max-width: none;
+  padding: clamp(0.75rem, 1.6vw, 1.5rem);
+}
+
+.page[data-game-id] > .page-header {
+  display: none;
+}
+
+.page[data-game-id] > .notice {
+  position: fixed;
+  z-index: 30;
+  top: 0.75rem;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100vw - 2rem);
+  margin: 0;
+  transform: translateX(-50%);
+}
+
+.page[data-game-id] > .notice:empty {
+  display: none;
+}
+
+.page[data-game-id] > .content {
+  display: block;
+}
+
+.page.game-groupthink {
+  --game-primary: #23edf2;
+  --game-secondary: #4a8cff;
+  --game-accent: #ffe12f;
+  --game-panel: rgba(5, 25, 53, 0.88);
+  background:
+    linear-gradient(120deg, rgba(2, 10, 30, 0.7), rgba(2, 14, 35, 0.34)),
+    url('/assets/groupthink-lab-bg-v2.webp') center / cover fixed;
+}
+
+.page.game-hot-take {
+  --game-primary: #ff2da7;
+  --game-secondary: #8c3eff;
+  --game-accent: #ffb51e;
+  --game-panel: rgba(27, 4, 40, 0.9);
+  background:
+    linear-gradient(120deg, rgba(10, 2, 19, 0.66), rgba(25, 0, 28, 0.4)),
+    url('/assets/hot-take-stage-bg-v2.webp') center / cover fixed;
+}
+
+.page.game-suspect {
+  --game-primary: #ff3d7f;
+  --game-secondary: #6d4aff;
+  --game-accent: #ffb31a;
+  --game-panel: rgba(18, 12, 34, 0.92);
+  background:
+    linear-gradient(120deg, rgba(4, 7, 24, 0.72), rgba(24, 5, 28, 0.42)),
+    url('/assets/suspect-bg-v2.webp') center / cover fixed;
+}
+
+.experience-shell {
+  position: relative;
+  min-height: calc(100svh - 3rem);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--game-primary) 42%, transparent);
+  background: rgba(3, 9, 25, 0.72);
+  box-shadow:
+    0 2rem 6rem rgba(0, 0, 0, 0.55),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(18px) saturate(1.16);
+}
+
+.consensus-lab {
+  border-radius: 2rem;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(35, 237, 242, 0.1), transparent 40%),
+    linear-gradient(150deg, rgba(4, 20, 50, 0.92), rgba(2, 10, 28, 0.86));
+}
+
+.live-heat {
+  border-color: rgba(255, 45, 167, 0.5);
+  border-radius: 0.6rem;
+  clip-path: polygon(0 0, 96% 0, 100% 3.5rem, 100% 100%, 3% 100%, 0 calc(100% - 2rem));
+  background:
+    radial-gradient(circle at 50% 120%, rgba(255, 76, 29, 0.2), transparent 42%),
+    linear-gradient(145deg, rgba(24, 3, 42, 0.94), rgba(8, 3, 21, 0.9));
+}
+
+.case-room {
+  border-color: rgba(255, 61, 127, 0.55);
+  border-radius: 1rem;
+  background:
+    radial-gradient(circle at 55% 20%, rgba(255, 179, 26, 0.1), transparent 38%),
+    linear-gradient(150deg, rgba(24, 10, 39, 0.95), rgba(5, 8, 25, 0.92));
+}
+
+.case-room .experience-topbar {
+  border-bottom-color: rgba(255, 179, 26, 0.32);
+}
+
+.experience-topbar {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  min-height: 5.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--game-primary) 25%, transparent);
+  padding: 0.65rem clamp(1rem, 2vw, 2rem);
+  background: rgba(3, 8, 23, 0.76);
+}
+
+.consensus-lab .experience-topbar {
+  border-radius: 2rem 2rem 0 0;
+}
+
+.live-heat .experience-topbar::after {
+  position: absolute;
+  right: 0;
+  bottom: -0.2rem;
+  width: 42%;
+  height: 0.28rem;
+  content: '';
+  background: linear-gradient(90deg, transparent, var(--game-primary), var(--game-accent));
+  box-shadow: 0 0 1.2rem var(--game-primary);
+}
+
+.experience-title,
+.experience-live-status {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.experience-title > div {
+  display: grid;
+}
+
+.experience-logo {
+  width: 4.35rem;
+  height: 4.35rem;
+  object-fit: contain;
+  filter: drop-shadow(0 0.6rem 0.8rem rgba(0, 0, 0, 0.5));
+}
+
+.experience-title strong {
+  font:
+    900 clamp(1.35rem, 2.5vw, 2.2rem) / 1 'Arial Black',
+    'Trebuchet MS',
+    sans-serif;
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+}
+
+.experience-eyebrow {
+  color: var(--game-primary);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.experience-live-status {
+  border: 1px solid color-mix(in srgb, var(--game-primary) 35%, transparent);
+  border-radius: 999px;
+  padding: 0.55rem 0.85rem;
+  background: rgba(2, 7, 19, 0.8);
+  text-transform: uppercase;
+}
+
+.live-heat .experience-live-status {
+  border-radius: 0.25rem;
+  transform: skew(-4deg);
+}
+
+.experience-live-status > span {
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 50%;
+  background: var(--game-primary);
+  box-shadow: 0 0 0.8rem var(--game-primary);
+  animation: experience-pulse var(--motion-pulse) var(--ease-loop) infinite;
+}
+
+.experience-live-status strong {
+  font-size: 0.78rem;
+  letter-spacing: 0.09em;
+}
+
+.experience-live-status small {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.experience-grid {
+  display: grid;
+  min-height: calc(100svh - 8.5rem);
+  grid-template-columns: minmax(13rem, 0.78fr) minmax(28rem, 2.25fr) minmax(15rem, 0.9fr);
+  gap: clamp(0.7rem, 1.4vw, 1.25rem);
+  padding: clamp(0.8rem, 1.5vw, 1.4rem);
+}
+
+.lab-room-pass,
+.mind-roster,
+.audience-roster,
+.jury-roster,
+.consensus-stage,
+.heat-room-pass,
+.heat-stage,
+.suspect-room-pass,
+.suspect-stage {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.lab-room-pass,
+.mind-roster,
+.consensus-stage {
+  border: 1px solid rgba(35, 237, 242, 0.28);
+  border-radius: 1.6rem;
+  background: linear-gradient(145deg, rgba(10, 33, 67, 0.9), rgba(4, 16, 41, 0.84));
+  box-shadow: inset 0 0 2rem rgba(35, 237, 242, 0.045);
+}
+
+.heat-room-pass,
+.audience-roster,
+.heat-stage {
+  border: 1px solid rgba(255, 45, 167, 0.33);
+  border-radius: 0.45rem;
+  background: linear-gradient(150deg, rgba(44, 8, 63, 0.92), rgba(14, 3, 29, 0.88));
+  box-shadow: inset 0 0 2.5rem rgba(255, 45, 167, 0.055);
+}
+
+.suspect-room-pass,
+.jury-roster,
+.suspect-stage {
+  border: 1px solid rgba(255, 61, 127, 0.36);
+  border-radius: 0.8rem;
+  background:
+    linear-gradient(145deg, rgba(44, 17, 48, 0.92), rgba(9, 10, 29, 0.9)),
+    url('/assets/suspect-bg-v2.webp') center / cover;
+  box-shadow: inset 0 0 2.5rem rgba(255, 179, 26, 0.055);
+}
+
+.lab-room-pass,
+.heat-room-pass,
+.suspect-room-pass {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 1.1rem;
+  text-align: center;
+}
+
+.heat-room-pass {
+  clip-path: polygon(
+    0.7rem 0,
+    100% 0,
+    100% calc(100% - 0.8rem),
+    calc(100% - 0.8rem) 100%,
+    0 100%,
+    0 0.7rem
+  );
+}
+
+.suspect-room-pass {
+  border-color: rgba(255, 179, 26, 0.42);
+}
+
+.room-pass-label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.join-address {
+  max-width: 100%;
+  overflow: hidden;
+  color: white;
+  font-size: clamp(0.72rem, 1.2vw, 1rem);
+  text-overflow: ellipsis;
+}
+
+.lab-room-pass .room-code,
+.heat-room-pass .room-code,
+.suspect-room-pass .room-code {
+  margin: 0.35rem 0;
+  color: white;
+  font:
+    900 clamp(2.7rem, 5vw, 5.4rem) / 0.9 'Arial Black',
+    sans-serif;
+  letter-spacing: 0.08em;
+  text-shadow: 0 0 1.3rem var(--game-primary);
+}
+
+.heat-room-pass .room-code {
+  color: var(--game-accent);
+  font-style: italic;
+  transform: skew(-5deg);
+}
+
+.suspect-room-pass .room-code {
+  color: var(--game-accent);
+  text-shadow: 0 0 1.3rem rgba(255, 179, 26, 0.6);
+}
+
+.lab-room-pass .qr,
+.heat-room-pass .qr,
+.suspect-room-pass .qr {
+  width: min(10rem, 78%);
+  border: 0.45rem solid white;
+  border-radius: 1rem;
+  background: white;
+  box-shadow: 0 0 1.6rem color-mix(in srgb, var(--game-primary) 35%, transparent);
+}
+
+.heat-room-pass .qr {
+  border-color: var(--game-accent);
+  border-radius: 0.25rem;
+  transform: rotate(-1.5deg);
+}
+
+.suspect-room-pass .qr {
+  border-color: var(--game-accent);
+  border-radius: 0.35rem;
+}
+
+.consensus-stage,
+.heat-stage,
+.suspect-stage {
+  display: grid;
+  grid-template-rows: minmax(10rem, 0.85fr) minmax(12rem, 1.15fr);
+}
+
+.stage-art-wrap {
+  position: relative;
+  display: grid;
+  min-height: 0;
+  place-items: center;
+  overflow: hidden;
+}
+
+.stage-art-wrap::after {
+  position: absolute;
+  inset: auto 10% 0;
+  height: 3rem;
+  content: '';
+  border-radius: 50%;
+  background: var(--game-primary);
+  opacity: 0.2;
+  filter: blur(1.8rem);
+}
+
+.stage-art {
+  position: relative;
+  z-index: 1;
+  width: min(92%, 34rem);
+  height: 100%;
+  min-height: 9rem;
+  object-fit: contain;
+  filter: drop-shadow(0 1rem 1.4rem rgba(0, 0, 0, 0.45));
+}
+
+.consensus-stage .stage-art {
+  animation: reactor-float var(--motion-float) var(--ease-loop) infinite;
+}
+
+.heat-stage .stage-art {
+  width: min(95%, 38rem);
+  animation: stage-breathe var(--motion-breathe) var(--ease-loop) infinite;
+}
+
+.suspect-stage .stage-art {
+  width: min(98%, 40rem);
+  animation: case-breathe var(--motion-float) var(--ease-loop) infinite;
+}
+
+.stage-copy {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: stretch;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: clamp(1rem, 2.2vw, 2.1rem);
+  background: linear-gradient(180deg, transparent, rgba(2, 7, 20, 0.88) 18%);
+}
+
+.stage-copy h2 {
+  margin: 0;
+  font:
+    900 clamp(1.5rem, 2.7vw, 3rem) / 1.08 'Arial Black',
+    'Trebuchet MS',
+    sans-serif;
+  letter-spacing: -0.035em;
+}
+
+.heat-stage .stage-copy h2 {
+  color: white;
+  font-style: italic;
+  text-transform: uppercase;
+  text-shadow: 0.18rem 0.18rem 0 #781bd0;
+}
+
+.suspect-stage .stage-copy h2 {
+  color: #fff3d0;
+  text-shadow: 0.12rem 0.12rem 0 rgba(255, 61, 127, 0.62);
+}
+
+.experience-meter {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.experience-meter > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.experience-meter-track {
+  display: block;
+  width: 100%;
+  height: 0.75rem;
+  appearance: none;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--game-primary) 30%, transparent);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.38);
+}
+
+.experience-meter-track::-webkit-progress-bar {
+  border-radius: inherit;
+  background: transparent;
+}
+
+.live-heat .experience-meter-track {
+  border-radius: 0.15rem;
+  transform: skew(-7deg);
+}
+
+.experience-meter-track::-webkit-progress-value,
+.experience-meter-track::-moz-progress-bar {
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    var(--game-secondary),
+    var(--game-primary),
+    var(--game-accent)
+  );
+  box-shadow: 0 0 1rem var(--game-primary);
+  transition: width var(--motion-progress) var(--ease-standard);
+}
+
+.mind-roster,
+.audience-roster,
+.jury-roster {
+  padding: 1rem;
+}
+
+.experience-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 0.8rem;
+}
+
+.experience-section-title h2 {
+  margin: 0;
+  font-size: 1.08rem;
+  text-transform: uppercase;
+}
+
+.experience-section-title span {
+  color: var(--game-primary);
+  font-weight: 900;
+}
+
+.mind-grid,
+.audience-grid,
+.jury-grid {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.8rem 0 0;
+  list-style: none;
+}
+
+.mind-grid li,
+.audience-grid li,
+.jury-grid li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.58rem;
+}
+
+.mind-grid li {
+  border: 1px solid rgba(35, 237, 242, 0.2);
+  border-radius: 999px;
+  background: rgba(16, 56, 88, 0.48);
+}
+
+.audience-grid li {
+  position: relative;
+  border-left: 0.22rem solid var(--game-primary);
+  background: linear-gradient(90deg, rgba(255, 45, 167, 0.14), transparent);
+}
+
+.jury-grid li {
+  border: 1px solid rgba(255, 179, 26, 0.24);
+  border-radius: 0.35rem;
+  background: linear-gradient(90deg, rgba(255, 61, 127, 0.15), transparent);
+}
+
+.roster-avatar {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--game-primary) 17%, #11182c);
+  font-size: 1.35rem;
+  place-items: center;
+}
+
+.mind-grid li > span:last-child,
+.audience-grid li > span:last-child,
+.jury-grid li > span:last-child {
+  display: grid;
+  min-width: 0;
+}
+
+.mind-grid strong,
+.audience-grid strong,
+.jury-grid strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mind-grid small,
+.audience-grid small,
+.jury-grid small {
+  color: var(--muted);
+}
+
+.thought-clusters .answer-list,
+.take-wall .answer-list,
+.suspect-results .answer-list {
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.thought-clusters .answer-list li {
+  border-color: rgba(35, 237, 242, 0.35);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(35, 237, 242, 0.18), rgba(49, 94, 190, 0.14));
+}
+
+.take-wall .answer-list li {
+  border-color: rgba(255, 45, 167, 0.38);
+  border-radius: 0.25rem;
+  background: linear-gradient(135deg, rgba(255, 45, 167, 0.18), rgba(113, 22, 168, 0.16));
+  clip-path: polygon(
+    0.4rem 0,
+    100% 0,
+    100% calc(100% - 0.4rem),
+    calc(100% - 0.4rem) 100%,
+    0 100%,
+    0 0.4rem
+  );
+}
+
+.suspect-callout,
+.suspect-result-callout {
+  border: 1px solid rgba(255, 179, 26, 0.42);
+  border-radius: 0.45rem;
+  padding: 0.75rem 0.9rem;
+  background: rgba(255, 179, 26, 0.1);
+  color: #fff3d0;
+  font-weight: 800;
+}
+
+.suspect-vote-summary li {
+  border-color: rgba(255, 61, 127, 0.28);
+}
+
+.thought-clusters h2,
+.take-wall h2,
+.experience-scoreboard h2 {
+  margin: 0 0 0.65rem;
+  color: var(--game-primary);
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.experience-controls {
+  position: fixed;
+  z-index: 20;
+  right: 50%;
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  width: min(72rem, calc(100% - 2rem));
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--game-primary) 35%, transparent);
+  border-radius: 999px;
+  padding: 0.6rem;
+  background: rgba(3, 7, 19, 0.92);
+  box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.55);
+  transform: translateX(50%);
+  backdrop-filter: blur(18px);
+}
+
+.heat-controls {
+  border-radius: 0.35rem;
+  clip-path: polygon(0.8rem 0, 100% 0, calc(100% - 0.8rem) 100%, 0 100%);
+}
+
+.heat-controls button:not(.secondary),
+.live-heat-controller button:not(.secondary) {
+  border-radius: 0.25rem;
+  background: linear-gradient(135deg, var(--game-accent), #ff4b1f 45%, var(--game-primary));
+  clip-path: polygon(0.5rem 0, 100% 0, calc(100% - 0.5rem) 100%, 0 100%);
+}
+
+.display-experience {
+  min-height: calc(100svh - 1.5rem);
+}
+
+.display-experience .experience-grid {
+  min-height: calc(100svh - 7.5rem);
+}
+
+.display-audio-control {
+  margin-top: 0.35rem;
+}
+
+.display-audio-control button {
+  min-height: 2.5rem;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.72rem;
+}

@@ -5,6 +5,7 @@ import {
   SUSPECT_POINTS_PER_CORRECT_VOTE,
   SUSPECT_POINTS_FOR_ALIBI,
   SUSPECT_POINTS_FOR_SURVIVAL,
+  advanceSuspectRound,
   allSuspectPlayersAnswered,
   allSuspectPlayersVoted,
   createSuspectSession,
@@ -104,7 +105,7 @@ test('requires the exact pair in Double Trouble and recognizes No match', () => 
     session = submitSuspectAnswer(session, playerId, index < 2);
   });
   session = revealSuspectAnswers(session, players, 2_000);
-  assert.deepEqual(session.selectedPlayerIds, ['p1', 'p2']);
+  assert.deepEqual([...session.selectedPlayerIds].sort(), ['p1', 'p2']);
   session = submitSuspectVote(session, 'p1', ['p2', 'p3'], players, 3_000);
   assert.throws(() => submitSuspectVote(session, 'p2', ['p1'], players), /two players/i);
   session = submitSuspectVote(session, 'p2', ['p1', 'p3'], players, 3_000);
@@ -159,4 +160,62 @@ test('alibi deadline transitions to voting without accepting late text', () => {
   assert.throws(() => submitSuspectAlibi(session, 'p1', 'Too late', 3_000), /deadline/i);
   session = expireSuspectAlibi(session, 3_000, 20_000);
   assert.equal(session.status, 'voting');
+});
+
+test('seeded suspect selection is independent of eligible player order', () => {
+  const createAnswered = (orderedPlayers: readonly string[]) => {
+    let session = createSuspectSession(
+      [prompts[2]!],
+      1,
+      1_000,
+      30_000,
+      10_000,
+      20_000,
+      false,
+      undefined,
+      'fairness-seed',
+    );
+    orderedPlayers.forEach((playerId) => {
+      session = submitSuspectAnswer(session, playerId, true);
+    });
+    return revealSuspectAnswers(session, orderedPlayers, 2_000);
+  };
+
+  const forward = createAnswered(players);
+  const reverse = createAnswered([...players].reverse());
+  assert.deepEqual([...forward.selectedPlayerIds].sort(), [...reverse.selectedPlayerIds].sort());
+  assert.notDeepEqual(forward.selectedPlayerIds, players.slice(0, 2));
+});
+
+test('selection history balances exposure across repeatedly eligible players', () => {
+  const roundPrompts = Array.from({ length: 4 }, (_, index) => ({
+    id: `round-${index}`,
+    text: `Fairness prompt ${index}`,
+    roundType: 'standard' as const,
+  }));
+  let session = createSuspectSession(
+    roundPrompts,
+    4,
+    0,
+    1_000,
+    1_000,
+    1_000,
+    false,
+    undefined,
+    'balanced-seed',
+  );
+
+  for (let round = 0; round < 4; round += 1) {
+    players.forEach((playerId) => {
+      session = submitSuspectAnswer(session, playerId, true);
+    });
+    session = revealSuspectAnswers(session, players, 10 + round);
+    session = revealSuspectVotes(session);
+    if (round < 3) session = advanceSuspectRound(session, roundPrompts, 20 + round, 1_000);
+  }
+
+  assert.deepEqual(
+    players.map((playerId) => session.selectionCounts[playerId] ?? 0).sort(),
+    [1, 1, 1, 1],
+  );
 });

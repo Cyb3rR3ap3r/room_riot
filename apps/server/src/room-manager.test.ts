@@ -2,11 +2,33 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  GAME_PLAYER_LIMITS,
+  PlayerGameViewSchema,
+  RoomSnapshotSchema,
+  getGamePlayerLimits,
+} from '@room-riot/contracts';
+import type { DrawnOutMode, RoomCode, SupportedGameId } from '@room-riot/contracts';
+
+import {
   generateDrawnOutPrompts,
   generateGroupthinkPrompts,
   generateHotTakePrompts,
 } from './prompt-generator.js';
 import { RoomManager, RoomManagerError } from './room-manager.js';
+
+function joinPlayers(manager: RoomManager, roomCode: RoomCode, count: number, offset = 0): void {
+  for (let index = 0; index < count; index += 1) {
+    manager.joinRoom({
+      roomCode,
+      name: `Player ${offset + index + 1}`,
+      avatar: '🎮',
+    });
+  }
+}
+
+function isPlayerLimitError(error: unknown): boolean {
+  return error instanceof RoomManagerError && error.code === 'PLAYER_LIMIT';
+}
 
 test('creates a room with a valid host token and lobby state', () => {
   const manager = new RoomManager();
@@ -19,6 +41,27 @@ test('creates a room with a valid host token and lobby state', () => {
   assert.equal(room.snapshot.state.settings.maxPlayers, 12);
 });
 
+test('increments room revisions only when authoritative visible state changes', () => {
+  const manager = new RoomManager({ randomizePrompts: false });
+  const room = manager.createRoom({ gameId: 'groupthink', settings: { roundCount: 1 } });
+  const createdRevision = room.snapshot.revision;
+  assert.ok(Number.isInteger(createdRevision) && createdRevision > 0);
+  assert.equal(manager.getRoomSnapshot(room.roomCode).revision, createdRevision);
+
+  const joined = manager.joinRoom({
+    roomCode: room.roomCode,
+    name: 'Revision Tester',
+    avatar: '🎮',
+  });
+  assert.ok(joined.snapshot.revision > createdRevision);
+  assert.equal(manager.getRoomSnapshot(room.roomCode).revision, joined.snapshot.revision);
+
+  const started = manager.startGame(room.roomCode, room.hostToken, 'groupthink');
+  assert.ok(started.revision > joined.snapshot.revision);
+  assert.equal(manager.reconnectHost(room.roomCode, room.hostToken).revision, started.revision);
+  manager.close();
+});
+
 test('publishes the selected game while the room is in the lobby', () => {
   const manager = new RoomManager();
   const room = manager.createRoom({ gameId: 'hot-take' });
@@ -26,6 +69,152 @@ test('publishes the selected game while the room is in the lobby', () => {
   assert.equal(room.snapshot.state.phase, 'lobby');
   assert.equal(room.snapshot.state.gameId, 'hot-take');
   assert.equal(room.snapshot.game, null);
+});
+
+test('projects schema-valid public and private snapshots for every game', () => {
+  const gameIds: readonly SupportedGameId[] = ['groupthink', 'hot-take', 'suspect', 'drawn-out'];
+  for (const gameId of gameIds) {
+    const manager = new RoomManager({ randomizePrompts: false });
+    const room = manager.createRoom({ gameId });
+    const minimum = getGamePlayerLimits(gameId).minimum;
+    joinPlayers(manager, room.roomCode, minimum);
+    const started = manager.startGame(room.roomCode, room.hostToken, gameId);
+    assert.doesNotThrow(() => RoomSnapshotSchema.parse(started));
+    const playerId = started.roster.roundPlayerIds[0];
+    assert.ok(playerId);
+    assert.doesNotThrow(() =>
+      PlayerGameViewSchema.parse(manager.getPlayerState(room.roomCode, playerId)),
+    );
+    manager.close();
+  }
+});
+
+test('uses shared per-game limits for selected-room defaults and capacity validation', () => {
+  const cases: readonly {
+    gameId: SupportedGameId;
+    drawnOutMode?: DrawnOutMode;
+  }[] = [
+    { gameId: 'groupthink' },
+    { gameId: 'hot-take' },
+    { gameId: 'suspect' },
+    { gameId: 'drawn-out', drawnOutMode: 'classic' },
+    { gameId: 'drawn-out', drawnOutMode: 'telephone' },
+    { gameId: 'drawn-out', drawnOutMode: 'fake-artist' },
+  ];
+
+  for (const { gameId, drawnOutMode } of cases) {
+    const manager = new RoomManager();
+    const limits = getGamePlayerLimits(gameId, drawnOutMode);
+    const modeSettings = drawnOutMode ? { drawnOutMode } : {};
+
+    const defaultRoom = manager.createRoom({ gameId, settings: modeSettings });
+    assert.equal(defaultRoom.snapshot.state.settings.maxPlayers, limits.maximum);
+
+    const minimumRoom = manager.createRoom({
+      gameId,
+      settings: { ...modeSettings, maxPlayers: limits.minimum },
+    });
+    assert.equal(minimumRoom.snapshot.state.settings.maxPlayers, limits.minimum);
+
+    const maximumRoom = manager.createRoom({
+      gameId,
+      settings: { ...modeSettings, maxPlayers: limits.maximum },
+    });
+    assert.equal(maximumRoom.snapshot.state.settings.maxPlayers, limits.maximum);
+
+    if (limits.minimum > 1) {
+      assert.throws(
+        () =>
+          manager.createRoom({
+            gameId,
+            settings: { ...modeSettings, maxPlayers: limits.minimum - 1 },
+          }),
+        isPlayerLimitError,
+      );
+    }
+    assert.throws(
+      () =>
+        manager.createRoom({
+          gameId,
+          settings: { ...modeSettings, maxPlayers: limits.maximum + 1 },
+        }),
+      isPlayerLimitError,
+    );
+    manager.close();
+  }
+
+  assert.equal(GAME_PLAYER_LIMITS.groupthink.minimum, 1);
+  assert.equal(GAME_PLAYER_LIMITS['drawn-out'].classic.maximum, 10);
+});
+
+test('enforces every game player-count boundary when starting', () => {
+  const cases: readonly {
+    gameId: SupportedGameId;
+    drawnOutMode?: DrawnOutMode;
+  }[] = [
+    { gameId: 'groupthink' },
+    { gameId: 'hot-take' },
+    { gameId: 'suspect' },
+    { gameId: 'drawn-out', drawnOutMode: 'classic' },
+    { gameId: 'drawn-out', drawnOutMode: 'telephone' },
+    { gameId: 'drawn-out', drawnOutMode: 'fake-artist' },
+  ];
+
+  for (const { gameId, drawnOutMode } of cases) {
+    const limits = getGamePlayerLimits(gameId, drawnOutMode);
+    const manager = new RoomManager({ randomizePrompts: false });
+    const room = manager.createRoom({
+      gameId,
+      settings: {
+        ...(drawnOutMode ? { drawnOutMode } : {}),
+        maxPlayers: limits.maximum,
+        roundCount: 1,
+      },
+    });
+    joinPlayers(manager, room.roomCode, limits.minimum - 1);
+    assert.throws(
+      () => manager.startGame(room.roomCode, room.hostToken, gameId),
+      isPlayerLimitError,
+    );
+    joinPlayers(manager, room.roomCode, 1, limits.minimum - 1);
+    const started = manager.startGame(room.roomCode, room.hostToken, gameId);
+    assert.equal(started.state.players.length, limits.minimum);
+    manager.close();
+
+    const maximumManager = new RoomManager({ randomizePrompts: false });
+    const maximumRoom = maximumManager.createRoom({
+      gameId,
+      settings: {
+        ...(drawnOutMode ? { drawnOutMode } : {}),
+        maxPlayers: limits.maximum,
+        roundCount: 1,
+      },
+    });
+    joinPlayers(maximumManager, maximumRoom.roomCode, limits.maximum);
+    const maximumStarted = maximumManager.startGame(
+      maximumRoom.roomCode,
+      maximumRoom.hostToken,
+      gameId,
+    );
+    assert.equal(maximumStarted.state.players.length, limits.maximum);
+    maximumManager.close();
+
+    const overCapacityManager = new RoomManager({ randomizePrompts: false });
+    const overCapacityRoom = overCapacityManager.createRoom({
+      settings: { maxPlayers: 32, roundCount: 1, ...(drawnOutMode ? { drawnOutMode } : {}) },
+    });
+    joinPlayers(overCapacityManager, overCapacityRoom.roomCode, limits.maximum + 1);
+    assert.throws(
+      () =>
+        overCapacityManager.startGame(
+          overCapacityRoom.roomCode,
+          overCapacityRoom.hostToken,
+          gameId,
+        ),
+      isPlayerLimitError,
+    );
+    overCapacityManager.close();
+  }
 });
 
 test('supports a room-specific AI remix prompt deck', () => {
@@ -38,6 +227,8 @@ test('supports a room-specific AI remix prompt deck', () => {
     gameId: 'groupthink',
     settings: { promptMode: 'ai', roundCount: 3 },
   });
+  manager.joinRoom({ roomCode: firstRoom.roomCode, name: 'Alex', avatar: '😎' });
+  manager.joinRoom({ roomCode: secondRoom.roomCode, name: 'Blair', avatar: '👽' });
 
   const first = manager.startGame(firstRoom.roomCode, firstRoom.hostToken, 'groupthink');
   const second = manager.startGame(secondRoom.roomCode, secondRoom.hostToken, 'groupthink');
@@ -91,6 +282,8 @@ test('does not reuse the previous curated opening prompt', () => {
   const manager = new RoomManager();
   const firstRoom = manager.createRoom({ gameId: 'groupthink' });
   const secondRoom = manager.createRoom({ gameId: 'groupthink' });
+  manager.joinRoom({ roomCode: firstRoom.roomCode, name: 'Alex', avatar: '😎' });
+  manager.joinRoom({ roomCode: secondRoom.roomCode, name: 'Blair', avatar: '👽' });
 
   const first = manager.startGame(firstRoom.roomCode, firstRoom.hostToken, 'groupthink');
   const second = manager.startGame(secondRoom.roomCode, secondRoom.hostToken, 'groupthink');
@@ -127,9 +320,87 @@ test('joins a player and reconnects them with the same identity', () => {
   assert.equal(rejoined.snapshot.state.players.length, 1);
 });
 
+test('freezes the active roster and activates late joins at the next round for every game', () => {
+  const cases: readonly {
+    gameId: SupportedGameId;
+    drawnOutMode?: DrawnOutMode;
+  }[] = [
+    { gameId: 'groupthink' },
+    { gameId: 'hot-take' },
+    { gameId: 'suspect' },
+    { gameId: 'drawn-out', drawnOutMode: 'classic' },
+  ];
+
+  for (const { gameId, drawnOutMode } of cases) {
+    const manager = new RoomManager({ randomizePrompts: false });
+    const limits = getGamePlayerLimits(gameId, drawnOutMode);
+    const room = manager.createRoom({
+      gameId,
+      settings: {
+        roundCount: 2,
+        ...(drawnOutMode ? { drawnOutMode } : {}),
+      },
+    });
+    joinPlayers(manager, room.roomCode, limits.minimum);
+    const started = manager.startGame(room.roomCode, room.hostToken, gameId);
+    const initialRoundPlayerIds = started.roster.roundPlayerIds;
+    assert.equal(initialRoundPlayerIds.length, limits.minimum);
+    assert.deepEqual(started.roster.queuedPlayerIds, []);
+
+    const latePlayer = manager.joinRoom({
+      roomCode: room.roomCode,
+      name: 'Late Player',
+      avatar: '⏳',
+    });
+    assert.equal(latePlayer.playerState, null);
+    assert.deepEqual(latePlayer.snapshot.roster.roundPlayerIds, initialRoundPlayerIds);
+    assert.deepEqual(latePlayer.snapshot.roster.queuedPlayerIds, [latePlayer.playerId]);
+    assert.equal(latePlayer.snapshot.game?.totalPlayers, limits.minimum);
+
+    const reconnected = manager.joinRoom({
+      roomCode: room.roomCode,
+      name: 'Ignored reconnect name',
+      avatar: '🎮',
+      playerToken: latePlayer.playerToken,
+    });
+    assert.equal(reconnected.playerId, latePlayer.playerId);
+    assert.equal(reconnected.snapshot.state.players.length, limits.minimum + 1);
+    assert.deepEqual(reconnected.snapshot.roster.queuedPlayerIds, [latePlayer.playerId]);
+
+    assert.throws(
+      () =>
+        manager.submitAnswer(
+          room.roomCode,
+          latePlayer.playerId,
+          gameId === 'suspect' ? 'yes' : 'spectator answer',
+        ),
+      (error: unknown) =>
+        error instanceof RoomManagerError &&
+        error.code === 'INVALID_STATE' &&
+        /spectating.*next round/i.test(error.message),
+    );
+    assert.equal(manager.getRoomSnapshot(room.roomCode).game?.totalPlayers, limits.minimum);
+
+    let results = manager.getRoomSnapshot(room.roomCode);
+    for (let step = 0; results.state.phase !== 'results' && step < 20; step += 1) {
+      results = manager.revealResults(room.roomCode, room.hostToken);
+    }
+    assert.equal(results.state.phase, 'results', `${gameId} did not reach results`);
+
+    const nextRound = manager.advanceRound(room.roomCode, room.hostToken);
+    assert.equal(nextRound.roster.roundPlayerIds.length, limits.minimum + 1);
+    assert.ok(nextRound.roster.roundPlayerIds.includes(latePlayer.playerId));
+    assert.deepEqual(nextRound.roster.queuedPlayerIds, []);
+    assert.equal(nextRound.game?.totalPlayers, limits.minimum + 1);
+    assert.notEqual(manager.getPlayerState(room.roomCode, latePlayer.playerId), null);
+    manager.close();
+  }
+});
+
 test('requires the host token to start a game', () => {
   const manager = new RoomManager();
   const room = manager.createRoom({});
+  manager.joinRoom({ roomCode: room.roomCode, name: 'Alex', avatar: '😎' });
 
   assert.throws(
     () => manager.startGame(room.roomCode, '00000000-0000-4000-8000-000000000000', 'groupthink'),
@@ -178,13 +449,194 @@ test('expires inactive rooms and rejects answers after a deadline', () => {
 });
 
 test('marks a connected player offline when their socket disconnects', () => {
-  const manager = new RoomManager();
+  const manager = new RoomManager({ reconnectGraceMs: 5_000 });
   const room = manager.createRoom({});
   const joined = manager.joinRoom({ roomCode: room.roomCode, name: 'Sarah', avatar: '👽' });
   manager.bindPlayer(room.roomCode, joined.playerId, 'socket-1');
 
   const state = manager.disconnectSocket('socket-1');
   assert.equal(state?.state.players[0]?.status, 'disconnected');
+  assert.equal(state?.state.players[0]?.disconnectedAt !== null, true);
+  assert.equal(
+    (state?.state.players[0]?.reconnectDeadlineAt ?? 0) -
+      (state?.state.players[0]?.disconnectedAt ?? 0),
+    5_000,
+  );
+  manager.close();
+});
+
+test('reconnects during grace with the same identity and prior submission', () => {
+  const manager = new RoomManager({ randomizePrompts: false, reconnectGraceMs: 5_000 });
+  const room = manager.createRoom({ gameId: 'groupthink', settings: { roundCount: 1 } });
+  const player = manager.joinRoom({ roomCode: room.roomCode, name: 'Sarah', avatar: '👽' });
+  const other = manager.joinRoom({ roomCode: room.roomCode, name: 'Alex', avatar: '😎' });
+  manager.bindPlayer(room.roomCode, player.playerId, 'socket-1');
+  manager.startGame(room.roomCode, room.hostToken, 'groupthink');
+  manager.submitAnswer(room.roomCode, player.playerId, 'preserved answer');
+  const disconnected = manager.disconnectSocket('socket-1');
+  const deadline = disconnected?.state.players.find(
+    (candidate) => candidate.id === player.playerId,
+  )?.reconnectDeadlineAt;
+  assert.ok(deadline);
+
+  const rejoined = manager.joinRoom({
+    roomCode: room.roomCode,
+    name: 'Ignored name',
+    avatar: '🎮',
+    playerToken: player.playerToken,
+  });
+  manager.bindPlayer(room.roomCode, rejoined.playerId, 'socket-2');
+  assert.equal(rejoined.playerId, player.playerId);
+  assert.equal(
+    rejoined.snapshot.state.players.find((candidate) => candidate.id === player.playerId)?.status,
+    'connected',
+  );
+  assert.equal(manager.expireDisconnectedPlayers(deadline + 1), 0);
+
+  const results = manager.submitAnswer(room.roomCode, other.playerId, 'preserved answer');
+  assert.equal(results.snapshot.state.phase, 'results');
+  assert.equal(results.snapshot.game?.submittedCount, 2);
+  manager.close();
+});
+
+test('expires disconnected active players across every game and revokes their seat', () => {
+  const cases: readonly SupportedGameId[] = ['groupthink', 'hot-take', 'suspect', 'drawn-out'];
+
+  for (const gameId of cases) {
+    const manager = new RoomManager({ randomizePrompts: false, reconnectGraceMs: 5_000 });
+    const minimum = getGamePlayerLimits(gameId).minimum;
+    const room = manager.createRoom({ gameId, settings: { roundCount: 1 } });
+    const players = Array.from({ length: minimum }, (_, index) =>
+      manager.joinRoom({
+        roomCode: room.roomCode,
+        name: `Player ${index + 1}`,
+        avatar: '🎮',
+      }),
+    );
+    const dropped = players.at(-1);
+    if (!dropped) throw new Error('Expected an active player.');
+    manager.bindPlayer(room.roomCode, dropped.playerId, `${gameId}-socket`);
+    manager.startGame(room.roomCode, room.hostToken, gameId);
+
+    if (gameId === 'groupthink') {
+      players
+        .slice(0, -1)
+        .forEach((player) => manager.submitAnswer(room.roomCode, player.playerId, 'same answer'));
+    }
+
+    const disconnected = manager.disconnectSocket(`${gameId}-socket`);
+    const deadline = disconnected?.state.players.find(
+      (candidate) => candidate.id === dropped.playerId,
+    )?.reconnectDeadlineAt;
+    assert.ok(deadline);
+    assert.equal(manager.expireDisconnectedPlayers(deadline + 1), 1);
+
+    const snapshot = manager.getRoomSnapshot(room.roomCode);
+    assert.equal(
+      snapshot.state.players.find((candidate) => candidate.id === dropped.playerId)?.status,
+      'removed',
+    );
+    if (gameId !== 'drawn-out') assert.equal(snapshot.game?.totalPlayers, minimum - 1);
+    if (gameId === 'groupthink') assert.equal(snapshot.state.phase, 'results');
+    assert.throws(
+      () => manager.getPlayerIdForToken(room.roomCode, dropped.playerToken),
+      (error: unknown) => error instanceof RoomManagerError && error.code === 'UNAUTHORIZED',
+    );
+    manager.close();
+  }
+});
+
+test('voluntary leave revokes the token and immediately frees room capacity', () => {
+  const manager = new RoomManager();
+  const room = manager.createRoom({ settings: { maxPlayers: 1 } });
+  const joined = manager.joinRoom({ roomCode: room.roomCode, name: 'Sarah', avatar: '👽' });
+  manager.bindPlayer(room.roomCode, joined.playerId, 'socket-1');
+
+  const removed = manager.leavePlayer(room.roomCode, joined.playerToken);
+  assert.equal(removed.playerId, joined.playerId);
+  assert.equal(removed.socketId, 'socket-1');
+  assert.deepEqual(removed.snapshot.state.players, []);
+  assert.throws(
+    () => manager.getPlayerIdForToken(room.roomCode, joined.playerToken),
+    (error: unknown) => error instanceof RoomManagerError && error.code === 'UNAUTHORIZED',
+  );
+  assert.throws(
+    () =>
+      manager.joinRoom({
+        roomCode: room.roomCode,
+        name: 'Sarah',
+        avatar: '👽',
+        playerToken: joined.playerToken,
+      }),
+    (error: unknown) => error instanceof RoomManagerError && error.code === 'UNAUTHORIZED',
+  );
+
+  const replacement = manager.joinRoom({
+    roomCode: room.roomCode,
+    name: 'Replacement',
+    avatar: '🎮',
+  });
+  assert.notEqual(replacement.playerId, joined.playerId);
+  manager.close();
+});
+
+test('host removal preserves a frozen-round tombstone without blocking completion or scoring', () => {
+  const manager = new RoomManager({ randomizePrompts: false });
+  const room = manager.createRoom({ settings: { maxPlayers: 2, roundCount: 2 } });
+  const active = manager.joinRoom({ roomCode: room.roomCode, name: 'Active', avatar: '😎' });
+  const removed = manager.joinRoom({ roomCode: room.roomCode, name: 'Removed', avatar: '👽' });
+  manager.startGame(room.roomCode, room.hostToken, 'groupthink');
+  manager.submitAnswer(room.roomCode, active.playerId, 'same');
+
+  const result = manager.removePlayerByHost(room.roomCode, room.hostToken, removed.playerId);
+  assert.equal(result.snapshot.state.phase, 'results');
+  assert.equal(
+    result.snapshot.state.players.find((player) => player.id === removed.playerId)?.status,
+    'removed',
+  );
+  assert.ok(result.snapshot.roster.roundPlayerIds.includes(removed.playerId));
+  assert.equal(result.snapshot.game?.totalPlayers, 1);
+  assert.throws(
+    () => manager.getPlayerIdForToken(room.roomCode, removed.playerToken),
+    (error: unknown) => error instanceof RoomManagerError && error.code === 'UNAUTHORIZED',
+  );
+
+  const queued = manager.joinRoom({ roomCode: room.roomCode, name: 'Queued', avatar: '🎮' });
+  assert.ok(
+    manager.getRoomSnapshot(room.roomCode).roster.queuedPlayerIds.includes(queued.playerId),
+  );
+  const next = manager.advanceRound(room.roomCode, room.hostToken);
+  assert.equal(
+    next.state.players.some((player) => player.id === removed.playerId),
+    false,
+  );
+  assert.deepEqual(
+    new Set(next.roster.roundPlayerIds),
+    new Set([active.playerId, queued.playerId]),
+  );
+  assert.equal(next.state.players.find((player) => player.id === active.playerId)?.score, 0);
+  manager.close();
+});
+
+test('closing a room invalidates host and player sessions', () => {
+  const manager = new RoomManager();
+  const room = manager.createRoom({});
+  const player = manager.joinRoom({ roomCode: room.roomCode, name: 'Alex', avatar: '😎' });
+  manager.bindHost(room.roomCode, room.hostToken, 'host-socket');
+  manager.bindPlayer(room.roomCode, player.playerId, 'player-socket');
+
+  const closed = manager.closeRoom(room.roomCode, room.hostToken);
+  assert.deepEqual(new Set(closed.socketIds), new Set(['host-socket', 'player-socket']));
+  assert.equal(manager.hasRoom(room.roomCode), false);
+  assert.throws(
+    () => manager.reconnectHost(room.roomCode, room.hostToken),
+    (error: unknown) => error instanceof RoomManagerError && error.code === 'ROOM_NOT_FOUND',
+  );
+  assert.throws(
+    () => manager.getPlayerIdForToken(room.roomCode, player.playerToken),
+    (error: unknown) => error instanceof RoomManagerError && error.code === 'ROOM_NOT_FOUND',
+  );
+  manager.close();
 });
 
 test('runs Groupthink from input through results, scoring, and winner', () => {

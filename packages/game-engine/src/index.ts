@@ -17,7 +17,7 @@ import type {
   RoomSettings,
 } from '@room-riot/contracts';
 
-export type PlayerConnectionStatus = 'connected' | 'disconnected';
+export type PlayerConnectionStatus = 'connected' | 'disconnected' | 'removed';
 
 export interface PlayerState {
   readonly id: PlayerId;
@@ -26,6 +26,8 @@ export interface PlayerState {
   readonly status: PlayerConnectionStatus;
   readonly score: number;
   readonly joinedAt: number;
+  readonly disconnectedAt: number | null;
+  readonly reconnectDeadlineAt: number | null;
 }
 
 export interface RoomState {
@@ -57,6 +59,8 @@ export interface PublicPlayerState {
   readonly avatar: Avatar;
   readonly status: PlayerConnectionStatus;
   readonly score: number;
+  readonly disconnectedAt: number | null;
+  readonly reconnectDeadlineAt: number | null;
 }
 
 export interface PublicRoomState {
@@ -92,7 +96,10 @@ export function addPlayer(state: RoomState, input: AddPlayerInput): RoomState {
     throw new Error(`Player ${id} is already in room ${state.roomCode}.`);
   }
 
-  if (Object.keys(state.players).length >= state.settings.maxPlayers) {
+  if (
+    Object.values(state.players).filter((player) => player.status !== 'removed').length >=
+    state.settings.maxPlayers
+  ) {
     throw new Error(`Room ${state.roomCode} is full.`);
   }
 
@@ -104,6 +111,8 @@ export function addPlayer(state: RoomState, input: AddPlayerInput): RoomState {
     status: 'connected',
     score: 0,
     joinedAt: now,
+    disconnectedAt: null,
+    reconnectDeadlineAt: null,
   };
 
   return {
@@ -159,6 +168,7 @@ export function setPlayerConnectionStatus(
   playerId: string,
   status: PlayerConnectionStatus,
   now = Date.now(),
+  reconnectDeadlineAt: number | null = null,
 ): RoomState {
   const id = PlayerIdSchema.parse(playerId);
   const player = state.players[id];
@@ -174,6 +184,8 @@ export function setPlayerConnectionStatus(
       [id]: {
         ...player,
         status,
+        disconnectedAt: status === 'disconnected' ? now : null,
+        reconnectDeadlineAt: status === 'disconnected' ? reconnectDeadlineAt : null,
       },
     },
     updatedAt: now,
@@ -186,12 +198,16 @@ export function toPublicRoomState(state: RoomState): PublicRoomState {
     phase: state.phase,
     gameId: state.gameId,
     settings: state.settings,
-    players: Object.values(state.players).map(({ id, name, avatar, status, score }) => ({
-      id,
-      name,
-      avatar,
-      status,
-      score,
-    })),
+    players: Object.values(state.players).map(
+      ({ id, name, avatar, status, score, disconnectedAt, reconnectDeadlineAt }) => ({
+        id,
+        name,
+        avatar,
+        status,
+        score,
+        disconnectedAt,
+        reconnectDeadlineAt,
+      }),
+    ),
   };
 }

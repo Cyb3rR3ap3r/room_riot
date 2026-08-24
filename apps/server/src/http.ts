@@ -1,11 +1,15 @@
 import { readFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import QRCode from 'qrcode';
 
+import { SupportedGameIdSchema } from '@room-riot/contracts';
+import { INTERNAL_ERROR_MESSAGE } from '@room-riot/contracts';
 import { createInitialRoomState } from '@room-riot/game-engine';
 
+import { GAME_PAGE_ROUTES, GAME_REGISTRY_METADATA } from './game-registry.js';
 import type { RoomManager } from './room-manager.js';
 
 export interface ServerMetadata {
@@ -16,19 +20,40 @@ export interface HttpOptions {
   readonly roomManager?: RoomManager;
   readonly webRoot?: string;
   readonly publicOrigin?: string;
+  readonly enableHsts?: boolean;
 }
 
-const SECURITY_HEADERS = {
+const BASE_SECURITY_HEADERS = {
   'content-security-policy':
-    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws: wss:",
+    "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self' ws: wss:",
   'x-content-type-options': 'nosniff',
+  'x-frame-options': 'DENY',
   'referrer-policy': 'no-referrer',
+  'permissions-policy':
+    'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()',
+  'cross-origin-opener-policy': 'same-origin',
+  'cross-origin-resource-policy': 'same-origin',
 } as const;
 
-function writeJson(response: ServerResponse, statusCode: number, body: unknown): void {
+type SecurityHeaders = Record<string, string>;
+
+function buildSecurityHeaders(options: HttpOptions): SecurityHeaders {
+  if (!options.enableHsts || !isHttpsOrigin(options.publicOrigin)) return BASE_SECURITY_HEADERS;
+  return {
+    ...BASE_SECURITY_HEADERS,
+    'strict-transport-security': 'max-age=31536000; includeSubDomains',
+  };
+}
+
+function writeJson(
+  response: ServerResponse,
+  statusCode: number,
+  body: unknown,
+  securityHeaders: SecurityHeaders,
+): void {
   const payload = JSON.stringify(body);
   response.writeHead(statusCode, {
-    ...SECURITY_HEADERS,
+    ...securityHeaders,
     'content-type': 'application/json; charset=utf-8',
     'content-length': Buffer.byteLength(payload),
   });
@@ -36,24 +61,47 @@ function writeJson(response: ServerResponse, statusCode: number, body: unknown):
 }
 
 export function createRequestHandler(metadata: ServerMetadata, options: HttpOptions = {}) {
+  const securityHeaders = buildSecurityHeaders(options);
   return (request: IncomingMessage, response: ServerResponse): void => {
     let requestUrl: URL;
     try {
       requestUrl = new URL(request.url ?? '/', 'http://localhost');
     } catch {
-      writeJson(response, 400, { status: 'error', error: 'invalid_request_target' });
+      writeJson(
+        response,
+        400,
+        { status: 'error', error: 'invalid_request_target' },
+        securityHeaders,
+      );
       return;
     }
 
     if (request.method === 'GET' && requestUrl.pathname === '/healthz') {
       const engineReady = createInitialRoomState({ roomCode: 'READY', now: 0 }).phase === 'lobby';
 
-      writeJson(response, 200, {
-        status: 'ok',
-        service: 'room-riot-server',
-        version: metadata.version,
-        engineReady,
-      });
+      writeJson(
+        response,
+        200,
+        {
+          status: 'ok',
+          service: 'room-riot-server',
+          version: metadata.version,
+          engineReady,
+        },
+        securityHeaders,
+      );
+      return;
+    }
+
+    if (request.method === 'GET' && requestUrl.pathname === '/api/games') {
+      writeJson(
+        response,
+        200,
+        {
+          games: Object.values(GAME_REGISTRY_METADATA),
+        },
+        securityHeaders,
+      );
       return;
     }
 
@@ -62,41 +110,40 @@ export function createRequestHandler(metadata: ServerMetadata, options: HttpOpti
       if (qrMatch) {
         const roomCode = decodeURIComponent(qrMatch[1] ?? '');
         if (!options.roomManager.hasRoom(roomCode)) {
-          writeJson(response, 404, { status: 'error', error: 'room_not_found' });
+          writeJson(response, 404, { status: 'error', error: 'room_not_found' }, securityHeaders);
           return;
         }
 
         const gameId = options.roomManager.getRoomSnapshot(roomCode).state.gameId;
-        void writeQrCode(response, buildJoinUrl(request, roomCode, gameId, options.publicOrigin));
+        void writeQrCode(
+          response,
+          buildJoinUrl(request, roomCode, gameId, options.publicOrigin),
+          securityHeaders,
+        );
         return;
       }
     }
 
     if (request.method === 'GET' && options.webRoot) {
-      const pagePaths = new Set([
-        '/',
-        '/display',
-        '/display/groupthink',
-        '/display/hot-take',
-        '/display/suspect',
-        '/display/drawn-out',
-        '/host',
-        '/host/groupthink',
-        '/host/hot-take',
-        '/host/suspect',
-        '/host/drawn-out',
-        '/play',
-        '/play/groupthink',
-        '/play/hot-take',
-        '/play/suspect',
-        '/play/drawn-out',
-      ]);
+      if (requestUrl.pathname === '/showcase') {
+        void serveFile(
+          response,
+          resolve(options.webRoot, 'showcase.html'),
+          'text/html; charset=utf-8',
+          'no-cache',
+          securityHeaders,
+        );
+        return;
+      }
+
+      const pagePaths = new Set(['/', '/display', '/host', '/play', ...GAME_PAGE_ROUTES]);
       if (pagePaths.has(requestUrl.pathname)) {
         void serveFile(
           response,
           resolve(options.webRoot, 'index.html'),
           'text/html; charset=utf-8',
           'no-cache',
+          securityHeaders,
         );
         return;
       }
@@ -107,6 +154,7 @@ export function createRequestHandler(metadata: ServerMetadata, options: HttpOpti
           resolve(options.webRoot, requestUrl.pathname.slice(1)),
           'text/javascript; charset=utf-8',
           'no-cache',
+          securityHeaders,
         );
         return;
       }
@@ -114,21 +162,34 @@ export function createRequestHandler(metadata: ServerMetadata, options: HttpOpti
       const assetMatch = requestUrl.pathname.match(/^\/assets\/([a-z0-9][a-z0-9._-]*)$/i);
       if (assetMatch) {
         const assetName = assetMatch[1] ?? '';
-        const contentType = assetName.endsWith('.png') ? 'image/png' : 'application/octet-stream';
+        const contentType = assetName.endsWith('.webp')
+          ? 'image/webp'
+          : assetName.endsWith('.css')
+            ? 'text/css; charset=utf-8'
+            : 'application/octet-stream';
+        const cacheControl = /^room-riot\.[a-f0-9]{12}\.css$/.test(assetName)
+          ? 'public, max-age=31536000, immutable'
+          : 'public, max-age=86_400';
         void serveFile(
           response,
           resolve(options.webRoot, 'assets', assetName),
           contentType,
-          'public, max-age=86_400',
+          cacheControl,
+          securityHeaders,
         );
         return;
       }
     }
 
-    writeJson(response, 404, {
-      status: 'error',
-      error: 'not_found',
-    });
+    writeJson(
+      response,
+      404,
+      {
+        status: 'error',
+        error: 'not_found',
+      },
+      securityHeaders,
+    );
   };
 }
 
@@ -137,22 +198,29 @@ async function serveFile(
   filePath: string,
   contentType: string,
   cacheControl: string,
+  securityHeaders: SecurityHeaders,
 ): Promise<void> {
   try {
     const contents = await readFile(filePath);
     response.writeHead(200, {
-      ...SECURITY_HEADERS,
+      ...securityHeaders,
       'cache-control': cacheControl,
       'content-type': contentType,
       'content-length': contents.byteLength,
     });
     response.end(contents);
   } catch {
-    if (!response.headersSent) writeJson(response, 404, { status: 'error', error: 'not_found' });
+    if (!response.headersSent) {
+      writeJson(response, 404, { status: 'error', error: 'not_found' }, securityHeaders);
+    }
   }
 }
 
-async function writeQrCode(response: ServerResponse, joinUrl: string): Promise<void> {
+async function writeQrCode(
+  response: ServerResponse,
+  joinUrl: string,
+  securityHeaders: SecurityHeaders,
+): Promise<void> {
   try {
     const svg = await QRCode.toString(joinUrl, {
       type: 'svg',
@@ -160,25 +228,43 @@ async function writeQrCode(response: ServerResponse, joinUrl: string): Promise<v
       errorCorrectionLevel: 'M',
     });
     response.writeHead(200, {
-      ...SECURITY_HEADERS,
+      ...securityHeaders,
       'cache-control': 'no-store',
       'content-type': 'image/svg+xml; charset=utf-8',
       'content-length': Buffer.byteLength(svg),
     });
     response.end(svg);
+  } catch (error) {
+    const correlationId = randomUUID();
+    console.error(`[Room Riot ${correlationId}] QR generation failed.`, error);
+    writeJson(
+      response,
+      500,
+      {
+        status: 'error',
+        error: 'qr_generation_failed',
+        message: INTERNAL_ERROR_MESSAGE,
+        correlationId,
+      },
+      securityHeaders,
+    );
+  }
+}
+
+function isHttpsOrigin(origin: string | undefined): boolean {
+  if (!origin) return false;
+  try {
+    return new URL(origin).protocol === 'https:';
   } catch {
-    writeJson(response, 500, { status: 'error', error: 'qr_generation_failed' });
+    return false;
   }
 }
 
 export function buildJoinPath(roomCode: string, gameId: string | null): string {
-  const gamePath =
-    gameId === 'groupthink' ||
-    gameId === 'hot-take' ||
-    gameId === 'suspect' ||
-    gameId === 'drawn-out'
-      ? `/${gameId}`
-      : '';
+  const parsedGameId = SupportedGameIdSchema.safeParse(gameId);
+  const gamePath = parsedGameId.success
+    ? GAME_REGISTRY_METADATA[parsedGameId.data].routes.play.slice('/play'.length)
+    : '';
   return `/play${gamePath}?room=${encodeURIComponent(roomCode)}`;
 }
 
