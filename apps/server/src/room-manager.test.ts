@@ -360,8 +360,13 @@ test('runs Drawn Out Classic through drawing, guesses, and winner scoring', () =
   assert.equal(started.game?.id, 'drawn-out');
   if (started.game?.id !== 'drawn-out') throw new Error('Expected Drawn Out state.');
   assert.equal(started.game.prompt, null);
+  assert.equal(started.game.promptId, null);
   const artistId = started.game.artistPlayerId!;
   const artist = players.find((player) => player.playerId === artistId)!;
+  const artistState = manager.getPlayerState(room.roomCode, artistId);
+  assert.equal(artistState?.id, 'drawn-out');
+  if (artistState?.id !== 'drawn-out') throw new Error('Expected Drawn Out artist state.');
+  const privatePrompt = artistState.privatePrompt;
   const drawing = {
     strokes: [
       {
@@ -377,8 +382,14 @@ test('runs Drawn Out Classic through drawing, guesses, and winner scoring', () =
   const guessing = manager.submitDrawing(room.roomCode, artist.playerId, drawing);
   assert.equal(guessing.snapshot.state.phase, 'voting');
   const guessers = players.filter((player) => player.playerId !== artistId);
-  manager.submitAnswer(room.roomCode, guessers[0]!.playerId, 'raccoon pancake restaurant');
-  const results = manager.submitAnswer(room.roomCode, guessers[1]!.playerId, 'sleepy airplane');
+  const guesserState = manager.getPlayerState(room.roomCode, guessers[0]!.playerId);
+  assert.equal(guesserState?.id, 'drawn-out');
+  if (guesserState?.id !== 'drawn-out') throw new Error('Expected Drawn Out player state.');
+  assert.equal(guesserState.guessOptions.length, 4);
+  const correctOption = guesserState.guessOptions.find((option) => option.text === privatePrompt)!;
+  const wrongOption = guesserState.guessOptions.find((option) => option.id !== correctOption.id)!;
+  manager.submitAnswer(room.roomCode, guessers[0]!.playerId, correctOption.id);
+  const results = manager.submitAnswer(room.roomCode, guessers[1]!.playerId, wrongOption.id);
   assert.equal(results.snapshot.state.phase, 'results');
   assert.equal(results.snapshot.game?.id, 'drawn-out');
   const winner = manager.advanceRound(room.roomCode, room.hostToken);

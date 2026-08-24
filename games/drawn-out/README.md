@@ -6,7 +6,7 @@ Drawn Out is a 3–10 player drawing and guessing game designed for five rounds 
 
 ## Variants and phase loops
 
-- **Classic:** one rotating artist privately receives a ridiculous prompt, submits a drawing, and everyone else guesses. A guess earns 100 points when it matches enough significant prompt words; the artist earns 50 points for every correct guess.
+- **Classic:** one rotating artist privately receives a ridiculous prompt and submits a drawing. Everyone else privately chooses the original from four shuffled, content-mode-matched prompts. A correct choice earns 100 points; the artist earns 50 points for every correct choice.
 - **Telephone:** a rotated player chain alternates drawing and describing. Only the active player sees the previous link. The completed chain is revealed together; every contributor earns 50 points and the last player earns a 100-point resemblance bonus when the ending still overlaps the original phrase.
 - **Fake Artist:** one player is secretly omitted from the shared prompt. Players add one turn of strokes to a shared drawing, then everyone votes. Correct detectives earn 100 points; the fake artist earns 150 points when fewer than half the room identifies them.
 
@@ -25,7 +25,7 @@ Each audience pack contains 25 authored scenario seeds across animals, everyday 
 | Suspect    | Answer privately and accuse                                | Hidden yes/no match becomes deduction                | Correct accusation or survival                                    | Case clue, alibi, and jury results             |
 | Drawn Out  | Draw vector strokes, describe, guess, or bluff through art | Private prompts/roles and sequential visual handoffs | Prompt recognition, chain participation, or hidden-role detection | Live canvas, chain reveal, and art-led results |
 
-Drawn Out differs from every existing game through direct visual creation, a persistent vector canvas, role/turn rotation, and mode-specific information flow. Telephone and Fake Artist are implemented with Room Riot-specific timing, scoring, server snapshots, and vocabulary rather than copying a commercial game's text or presentation.
+Classic's four choices are selected by the server from distinct prompt families in the active content pack. Options remain stable across reconnects, are rejected when forged, and the correct prompt stays off the public display until results. Drawn Out differs from every existing game through direct visual creation, a persistent vector canvas, role/turn rotation, and mode-specific information flow. Telephone and Fake Artist are implemented with Room Riot-specific timing, scoring, server snapshots, and vocabulary rather than copying a commercial game's text or presentation.
 
 ## Research decisions
 

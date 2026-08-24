@@ -2319,26 +2319,62 @@ function renderPlayer(root: HTMLElement): void {
         }
         if (!playerState.hasSubmitted) {
           const form = document.createElement('form');
-          form.className = 'answer-form drawn-out-text-form';
-          const input = createTextInput();
-          input.maxLength = 180;
-          input.placeholder =
+          form.className =
             playerState.task === 'guess'
-              ? 'What was the original prompt?'
-              : 'Describe what you think this is…';
+              ? 'answer-form drawn-out-choice-form'
+              : 'answer-form drawn-out-text-form';
+          let answer = '';
+          if (playerState.task === 'guess') {
+            const legend = document.createElement('h3');
+            legend.textContent = 'What was the original prompt?';
+            const choices = document.createElement('div');
+            choices.className = 'drawn-out-choice-grid';
+            playerState.guessOptions.forEach((option, index) => {
+              const choice = document.createElement('button');
+              choice.type = 'button';
+              choice.className = 'drawn-out-choice';
+              choice.setAttribute('aria-pressed', 'false');
+              choice.textContent = `${index + 1}. ${option.text}`;
+              choice.addEventListener('click', () => {
+                answer = option.id;
+                choices.querySelectorAll<HTMLButtonElement>('.drawn-out-choice').forEach((card) => {
+                  card.setAttribute('aria-pressed', String(card === choice));
+                });
+              });
+              choices.append(choice);
+            });
+            form.append(legend, choices);
+          } else {
+            const input = createTextInput();
+            input.maxLength = 180;
+            input.placeholder = 'Describe what you think this is…';
+            input.addEventListener('input', () => {
+              answer = input.value;
+            });
+            form.append(input);
+          }
           const submit = createButton(
-            playerState.task === 'guess' ? 'Lock My Guess' : 'Pass This Description',
+            playerState.task === 'guess' ? 'Lock My Choice' : 'Pass This Description',
             'submit',
           );
-          form.append(input, submit);
+          form.append(submit);
           form.addEventListener('submit', (event) => {
             event.preventDefault();
-            if (!session || !input.value.trim()) return;
+            if (!session || !answer.trim()) {
+              setNotice(
+                page.notice,
+                playerState?.id === 'drawn-out' && playerState.task === 'guess'
+                  ? 'Choose one of the four prompts first.'
+                  : 'Add a description first.',
+                true,
+              );
+              return;
+            }
             submit.disabled = true;
             const request: PlayerSubmitAnswerRequest = {
               roomCode: session.roomCode,
               playerToken: session.playerToken,
-              answer: input.value,
+              answer,
             };
             socket.emit('player:submit-answer', request, (response: PlayerAnswerResponse) => {
               submit.disabled = false;
@@ -2352,6 +2388,11 @@ function renderPlayer(root: HTMLElement): void {
             });
           });
           status.append(form);
+        } else if (playerState.task === 'guess') {
+          const waiting = document.createElement('p');
+          waiting.className = 'muted';
+          waiting.textContent = `Choice locked: “${playerState.ownGuess ?? 'Mystery prompt'}” · waiting for the room.`;
+          status.append(waiting);
         }
       } else if (playerState.task === 'vote' && !playerState.hasSubmitted) {
         const form = document.createElement('form');

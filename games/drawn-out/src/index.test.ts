@@ -20,6 +20,12 @@ import {
 } from './index.js';
 
 const players = ['player-a', 'player-b', 'player-c', 'player-d'] as PlayerId[];
+const classicPrompts = [
+  { id: 'p1', text: 'A raccoon running a pancake restaurant.' },
+  { id: 'p2', text: 'A sleepy dog piloting an airplane.' },
+  { id: 'p3', text: 'A robot learning to jump rope.' },
+  { id: 'p4', text: 'A dragon afraid of birthday candles.' },
+];
 const drawing: DrawingData = {
   strokes: [
     {
@@ -43,21 +49,38 @@ test('every content mode expands to 100 unique prompts', () => {
   });
 });
 
-test('classic rotates an artist, hides the prompt, and scores recognizable guesses', () => {
-  const prompts = [{ id: 'p1', text: 'A raccoon running a pancake restaurant.' }];
-  let session = createDrawnOutSession(prompts, players, 'classic', 1, 0, 1_000);
+test('classic offers four private choices and scores the selected prompt', () => {
+  let session = createDrawnOutSession(classicPrompts, players, 'classic', 1, 0, 1_000);
   assert.equal(session.artistPlayerId, players[0]);
   assert.equal(getDrawnOutPublicView(session, players.length).prompt, null);
-  assert.equal(getDrawnOutPlayerView(session, players[0]!).privatePrompt, prompts[0]!.text);
+  assert.equal(getDrawnOutPublicView(session, players.length).promptId, null);
+  assert.equal(getDrawnOutPlayerView(session, players[0]!).privatePrompt, classicPrompts[0]!.text);
   assert.throws(() => submitDrawnOutDrawing(session, players[1]!, drawing, 10), /featured artist/);
 
   session = submitDrawnOutDrawing(session, players[0]!, drawing, 10, 1_000, 1_000);
-  session = submitDrawnOutText(session, players[1]!, 'a raccoon making pancakes', 20);
-  session = submitDrawnOutText(session, players[2]!, 'a sleepy dog', 30);
-  session = submitDrawnOutText(session, players[3]!, 'raccoon restaurant', 40);
+  const guesserView = getDrawnOutPlayerView(session, players[1]!);
+  assert.equal(guesserView.guessOptions.length, 4);
+  assert.equal(new Set(guesserView.guessOptions.map((option) => option.id)).size, 4);
+  assert.ok(guesserView.guessOptions.some((option) => option.id === classicPrompts[0]!.id));
+  assert.deepEqual(
+    getDrawnOutPlayerView(session, players[1]!).guessOptions,
+    guesserView.guessOptions,
+  );
+  assert.equal('guessOptions' in getDrawnOutPublicView(session, players.length), false);
+  assert.throws(
+    () => submitDrawnOutText(session, players[1]!, 'invented-option', 20),
+    /four provided prompts/,
+  );
+  session = submitDrawnOutText(session, players[1]!, classicPrompts[0]!.id, 20);
+  session = submitDrawnOutText(session, players[2]!, classicPrompts[1]!.id, 30);
+  session = submitDrawnOutText(session, players[3]!, classicPrompts[0]!.id, 40);
   assert.equal(session.status, 'results');
   assert.equal(session.roundScores[players[1]!], DRAWN_OUT_POINTS_CORRECT_GUESS);
   assert.equal(session.roundScores[players[0]!], DRAWN_OUT_POINTS_ARTIST_BONUS * 2);
+  assert.deepEqual(
+    getDrawnOutPublicView(session, players.length).guesses.map((guess) => guess.correct),
+    [true, false, true],
+  );
 });
 
 test('telephone alternates private drawing and description links', () => {
@@ -103,22 +126,17 @@ test('fake artist keeps the role private, combines turns, and scores survival', 
 });
 
 test('deadlines advance stalled turns and results advance to winner', () => {
-  const prompts = [
-    { id: 'p1', text: 'A robot learning to jump rope.' },
-    { id: 'p2', text: 'A dragon afraid of birthday candles.' },
-  ];
-  let session = createDrawnOutSession(prompts, players, 'classic', 1, 0, 10);
+  let session = createDrawnOutSession(classicPrompts, players, 'classic', 1, 0, 10);
   session = expireDrawnOutStep(session, 10, 10, 10);
   assert.equal(session.status, 'guessing');
   session = revealDrawnOutStep(session, 20, 10, 10);
   assert.equal(session.status, 'results');
-  session = advanceDrawnOutRound(session, prompts, 30, 10);
+  session = advanceDrawnOutRound(session, classicPrompts, 30, 10);
   assert.equal(session.status, 'complete');
 });
 
 test('drawing validation rejects oversized coordinates and duplicate submissions', () => {
-  const prompts = [{ id: 'p1', text: 'A robot learning to jump rope.' }];
-  const session = createDrawnOutSession(prompts, players, 'classic', 1, 0, 1_000);
+  const session = createDrawnOutSession(classicPrompts, players, 'classic', 1, 0, 1_000);
   assert.throws(
     () =>
       submitDrawnOutDrawing(

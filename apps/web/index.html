@@ -2260,6 +2260,43 @@
         opacity: 0.24;
       }
 
+      .drawn-out-choice-form {
+        display: grid;
+        gap: 0.8rem;
+      }
+
+      .drawn-out-choice-form h3 {
+        margin: 0;
+        color: #9cf000;
+        text-align: center;
+        text-transform: uppercase;
+      }
+
+      .drawn-out-choice-grid {
+        display: grid;
+        gap: 0.65rem;
+      }
+
+      .drawn-out-choice {
+        min-height: 4.5rem;
+        border: 2px solid rgba(156, 240, 0, 0.35);
+        border-radius: 0.9rem;
+        padding: 0.8rem 1rem;
+        background: linear-gradient(135deg, rgba(37, 13, 71, 0.96), rgba(8, 27, 48, 0.96));
+        color: white;
+        font-weight: 850;
+        line-height: 1.25;
+        text-align: left;
+      }
+
+      .drawn-out-choice[aria-pressed='true'] {
+        border-color: #ffe12c;
+        background: linear-gradient(135deg, #9cf000, #ffe12c);
+        color: #151022;
+        box-shadow: 0 0 1.4rem rgba(156, 240, 0, 0.38);
+        transform: translateY(-2px) rotate(-0.25deg);
+      }
+
       .join-drawn-out {
         border-color: rgba(156, 240, 0, 0.55);
         background:
@@ -2271,6 +2308,16 @@
       .drawn-out-controller button:not(.secondary) {
         color: #151022;
         background: linear-gradient(135deg, #9cf000, #ffe12c);
+      }
+
+      .drawn-out-controller button.drawn-out-choice {
+        background: linear-gradient(135deg, rgba(37, 13, 71, 0.96), rgba(8, 27, 48, 0.96));
+        color: white;
+      }
+
+      .drawn-out-controller button.drawn-out-choice[aria-pressed='true'] {
+        background: linear-gradient(135deg, #9cf000, #ffe12c);
+        color: #151022;
       }
 
       .display-page[data-game-id] .display-experience .drawn-out-stage,

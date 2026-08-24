@@ -65,6 +65,7 @@ export interface DrawnOutSessionState {
   readonly fakeArtistPlayerId: PlayerId | null;
   readonly drawing: DrawingData | null;
   readonly chain: readonly DrawnOutChainEntry[];
+  readonly guessOptions: readonly DrawnOutPrompt[];
   readonly guesses: Readonly<Record<PlayerId, string>>;
   readonly votes: Readonly<Record<PlayerId, PlayerId>>;
   readonly deadlineAt: number | null;
@@ -89,7 +90,7 @@ export interface DrawnOutPublicView {
   readonly roundNumber: number;
   readonly totalRounds: number;
   readonly prompt: string | null;
-  readonly promptId: string;
+  readonly promptId: string | null;
   readonly deadlineAt: number | null;
   readonly artistPlayerId: PlayerId | null;
   readonly activePlayerId: PlayerId | null;
@@ -118,6 +119,7 @@ export interface DrawnOutPlayerView {
   readonly hasSubmitted: boolean;
   readonly drawing: DrawingData | null;
   readonly candidatePlayerIds: readonly PlayerId[];
+  readonly guessOptions: readonly DrawnOutPrompt[];
   readonly ownGuess: string | null;
   readonly ownVotePlayerId: PlayerId | null;
 }
@@ -274,6 +276,9 @@ export function submitDrawnOutText(
     if (session.artistPlayerId === playerId)
       throw new Error('The artist cannot guess their own prompt.');
     if (session.guesses[playerId] !== undefined) throw new Error('This player already guessed.');
+    if (!session.guessOptions.some((option) => option.id === text)) {
+      throw new Error('Choose one of the four provided prompts.');
+    }
     const guesses = { ...session.guesses, [playerId]: text };
     const eligible = session.playerOrder.filter((id) => id !== session.artistPlayerId);
     const next = { ...session, guesses };
@@ -399,11 +404,14 @@ export function getDrawnOutPublicView(
 ): DrawnOutPublicView {
   const reveal = session.status === 'results' || session.status === 'complete';
   const guesses = reveal
-    ? Object.entries(session.guesses).map(([playerId, text]) => ({
-        playerId,
-        text,
-        correct: isRecognizableGuess(text, session.prompt.text),
-      }))
+    ? Object.entries(session.guesses).map(([playerId, promptId]) => {
+        const selectedPrompt = session.guessOptions.find((option) => option.id === promptId);
+        return {
+          playerId,
+          text: selectedPrompt?.text ?? 'Unknown prompt',
+          correct: promptId === session.prompt.id,
+        };
+      })
     : [];
   const voteCounts = new Map<PlayerId, number>();
   Object.values(session.votes).forEach((playerId) =>
@@ -416,7 +424,7 @@ export function getDrawnOutPublicView(
     roundNumber: session.roundNumber,
     totalRounds: session.totalRounds,
     prompt: reveal ? session.prompt.text : null,
-    promptId: session.prompt.id,
+    promptId: reveal ? session.prompt.id : null,
     deadlineAt: session.deadlineAt,
     artistPlayerId: session.artistPlayerId,
     activePlayerId: session.activePlayerId,
@@ -461,7 +469,7 @@ export function getDrawnOutPlayerView(
     privatePrompt = session.prompt.text;
   } else if (session.status === 'guessing' && !isArtist) {
     task = 'guess';
-    instruction = 'Guess the original drawing prompt.';
+    instruction = 'Choose which of the four prompts inspired this drawing.';
     hasSubmitted = session.guesses[playerId] !== undefined;
   } else if (session.status === 'telephone' && active) {
     const previous = session.chain.at(-1);
@@ -504,7 +512,9 @@ export function getDrawnOutPlayerView(
     drawing: session.drawing ?? latestChainDrawing(session.chain),
     candidatePlayerIds:
       task === 'vote' ? session.playerOrder.filter((candidate) => candidate !== playerId) : [],
-    ownGuess: session.guesses[playerId] ?? null,
+    guessOptions: task === 'guess' ? session.guessOptions : [],
+    ownGuess:
+      session.guessOptions.find((option) => option.id === session.guesses[playerId])?.text ?? null,
     ownVotePlayerId: session.votes[playerId] ?? null,
   };
 }
@@ -545,6 +555,7 @@ function createRoundState(
     fakeArtistPlayerId,
     drawing: mode === 'fake-artist' ? EMPTY_DRAWING : null,
     chain,
+    guessOptions: mode === 'classic' ? buildGuessOptions(prompt, prompts, roundNumber) : [],
     guesses: {},
     votes: {},
     deadlineAt: now + turnDurationMs,
@@ -566,8 +577,8 @@ function advanceTelephone(
 function revealClassic(session: DrawnOutSessionState): DrawnOutSessionState {
   const roundScores: Record<PlayerId, number> = {};
   let correctCount = 0;
-  Object.entries(session.guesses).forEach(([playerId, guess]) => {
-    if (!isRecognizableGuess(guess, session.prompt.text)) return;
+  Object.entries(session.guesses).forEach(([playerId, promptId]) => {
+    if (promptId !== session.prompt.id) return;
     roundScores[playerId] = DRAWN_OUT_POINTS_CORRECT_GUESS;
     correctCount += 1;
   });
@@ -575,6 +586,51 @@ function revealClassic(session: DrawnOutSessionState): DrawnOutSessionState {
     roundScores[session.artistPlayerId] = correctCount * DRAWN_OUT_POINTS_ARTIST_BONUS;
   }
   return { ...session, status: 'results', activePlayerId: null, deadlineAt: null, roundScores };
+}
+
+function buildGuessOptions(
+  prompt: DrawnOutPrompt,
+  prompts: readonly DrawnOutPrompt[],
+  roundNumber: number,
+): readonly DrawnOutPrompt[] {
+  const promptFamily = promptFamilyId(prompt.id);
+  const variant = promptVariant(prompt.id);
+  const candidates = [
+    ...prompts.filter((candidate) => promptVariant(candidate.id) === variant),
+    ...prompts.filter((candidate) => promptVariant(candidate.id) !== variant),
+  ];
+  const seenFamilies = new Set([promptFamily]);
+  const decoys: DrawnOutPrompt[] = [];
+  for (const candidate of candidates) {
+    const family = promptFamilyId(candidate.id);
+    if (candidate.id === prompt.id || seenFamilies.has(family)) continue;
+    seenFamilies.add(family);
+    decoys.push(candidate);
+    if (decoys.length === 3) break;
+  }
+  if (decoys.length < 3) {
+    throw new Error('Classic Drawn Out requires at least four distinct prompt families.');
+  }
+  const correctIndex = stableHash(`${prompt.id}:${roundNumber}`) % 4;
+  const options = [...decoys];
+  options.splice(correctIndex, 0, prompt);
+  return options;
+}
+
+function promptFamilyId(promptId: string): string {
+  return promptId.replace(/-frame-\d+$/, '');
+}
+
+function promptVariant(promptId: string): string {
+  return promptId.match(/-frame-(\d+)$/)?.[1] ?? 'base';
+}
+
+function stableHash(value: string): number {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+  return hash;
 }
 
 function revealTelephone(session: DrawnOutSessionState): DrawnOutSessionState {
