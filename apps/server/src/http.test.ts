@@ -144,9 +144,9 @@ test('serves the browser shell and an offline QR code for a room', async () => {
     'groupthink-reactor-v2.png',
     'hot-take-stage-bg-v2.png',
     'hot-take-podium-v2.png',
-    'suspect-icon.png',
-    'suspect-bg.png',
-    'suspect-stage.png',
+    'suspect-icon-v2.png',
+    'suspect-bg-v2.png',
+    'suspect-stage-v2.png',
   ]) {
     const assetResponse: Response = await fetch(
       `http://127.0.0.1:${address.port}/assets/${assetName}`,

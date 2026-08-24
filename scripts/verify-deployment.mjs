@@ -59,9 +59,9 @@ const checks = [
     'groupthink-reactor-v2.png',
     'hot-take-stage-bg-v2.png',
     'hot-take-podium-v2.png',
-    'suspect-icon.png',
-    'suspect-bg.png',
-    'suspect-stage.png',
+    'suspect-icon-v2.png',
+    'suspect-bg-v2.png',
+    'suspect-stage-v2.png',
   ].map((assetName) => ({
     path: `/assets/${assetName}`,
     validate: async (response) =>
