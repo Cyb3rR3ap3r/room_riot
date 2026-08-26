@@ -5,7 +5,8 @@ services:
       HOST: 0.0.0.0
       PORT: '3000'
       NODE_ENV: production
-      ROOM_RIOT_DB: /data/rooms.sqlite
+      # Local lab deployment: keep room state in memory and reset it on restart.
+      ROOM_RIOT_DB: ''
     ports:
       - '3000:3000'
     volumes:
