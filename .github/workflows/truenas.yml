@@ -164,6 +164,16 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Set up pnpm and Node.js for container smoke tests
+        uses: pnpm/setup@f7d0e5f4b1b3089d2799ef9722859e7ba314c4c8 # v1
+        with:
+          runtime: node@22
+          cache: true
+          install: false
+
+      - name: Install container smoke-test dependencies
+        run: pnpm install --filter @room-riot/server... --frozen-lockfile
+
       - name: Smoke test published image
         shell: bash
         env:
