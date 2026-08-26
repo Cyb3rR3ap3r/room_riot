@@ -5,6 +5,7 @@ services:
       HOST: 0.0.0.0
       PORT: '3000'
       NODE_ENV: production
+      ROOM_RIOT_DB: /data/rooms.sqlite
     ports:
       - '3000:3000'
     volumes:

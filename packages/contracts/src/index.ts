@@ -86,13 +86,15 @@ export type RoomPhase = z.infer<typeof RoomPhaseSchema>;
 export const ContentModeSchema = z.enum(['family', 'standard', 'after-dark']);
 export type ContentMode = z.infer<typeof ContentModeSchema>;
 
-/** Controls whether a room uses the curated prompt packs or the local AI remix generator. */
+/** Controls whether a room uses the curated prompt packs or the local Remix deck generator. */
 export const PromptModeSchema = z.enum(['default', 'ai']);
 export type PromptMode = z.infer<typeof PromptModeSchema>;
 
 export const RoomSettingsSchema = z
   .object({
     maxPlayers: z.number().int().min(1).max(32).default(12),
+    joinLocked: z.boolean().default(false),
+    drawingEnabled: z.boolean().default(true),
     roundCount: z.number().int().min(1).max(20).default(5),
     contentMode: ContentModeSchema.default('standard'),
     promptMode: PromptModeSchema.default('default'),
@@ -171,6 +173,28 @@ export const HostRoomActionRequestSchema = z
 
 export type HostRoomActionRequest = z.infer<typeof HostRoomActionRequestSchema>;
 
+export const HostJoinLockRequestSchema = HostRoomActionRequestSchema.extend({
+  locked: z.boolean(),
+});
+export type HostJoinLockRequest = z.infer<typeof HostJoinLockRequestSchema>;
+
+export const HostPauseRequestSchema = HostRoomActionRequestSchema.extend({
+  paused: z.boolean(),
+});
+export type HostPauseRequest = z.infer<typeof HostPauseRequestSchema>;
+
+export const HostDrawingRequestSchema = HostRoomActionRequestSchema.extend({
+  enabled: z.boolean(),
+});
+export type HostDrawingRequest = z.infer<typeof HostDrawingRequestSchema>;
+
+export const HostRematchRequestSchema = HostRoomActionRequestSchema.extend({
+  gameId: SupportedGameIdSchema,
+  carryScores: z.boolean().default(false),
+  settings: RoomSettingsSchema.partial().optional(),
+});
+export type HostRematchRequest = z.infer<typeof HostRematchRequestSchema>;
+
 export const HostRemovePlayerRequestSchema = HostRoomActionRequestSchema.extend({
   playerId: PlayerIdSchema,
 });
@@ -187,6 +211,17 @@ export const PlayerLeaveRoomRequestSchema = z
 
 export type PlayerLeaveRoomRequest = z.infer<typeof PlayerLeaveRoomRequestSchema>;
 
+export const PlayerReadyRequestSchema = z
+  .object({
+    actionId: ActionIdSchema,
+    roomCode: RoomCodeSchema,
+    playerToken: SessionTokenSchema,
+    ready: z.boolean(),
+  })
+  .strict();
+
+export type PlayerReadyRequest = z.infer<typeof PlayerReadyRequestSchema>;
+
 export const PlayerSubmitAnswerRequestSchema = z
   .object({
     actionId: ActionIdSchema,
@@ -194,6 +229,7 @@ export const PlayerSubmitAnswerRequestSchema = z
     playerToken: SessionTokenSchema,
     answer: z.string().trim().min(1).max(500),
     targetPlayerId: PlayerIdSchema.optional(),
+    skip: z.boolean().optional().default(false),
   })
   .strict();
 
@@ -318,7 +354,7 @@ export type EventResponse<T extends object> = ({ readonly ok: true } & T) | Even
 export const DEFAULT_ROOM_SETTINGS: RoomSettings = RoomSettingsSchema.parse({});
 
 /** Increment when a deployed client and server can no longer safely exchange snapshots. */
-export const ROOM_RIOT_PROTOCOL_VERSION = 1 as const;
+export const ROOM_RIOT_PROTOCOL_VERSION = 2 as const;
 export const ProtocolVersionSchema = z.literal(ROOM_RIOT_PROTOCOL_VERSION);
 export type ProtocolVersion = z.infer<typeof ProtocolVersionSchema>;
 
@@ -343,8 +379,12 @@ export const PublicRoomStateSchema = z
     roomCode: RoomCodeSchema,
     phase: RoomPhaseSchema,
     gameId: SupportedGameIdSchema.nullable(),
+    paused: z.boolean(),
+    pauseStartedAt: z.number().int().nonnegative().nullable(),
     settings: RoomSettingsSchema,
     players: z.array(PublicPlayerStateSchema),
+    readyPlayerIds: z.array(PlayerIdSchema).default([]),
+    readinessRequired: z.boolean().default(false),
   })
   .strict();
 export type PublicRoomState = z.infer<typeof PublicRoomStateSchema>;

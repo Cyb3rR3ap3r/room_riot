@@ -14,6 +14,7 @@ GitHub Container Registry. Each successful run publishes:
 - `ghcr.io/YOUR_ACCOUNT/room-riot:main` for the current main branch
 - `ghcr.io/YOUR_ACCOUNT/room-riot:latest` as a convenience tag
 - `ghcr.io/YOUR_ACCOUNT/room-riot:sha-COMMIT_SHA` as the immutable deployment tag
+- `ghcr.io/YOUR_ACCOUNT/room-riot:vMAJOR.MINOR.PATCH` for a version-tagged release
 
 The workflow also uploads a `room-riot-truenas-COMMIT_SHA` artifact containing a Compose file
 with the immutable image tag already filled in. Download that artifact from the successful
@@ -30,6 +31,16 @@ docker push ghcr.io/YOUR_ACCOUNT/room-riot:0.1.0
 Replace `YOUR_ACCOUNT` with the registry namespace you use. A private registry is fine for a
 LAN-only installation; configure registry credentials in TrueNAS before installing if needed.
 The image is self-contained and does not need internet access after it has been pulled.
+
+### Image architecture and provenance decision
+
+The release workflow intentionally publishes both `linux/amd64` and `linux/arm64`. That covers
+the common x86 TrueNAS host and ARM-based installations without changing the application image or
+the persistent `/data` contract. The exact `sha-COMMIT_SHA` tag is the deployment identity; `main`
+and `latest` are convenience aliases only. Buildx is configured to emit an SBOM and maximum-detail
+provenance attestation, and the published image must be inspected for both platforms before a
+release is accepted. A registry/container-security scan and the rollback rehearsal remain release
+environment checks, not local development checks.
 
 ## 2. Create the persistent dataset
 
@@ -65,6 +76,8 @@ http://TRUENAS_IP:3000/host
 http://TRUENAS_IP:3000/display
 http://TRUENAS_IP:3000/play
 http://TRUENAS_IP:3000/healthz
+http://TRUENAS_IP:3000/readyz
+http://TRUENAS_IP:3000/metrics
 ```
 
 If you selected host port 13000, replace `3000` in each URL with `13000`. Open `/host` on the
@@ -99,12 +112,15 @@ the generated TrueNAS bundle. Apply its Compose YAML in the Custom App editor an
 Keep the previous `sha-COMMIT_SHA` tag available so rollback is just changing the tag back.
 Avoid using `latest` for a game-night server.
 
+For the rehearsal, record the active immutable tag, deploy a newer tag, verify `/readyz` and one
+room join, switch the Compose image back to the recorded tag, and verify the same SQLite-backed room
+state. Keep the before/after image digests with the release evidence.
+
 ## 5. Backup and recovery
 
-The active room state is intentionally in memory in the current release, so a container restart
-ends an active game. The current image does not write application data to `/data`; the mount is
-reserved for the planned SQLite database and custom content persistence slice. A dataset backup
-therefore does not restore an active game yet:
+The image stores active-room snapshots in `/data/rooms.sqlite` using SQLite WAL mode. A clean
+container replacement restores unexpired rooms, roster identities, private game state, and
+deadlines from that file. Keep the dataset mounted and writable by UID/GID 1000:
 
 ```bash
 tar -czf /mnt/tank/backups/room-riot-$(date +%Y%m%d).tar.gz \
@@ -115,6 +131,11 @@ Prefer ZFS snapshots/replication for routine backups. Before restoring, stop the
 restore the dataset contents, confirm the UID/GID ACL, and start the app again.
 
 ## 6. Verification
+
+Security and release evidence requirements are recorded in
+[`docs/SECURITY_OPERATIONS.md`](../../docs/SECURITY_OPERATIONS.md) and the release-candidate record
+in [`docs/RELEASE_SIGNOFF.md`](../../docs/RELEASE_SIGNOFF.md). The CI workflow audits production
+dependencies and scans both the candidate and published container image for high/critical findings.
 
 From a PC on the same LAN, run the repository smoke test against the deployed URL:
 
@@ -128,9 +149,12 @@ For an HSTS-enabled HTTPS deployment, require the verifier to check that header 
 ROOM_RIOT_EXPECT_HSTS=true node scripts/verify-deployment.mjs https://room-riot.example
 ```
 
-It checks `/healthz`, all three browser routes, and the Socket.IO client asset. Then perform the
+It checks `/healthz`, `/readyz`, `/metrics`, all three browser routes, and the Socket.IO client asset. Then perform the
 manual game-night check: scan the QR code, join with at least 12 phones, start both Groupthink
 and Hot Take, reload one player during input, and confirm that the display and phones recover.
+The release workflow also seeds a room in the published image, replaces the container while keeping
+the `/data` volume, and verifies host/player restoration with
+`scripts/container-replacement-smoke.mjs`.
 
 ## Troubleshooting
 

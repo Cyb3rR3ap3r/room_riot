@@ -157,14 +157,20 @@ function createRoomState(
     roomCode: 'RIOT',
     phase,
     gameId,
+    paused: false,
+    pauseStartedAt: null,
     settings: {
       maxPlayers: getGamePlayerLimits(gameId).maximum,
+      joinLocked: false,
+      drawingEnabled: true,
       roundCount: 5,
       contentMode: 'standard',
       promptMode: 'default',
       drawnOutMode: 'classic',
     },
     players,
+    readyPlayerIds: [],
+    readinessRequired: false,
   };
 }
 

@@ -16,6 +16,7 @@ See [docs/AAA_PRODUCTION_TRACKER.md](./docs/AAA_PRODUCTION_TRACKER.md) for the p
 gameplay, and production-readiness backlog.
 See [deploy/truenas/README.md](./deploy/truenas/README.md) for TrueNAS SCALE installation, upgrades, backups, and LAN verification.
 See [docs/QA_CHECKLIST.md](./docs/QA_CHECKLIST.md) for the Milestone 5 device and network test matrix.
+See [docs/OPERATIONS.md](./docs/OPERATIONS.md) for health, readiness, metrics, persistence, and game-night recovery.
 
 Pull requests to `main` run the validation/build workflow without publishing. After a validated push
 to `main`, GitHub Actions publishes the TrueNAS-ready image to GitHub Container Registry and uploads
@@ -46,4 +47,4 @@ The health endpoint is available at `http://localhost:3000/healthz`. Open `/host
 
 Groupthink uses a 60-second server-owned answer deadline. Hot Take uses a 60-second answer deadline followed by a 45-second voting deadline. The host can reveal either stage early, then score the round and advance until the final scoreboard.
 
-When creating a room, the host can choose the family-friendly, standard, or after-dark content mode, plus the curated prompt deck or AI remix deck. Each curated game/content pack contains 100 prompts and is shuffled per game; AI remix creates a fresh, larger local deck for that room, so both sources work without an internet connection or an API key. The shared display uses the available viewport height and scales dense answer/result states to keep the full experience visible on a TV.
+When creating a room, the host can choose the family-friendly, standard, or after-dark content mode, plus the curated prompt deck or local Remix deck. Curated packs are taxonomy-validated and currently being expanded toward the 100-prompts-per-mode release target; Remix deck creates a fresh, larger local deck for that room, so both sources work without an internet connection or an API key. The shared display uses the available viewport height and scales dense answer/result states to keep the full experience visible on a TV.

@@ -40,6 +40,7 @@ export interface GamePresentation {
     results: string;
   }>;
   stageCue(phase: RoomPhase): string;
+  readonly phaseChoreography: Readonly<Record<RoomPhase, string>>;
   stageLobbyTitle: string;
   stageFallbackTitle: string;
   soundCue(phase: RoomPhase): SoundCueModel;

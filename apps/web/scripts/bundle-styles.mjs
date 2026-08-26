@@ -8,6 +8,7 @@ const sourceRoot = resolve(packageRoot, 'src/styles');
 const outputRoot = resolve(packageRoot, 'dist');
 const outputAssetRoot = resolve(outputRoot, 'assets');
 const styleSources = [
+  'fonts.css',
   'tokens.css',
   'shell.css',
   'themes.css',

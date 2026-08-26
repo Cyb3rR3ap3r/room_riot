@@ -1,0 +1,95 @@
+name: Browser performance
+
+on:
+  pull_request:
+    paths:
+      - apps/server/**
+      - apps/web/**
+      - games/**
+      - packages/**
+      - scripts/browser-performance.mjs
+      - scripts/browser-accessibility.mjs
+      - scripts/browser-layout-matrix.mjs
+      - scripts/browser-multiclient-smoke.mjs
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+  push:
+    branches:
+      - main
+  tags:
+    - 'v*.*.*'
+  workflow_dispatch:
+
+concurrency:
+  group: room-riot-browser-performance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  browser-performance:
+    name: Record browser performance metrics
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up pnpm and Node.js
+        uses: pnpm/setup@f7d0e5f4b1b3089d2799ef9722859e7ba314c4c8 # v1
+        with:
+          runtime: node@22
+          cache: true
+          install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build production assets
+        run: pnpm build
+
+      - name: Start compiled server
+        shell: bash
+        run: |
+          HOST=127.0.0.1 PORT=3100 node apps/server/dist/index.js > "$RUNNER_TEMP/room-riot-browser.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/room-riot-browser.pid"
+
+      - name: Collect browser performance metrics
+        run: node scripts/browser-performance.mjs http://127.0.0.1:3100 | tee "$RUNNER_TEMP/browser-performance.json"
+
+      - name: Capture browser layout matrix
+        run: node scripts/browser-layout-matrix.mjs http://127.0.0.1:3100 "$RUNNER_TEMP/room-riot-browser-layout" | tee "$RUNNER_TEMP/browser-layout-matrix.json"
+
+      - name: Run browser accessibility audit
+        run: node scripts/browser-accessibility.mjs http://127.0.0.1:3100 | tee "$RUNNER_TEMP/browser-accessibility.json"
+
+      - name: Run multi-client browser smoke
+        run: node scripts/browser-multiclient-smoke.mjs http://127.0.0.1:3100 "$RUNNER_TEMP/room-riot-browser-multiclient" | tee "$RUNNER_TEMP/browser-multiclient.json"
+
+      - name: Upload browser performance report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: room-riot-browser-performance-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/browser-performance.json
+            ${{ runner.temp }}/browser-layout-matrix.json
+            ${{ runner.temp }}/browser-accessibility.json
+            ${{ runner.temp }}/room-riot-browser-layout
+            ${{ runner.temp }}/browser-multiclient.json
+            ${{ runner.temp }}/room-riot-browser-multiclient
+            ${{ runner.temp }}/room-riot-browser.log
+          if-no-files-found: warn
+
+      - name: Stop compiled server
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "$RUNNER_TEMP/room-riot-browser.pid" ]]; then
+            kill "$(cat "$RUNNER_TEMP/room-riot-browser.pid")" 2>/dev/null || true
+          fi

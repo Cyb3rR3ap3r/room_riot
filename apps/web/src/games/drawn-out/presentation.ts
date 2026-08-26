@@ -36,6 +36,17 @@ export const drawnOutPresentation: GamePresentation = {
   stageCue: () => 'Fresh sketchbook',
   stageLobbyTitle: 'Get your drawing finger ready.',
   stageFallbackTitle: 'Art was a mistake.',
+  phaseChoreography: {
+    lobby: 'sketch-idle',
+    intro: 'sketch-ignite',
+    prompt: 'sketch-prompt',
+    input: 'sketch-focus',
+    alibi: 'sketch-focus',
+    voting: 'sketch-reveal',
+    results: 'sketch-score',
+    scoring: 'sketch-score',
+    winner: 'sketch-crown',
+  },
   soundCue: (phase) => ({
     notes:
       phase === 'winner'

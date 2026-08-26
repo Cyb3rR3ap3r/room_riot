@@ -33,6 +33,8 @@ export function createPageShellComponent(
   brand.className = 'brand';
   const brandLogo = ownerDocument.createElement('img') as HTMLImageElement;
   brandLogo.className = 'brand-logo';
+  brandLogo.alt = 'Room Riot';
+  brandLogo.setAttribute('alt', 'Room Riot');
   brand.append(brandLogo);
   const heading = ownerDocument.createElement('h1');
   const subtitle = ownerDocument.createElement('p');

@@ -45,8 +45,13 @@
   align-items: center;
   grid-template-columns: 8.5rem 1fr;
   gap: 1rem;
+  min-width: 0;
   border-bottom: 1px solid color-mix(in srgb, var(--game-primary) 24%, transparent);
   padding-bottom: 1rem;
+}
+
+.themed-join-intro > * {
+  min-width: 0;
 }
 
 .themed-join-logo {
@@ -58,6 +63,7 @@
 
 .themed-join-intro h1 {
   margin: 0.25rem 0;
+  overflow-wrap: anywhere;
   font:
     900 clamp(1.7rem, 7vw, 2.5rem) / 1 'Arial Black',
     'Trebuchet MS',
@@ -75,6 +81,12 @@
 .themed-join-intro p {
   margin: 0;
   line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.themed-join-intro .experience-eyebrow {
+  display: block;
+  overflow-wrap: anywhere;
 }
 
 .themed-join-card .field {
@@ -132,6 +144,7 @@
 
 .player-page[data-game-id] > .content {
   width: min(34rem, 100%);
+  min-width: 0;
 }
 
 .controller-shell {

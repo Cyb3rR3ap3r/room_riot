@@ -22,6 +22,10 @@ export function renderSuspectPublicStage(
     suspectPresentation.stageClass,
     dependencies.createArtwork('suspect'),
   );
+  frame.element.setAttribute(
+    'data-phase-choreography',
+    suspectPresentation.phaseChoreography[state.phase],
+  );
   appendStageHeading(
     frame.copy,
     dependencies,

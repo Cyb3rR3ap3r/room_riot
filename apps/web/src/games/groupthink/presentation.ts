@@ -37,6 +37,17 @@ export const groupthinkPresentation: GamePresentation = {
     phase === 'lobby' ? 'Calibrating the consensus reactor' : 'Consensus reactor online',
   stageLobbyTitle: 'Bring every brain into the loop.',
   stageFallbackTitle: 'Think alike.',
+  phaseChoreography: {
+    lobby: 'reactor-idle',
+    intro: 'reactor-ignite',
+    prompt: 'reactor-prompt',
+    input: 'reactor-focus',
+    alibi: 'reactor-focus',
+    voting: 'reactor-reveal',
+    results: 'reactor-score',
+    scoring: 'reactor-score',
+    winner: 'reactor-crown',
+  },
   soundCue: (phase) => ({
     notes:
       phase === 'winner'

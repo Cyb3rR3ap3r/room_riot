@@ -43,6 +43,7 @@ export interface HotTakeAnswer {
   readonly entryId: string;
   readonly display: string;
   readonly targetPlayerId: PlayerId | null;
+  readonly skipped: boolean;
 }
 
 export interface HotTakeEntryView {
@@ -216,6 +217,7 @@ export function submitHotTakeAnswer(
   targetPlayerId: PlayerId | undefined,
   playerIds: readonly PlayerId[],
   now?: number,
+  skip = false,
 ): HotTakeSessionState {
   if (session.status !== 'input') throw new Error('This round is no longer accepting answers.');
   if (now !== undefined && session.inputDeadlineAt !== null && now >= session.inputDeadlineAt) {
@@ -224,10 +226,13 @@ export function submitHotTakeAnswer(
   if (session.answers[playerId]) throw new Error('This player already submitted an answer.');
   if (!playerIds.includes(playerId)) throw new Error('This player is not in the room.');
 
-  const display = answer.trim();
+  if (skip && session.prompt.kind !== 'player-targeted') {
+    throw new Error('Skip is only available for player-targeted prompts.');
+  }
+  const display = skip ? 'Skipped' : answer.trim();
   if (!display) throw new Error('Answer cannot be empty.');
 
-  if (session.prompt.kind === 'player-targeted') {
+  if (session.prompt.kind === 'player-targeted' && !skip) {
     if (!targetPlayerId || !playerIds.includes(targetPlayerId)) {
       throw new Error('Choose a player from this room.');
     }
@@ -246,7 +251,8 @@ export function submitHotTakeAnswer(
       [playerId]: {
         entryId,
         display,
-        targetPlayerId: targetPlayerId ?? null,
+        targetPlayerId: skip ? null : (targetPlayerId ?? null),
+        skipped: skip,
       },
     },
   };
@@ -310,11 +316,16 @@ export function allHotTakePlayersVoted(
   session: HotTakeSessionState,
   playerIds: readonly PlayerId[],
 ): boolean {
-  const eligiblePlayers = playerIds.filter(
-    (playerId) =>
-      session.answers[playerId] &&
-      Object.entries(session.answers).some(([ownerId]) => ownerId !== playerId),
-  );
+  const eligiblePlayers = playerIds.filter((playerId) => {
+    const answer = session.answers[playerId];
+    return Boolean(
+      answer &&
+      !answer.skipped &&
+      Object.values(session.answers).some(
+        (candidate) => !candidate.skipped && candidate.entryId !== answer.entryId,
+      ),
+    );
+  });
   return (
     eligiblePlayers.length > 0 &&
     eligiblePlayers.every((playerId) => Boolean(session.votes[playerId]))
@@ -523,6 +534,7 @@ function getEntriesForView(
  */
 function createVotingEntries(session: HotTakeSessionState): readonly HotTakeEntryView[] {
   const entryIds = Object.values(session.answers)
+    .filter((answer) => !answer.skipped)
     .map((answer) => answer.entryId)
     .sort((left, right) => left.localeCompare(right));
   const seed = stableHash(`${session.prompt.id}:${session.roundNumber}:${entryIds.join('|')}`);
@@ -553,6 +565,7 @@ function answerDisplay(
   answer: HotTakeAnswer,
   playerNames: Readonly<Record<PlayerId, string>>,
 ): string {
+  if (answer.skipped) return 'Skipped';
   return answer.targetPlayerId
     ? (playerNames[answer.targetPlayerId] ?? 'Unknown player')
     : answer.display;

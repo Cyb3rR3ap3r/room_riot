@@ -14,6 +14,7 @@ import {
 } from '@room-riot/contracts';
 
 import { createRequestHandler } from './http.js';
+import { OperationalMetrics } from './metrics.js';
 import { RoomManager } from './room-manager.js';
 import {
   attachRealtimeServer,
@@ -294,6 +295,82 @@ test('retains unexpired actor receipts under pressure and frees capacity after T
   }
 });
 
+test('preserves room creation limits across reconnects and exposes retry metrics', async () => {
+  const roomManager = new RoomManager({ maxRooms: 20, randomizePrompts: false });
+  const metrics = new OperationalMetrics();
+  const httpServer = createServer(createRequestHandler({ version: 'test' }, { roomManager }));
+  const realtimeServer = attachRealtimeServer(httpServer, roomManager, { metrics });
+  const clients: ClientSocket[] = [];
+
+  httpServer.listen(0, '127.0.0.1');
+  await once(httpServer, 'listening');
+  const address = httpServer.address();
+  if (!address || typeof address === 'string') throw new Error('Test server did not bind.');
+  const url = `http://127.0.0.1:${address.port}`;
+
+  try {
+    const first = await connectClient(url);
+    clients.push(first);
+    for (let index = 0; index < 10; index += 1) {
+      const created = await emitWithAck<HostCreateSuccess>(first, 'host:create-room', {});
+      assertSuccess(created);
+    }
+    first.disconnect();
+
+    const reconnected = await connectClient(url);
+    clients.push(reconnected);
+    const rejected = await emitWithAck<HostCreateSuccess>(reconnected, 'host:create-room', {});
+    assert.equal(rejected.ok, false);
+    if (rejected.ok) throw new Error('Expected the reconnecting client to remain rate limited.');
+    assert.equal(rejected.error.code, 'ROOM_LIMIT');
+    assert.match(rejected.error.message, /try again shortly/i);
+    assert.equal(metrics.snapshot().counters['actions.rejected_rate_limit'], 1);
+  } finally {
+    clients.forEach((client) => client.disconnect());
+    realtimeServer.close();
+    roomManager.close();
+    httpServer.close();
+    await once(httpServer, 'close');
+  }
+});
+
+test('rate-limits repeated failed joins with stable retry guidance', async () => {
+  const roomManager = new RoomManager({ randomizePrompts: false });
+  const metrics = new OperationalMetrics();
+  const httpServer = createServer(createRequestHandler({ version: 'test' }, { roomManager }));
+  const realtimeServer = attachRealtimeServer(httpServer, roomManager, { metrics });
+  let client: ClientSocket | undefined;
+
+  try {
+    client = await listenForClient(httpServer);
+    const responses: EventResponse<PlayerJoinSuccess>[] = [];
+    for (let index = 0; index < 121; index += 1) {
+      responses.push(
+        await emitWithAck<PlayerJoinSuccess>(client, 'player:join', {
+          roomCode: 'AAAAAA',
+          name: `Failed join ${index}`,
+          avatar: '🎮',
+        }),
+      );
+    }
+    assert.equal(responses[0]?.ok, false);
+    if (responses[0]?.ok !== false) throw new Error('Expected the first join to fail.');
+    assert.equal(responses[0].error.code, 'ROOM_NOT_FOUND');
+    const rejected = responses.at(-1);
+    assert.equal(rejected?.ok, false);
+    if (!rejected || rejected.ok) throw new Error('Expected the failed-join rate limit.');
+    assert.equal(rejected.error.code, 'ROOM_LIMIT');
+    assert.match(rejected.error.message, /try again shortly/i);
+    assert.equal(metrics.snapshot().counters['actions.rejected_rate_limit'], 1);
+  } finally {
+    client?.disconnect();
+    realtimeServer.close();
+    roomManager.close();
+    httpServer.close();
+    await once(httpServer, 'close');
+  }
+});
+
 test('replays create and unauthenticated join receipts across socket reconnects', async () => {
   const roomManager = new RoomManager({ maxRooms: 1 });
   const httpServer = createServer(createRequestHandler({ version: 'test' }, { roomManager }));
@@ -514,6 +591,33 @@ test('supports twelve concurrent players and reconnecting a player session', asy
       gameId: 'groupthink',
     });
     assertSuccess(started);
+
+    const interruptedPlayer = players[1];
+    if (!interruptedPlayer) throw new Error('The second player was not created.');
+    const interruptedState = waitForRoomState(
+      host,
+      (snapshot) =>
+        snapshot.state.players.find((player) => player.id === interruptedPlayer.playerId)
+          ?.status === 'disconnected',
+    );
+    interruptedPlayer.client.disconnect();
+    await interruptedState;
+    const interruptedReplacement = await connectClient(url);
+    clients.push(interruptedReplacement);
+    const resumed = await emitWithAck<PlayerJoinSuccess>(interruptedReplacement, 'player:join', {
+      roomCode: created.roomCode,
+      name: 'Player 2',
+      avatar: '🎮',
+      playerToken: interruptedPlayer.playerToken,
+    });
+    assertSuccess(resumed);
+    assert.equal(resumed.snapshot.state.phase, 'input');
+    assert.equal(
+      resumed.snapshot.state.players.find((player) => player.id === interruptedPlayer.playerId)
+        ?.status,
+      'connected',
+    );
+    players[1] = { ...interruptedPlayer, client: interruptedReplacement };
 
     const submittedResponses = await Promise.all(
       players.map((player) =>

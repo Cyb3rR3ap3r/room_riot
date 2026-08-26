@@ -1,0 +1,43 @@
+@font-face {
+  font-family: 'Room Riot UI';
+  src: url('/assets/fonts/room-riot-ui-latin-400.woff2') format('woff2');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'Room Riot UI';
+  src: url('/assets/fonts/room-riot-ui-latin-700.woff2') format('woff2');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 700;
+}
+
+@font-face {
+  font-family: 'Room Riot Display';
+  src: url('/assets/fonts/room-riot-display-latin-700.woff2') format('woff2');
+  font-display: swap;
+  font-style: normal;
+  font-weight: 700;
+}
+
+:root {
+  --font-ui: 'Room Riot UI', 'Atkinson Hyperlegible', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Room Riot Display', 'Baloo 2', 'Trebuchet MS', sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+}
+
+[data-deadline-at],
+[data-score],
+.countdown,
+.score {
+  font-feature-settings: 'tnum' 1;
+  font-variant-numeric: tabular-nums;
+}

@@ -24,6 +24,7 @@ export const DRAWN_OUT_MAX_POINTS_PER_TURN =
   DRAWN_OUT_MAX_STROKES_PER_TURN * DRAWN_OUT_MAX_POINTS_PER_STROKE;
 export const DRAWN_OUT_MAX_TOTAL_STROKES = DRAWN_OUT_MAX_PLAYERS * DRAWN_OUT_MAX_STROKES_PER_TURN;
 export const DRAWN_OUT_MAX_TOTAL_POINTS = DRAWN_OUT_MAX_PLAYERS * DRAWN_OUT_MAX_POINTS_PER_TURN;
+const DRAWN_OUT_SIMPLIFICATION_HEADROOM = 0.9;
 
 export const DrawnOutModeSchema = z.enum(['classic', 'telephone', 'fake-artist']);
 export type DrawnOutMode = z.infer<typeof DrawnOutModeSchema>;
@@ -161,6 +162,38 @@ const STOP_WORDS = new Set([
   'with',
 ]);
 
+function simplifyStrokePoints(
+  points: DrawingData['strokes'][number]['points'],
+  targetCount: number,
+): DrawingData['strokes'][number]['points'] {
+  if (points.length <= targetCount) return points;
+  if (targetCount <= 2) return [points[0]!, points[points.length - 1]!];
+  const lastIndex = points.length - 1;
+  return Array.from({ length: targetCount }, (_, index) => {
+    const sourceIndex = Math.round((index * lastIndex) / (targetCount - 1));
+    return points[sourceIndex]!;
+  });
+}
+
+function simplifyOlderStrokes(
+  strokes: readonly DrawingData['strokes'][number][],
+): DrawingData['strokes'] {
+  const pointCount = strokes.reduce((total, stroke) => total + stroke.points.length, 0);
+  const targetPointCount = Math.floor(
+    DRAWN_OUT_MAX_TOTAL_POINTS * DRAWN_OUT_SIMPLIFICATION_HEADROOM,
+  );
+  if (pointCount <= targetPointCount) return [...strokes];
+
+  let remaining = pointCount;
+  return strokes.map((stroke) => {
+    if (remaining <= targetPointCount || stroke.points.length <= 2) return stroke;
+    const removable = Math.min(remaining - targetPointCount, stroke.points.length - 2);
+    const points = simplifyStrokePoints(stroke.points, stroke.points.length - removable);
+    remaining -= stroke.points.length - points.length;
+    return { ...stroke, points };
+  });
+}
+
 export function loadDrawnOutPrompts(contentMode: ContentMode): readonly DrawnOutPrompt[] {
   const contentPath = resolve(
     dirname(fileURLToPath(import.meta.url)),
@@ -262,14 +295,15 @@ export function submitDrawnOutDrawing(
     if (combinedStrokes.length > DRAWN_OUT_MAX_TOTAL_STROKES) {
       throw new Error('The shared canvas has reached its total stroke budget.');
     }
-    const combinedPointCount = combinedStrokes.reduce(
+    const simplifiedStrokes = simplifyOlderStrokes(combinedStrokes);
+    const combinedPointCount = simplifiedStrokes.reduce(
       (total, stroke) => total + stroke.points.length,
       0,
     );
     if (combinedPointCount > DRAWN_OUT_MAX_TOTAL_POINTS) {
       throw new Error('The shared canvas has reached its total point budget.');
     }
-    const combined: DrawingData = { strokes: combinedStrokes };
+    const combined: DrawingData = { strokes: simplifiedStrokes };
     const currentIndex = session.playerOrder.indexOf(playerId);
     const nextPlayer = session.playerOrder[currentIndex + 1] ?? null;
     return nextPlayer

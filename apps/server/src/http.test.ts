@@ -1,14 +1,18 @@
 import { once } from 'node:events';
 import { createServer } from 'node:http';
 import { connect as connectTcp } from 'node:net';
+import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
 import test, { afterEach } from 'node:test';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { tmpdir } from 'node:os';
 
 import { buildJoinPath, createRequestHandler } from './http.js';
 import { GAME_PAGE_ROUTES, GAME_REGISTRY_METADATA } from './game-registry.js';
 import { RoomManager } from './room-manager.js';
+import { OperationalMetrics } from './metrics.js';
+import { startServer, stopServer } from './index.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 
@@ -39,6 +43,74 @@ test('health endpoint reports server and engine readiness', async () => {
     version: 'test-version',
     engineReady: true,
   });
+});
+
+test('readiness endpoint reflects room-manager drain state', async () => {
+  const roomManager = new RoomManager();
+  roomManager.createRoom({});
+  const server = createServer(createRequestHandler({ version: 'test-version' }, { roomManager }));
+  servers.push(server);
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Test server did not bind.');
+
+  const ready = await fetch(`http://127.0.0.1:${address.port}/readyz`);
+  assert.equal(ready.status, 200);
+  assert.equal((await ready.json()).status, 'ready');
+
+  roomManager.beginDrain();
+  const draining = await fetch(`http://127.0.0.1:${address.port}/readyz`);
+  assert.equal(draining.status, 503);
+  assert.equal((await draining.json()).status, 'not_ready');
+  roomManager.close();
+});
+
+test('readiness rejects a partial startup and stopServer drains before closing', async () => {
+  const roomManager = new RoomManager();
+  const server = startServer({
+    host: '127.0.0.1',
+    port: 0,
+    roomManager,
+    webRoot: resolve(tmpdir(), `room-riot-missing-web-${randomUUID()}`),
+  });
+  servers.push(server);
+  await once(server, 'listening');
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Test server did not bind.');
+
+  const readiness = await fetch(`http://127.0.0.1:${address.port}/readyz`);
+  const body = await readiness.json();
+  assert.equal(readiness.status, 503);
+  assert.equal(body.webReady, false);
+
+  await new Promise<void>((resolveStop) => stopServer(server, resolveStop));
+  assert.equal(server.listening, false);
+  assert.throws(() => roomManager.createRoom({}), /shutting down/);
+});
+
+test('metrics endpoint exposes operational counts without request payloads', async () => {
+  const roomManager = new RoomManager();
+  roomManager.createRoom({});
+  const metrics = new OperationalMetrics();
+  metrics.increment('test.counter');
+  const server = createServer(
+    createRequestHandler({ version: 'test-version' }, { roomManager, metrics }),
+  );
+  servers.push(server);
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Test server did not bind.');
+
+  const response = await fetch(`http://127.0.0.1:${address.port}/metrics`);
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.counters['test.counter'], 1);
+  assert.equal(body.operational.activeRooms, 1);
+  assert.equal('payload' in body, false);
+  roomManager.close();
 });
 
 test('publishes the authoritative game registry manifest', async () => {
@@ -147,6 +219,13 @@ test('serves the browser shell and an offline QR code for a room', async () => {
   assert.match(styleResponse.headers.get('content-type') ?? '', /text\/css/);
   assert.match(styleResponse.headers.get('cache-control') ?? '', /immutable/);
   assert.match(await styleResponse.text(), /--cyan:/);
+
+  const fontResponse = await fetch(
+    `http://127.0.0.1:${address.port}/assets/fonts/room-riot-ui-latin-400.woff2`,
+  );
+  assert.equal(fontResponse.status, 200);
+  assert.equal(fontResponse.headers.get('content-type'), 'font/woff2');
+  assert.ok((await fontResponse.arrayBuffer()).byteLength > 1_000);
 
   for (const pagePath of GAME_PAGE_ROUTES) {
     const gamePageResponse: Response = await fetch(`http://127.0.0.1:${address.port}${pagePath}`);

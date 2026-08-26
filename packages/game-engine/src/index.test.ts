@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { addPlayer, createInitialRoomState, setGame, toPublicRoomState } from './index.js';
+import {
+  addPlayer,
+  createInitialRoomState,
+  setGame,
+  setPlayerConnectionStatus,
+  setPlayerReady,
+  toPublicRoomState,
+} from './index.js';
 
 test('creates a normalized lobby with default settings', () => {
   const room = createInitialRoomState({ roomCode: ' riot ', now: 100 });
@@ -62,4 +69,18 @@ test('exposes a client-safe projection and supports selecting a game', () => {
   assert.equal(publicState.phase, 'intro');
   assert.equal(publicState.players.length, 1);
   assert.equal('joinedAt' in (publicState.players[0] ?? {}), false);
+});
+
+test('tracks rematch readiness and clears it when a player is removed', () => {
+  const room = addPlayer(createInitialRoomState({ roomCode: 'READY' }), {
+    id: 'joe',
+    name: 'Joe',
+    avatar: '😎',
+  });
+  const readyRoom = setPlayerReady(room, 'joe', true, 200);
+
+  assert.deepEqual(readyRoom.readyPlayerIds, ['joe']);
+  assert.equal(readyRoom.updatedAt, 200);
+  const removedRoom = setPlayerConnectionStatus(readyRoom, 'joe', 'removed', 300);
+  assert.deepEqual(removedRoom.readyPlayerIds, []);
 });

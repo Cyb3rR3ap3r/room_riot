@@ -43,6 +43,17 @@ export const suspectPresentation: GamePresentation = {
           : 'Investigation in progress',
   stageLobbyTitle: 'Set the jury and open the case.',
   stageFallbackTitle: 'Everybody looks guilty.',
+  phaseChoreography: {
+    lobby: 'case-idle',
+    intro: 'case-ignite',
+    prompt: 'case-prompt',
+    input: 'case-focus',
+    alibi: 'case-focus',
+    voting: 'case-reveal',
+    results: 'case-score',
+    scoring: 'case-score',
+    winner: 'case-crown',
+  },
   soundCue: (phase) => ({
     notes:
       phase === 'winner'

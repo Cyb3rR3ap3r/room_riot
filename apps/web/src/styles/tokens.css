@@ -1,8 +1,9 @@
 :root {
   color-scheme: dark;
-  font-family: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+  font-family: var(--font-ui);
   background: var(--color-ink);
   color: var(--color-text);
+  --room-riot-text-scale: 1;
 
   /* Core palette and semantic contrast roles. */
   --color-ink: #080b16;
@@ -91,7 +92,12 @@
 
 html {
   min-width: 320px;
+  font-size: calc(100% * var(--room-riot-text-scale));
   background: var(--ink);
+}
+
+html[data-room-riot-text-scale='2'] {
+  --room-riot-text-scale: 2;
 }
 
 body {

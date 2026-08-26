@@ -9,9 +9,14 @@ import {
   HostReconnectRequestSchema,
   HostRemovePlayerRequestSchema,
   HostRoomActionRequestSchema,
+  HostJoinLockRequestSchema,
+  HostDrawingRequestSchema,
+  HostPauseRequestSchema,
+  HostRematchRequestSchema,
   HostStartGameRequestSchema,
   JoinRoomActionRequestSchema,
   PlayerLeaveRoomRequestSchema,
+  PlayerReadyRequestSchema,
   PlayerSubmitDrawingRequestSchema,
   PlayerSubmitAlibiRequestSchema,
   PlayerCastVoteRequestSchema,
@@ -25,9 +30,14 @@ import type {
   HostReconnectRequest,
   HostRemovePlayerRequest,
   HostRoomActionRequest,
+  HostJoinLockRequest,
+  HostDrawingRequest,
+  HostPauseRequest,
+  HostRematchRequest,
   HostStartGameRequest,
   JoinRoomActionRequest,
   PlayerLeaveRoomRequest,
+  PlayerReadyRequest,
   PlayerSubmitDrawingRequest,
   PlayerSubmitAlibiRequest,
   PlayerCastVoteRequest,
@@ -39,6 +49,7 @@ import { Server, type Socket } from 'socket.io';
 
 import { RoomManagerError } from './room-manager.js';
 import { GameActionError } from './game-registry.js';
+import type { OperationalMetrics } from './metrics.js';
 import type { PlayerGameView, RoomManager, RoomSnapshot } from './room-manager.js';
 
 export type { EventError, EventResponse } from '@room-riot/contracts';
@@ -93,6 +104,10 @@ export interface RoomStateSuccess {
   readonly snapshot: RoomSnapshot;
 }
 
+export interface PlayerReadySuccess extends RoomStateSuccess {
+  readonly ready: boolean;
+}
+
 export interface PlayerAnswerSuccess {
   readonly roomCode: RoomCode;
   readonly snapshot: RoomSnapshot;
@@ -105,6 +120,17 @@ export interface ClientToServerEvents {
   'host:start-game': (payload: HostStartGameRequest, ack: EventAck<RoomStateSuccess>) => void;
   'host:reveal-results': (payload: HostRoomActionRequest, ack: EventAck<RoomStateSuccess>) => void;
   'host:next-round': (payload: HostRoomActionRequest, ack: EventAck<RoomStateSuccess>) => void;
+  'host:set-join-lock': (payload: HostJoinLockRequest, ack: EventAck<RoomStateSuccess>) => void;
+  'host:set-pause': (payload: HostPauseRequest, ack: EventAck<RoomStateSuccess>) => void;
+  'host:set-drawing-enabled': (
+    payload: HostDrawingRequest,
+    ack: EventAck<RoomStateSuccess>,
+  ) => void;
+  'host:skip-disconnected': (
+    payload: HostRoomActionRequest,
+    ack: EventAck<RoomStateSuccess>,
+  ) => void;
+  'host:rematch': (payload: HostRematchRequest, ack: EventAck<RoomStateSuccess>) => void;
   'host:leave': (payload: HostRoomActionRequest, ack: EventAck<LeaveRoomSuccess>) => void;
   'host:kick-player': (
     payload: HostRemovePlayerRequest,
@@ -112,6 +138,7 @@ export interface ClientToServerEvents {
   ) => void;
   'host:close-room': (payload: HostRoomActionRequest, ack: EventAck<LeaveRoomSuccess>) => void;
   'player:join': (payload: JoinRoomActionRequest, ack: EventAck<PlayerJoinSuccess>) => void;
+  'player:set-ready': (payload: PlayerReadyRequest, ack: EventAck<PlayerReadySuccess>) => void;
   'player:submit-answer': (
     payload: PlayerSubmitAnswerRequest,
     ack: EventAck<PlayerAnswerSuccess>,
@@ -154,10 +181,13 @@ type RoomSocket = Socket<ClientToServerEvents, ServerToClientEvents, object, Soc
 const roomChannel = (roomCode: RoomCode): string => `room:${roomCode}`;
 const ROOM_CREATION_WINDOW_MS = 60_000;
 const ROOM_CREATION_LIMIT = 10;
+const DISPLAY_WATCH_LIMIT = 30;
 const ACTION_DEDUPLICATION_TTL_MS = 10 * 60_000;
 const ACTION_DEDUPLICATION_LIMIT_PER_ACTOR = 64;
 const ACTION_DEDUPLICATION_BOOTSTRAP_LIMIT = 2_048;
 const ACTION_DEDUPLICATION_TOTAL_LIMIT = 16_384;
+const ACTION_RATE_WINDOW_MS = 60_000;
+const ACTION_RATE_LIMIT = 120;
 
 interface CachedActionResponse {
   readonly expiresAt: number;
@@ -171,6 +201,8 @@ export interface RealtimeServerOptions {
   readonly actionDeduplicationBootstrapLimit?: number;
   readonly actionDeduplicationTotalLimit?: number;
   readonly now?: () => number;
+  readonly metrics?: OperationalMetrics;
+  readonly trustedProxy?: boolean;
 }
 
 export function attachRealtimeServer(
@@ -198,7 +230,24 @@ export function attachRealtimeServer(
     },
   );
   const roomCreationAttempts = new Map<string, number[]>();
+  const displayWatchAttempts = new Map<string, number[]>();
   const actionResponses = new ActionReceiptStore(options);
+  const metrics = options.metrics;
+  const respond = <T extends object>(ack: EventAck<T> | undefined, action: () => T): void => {
+    if (typeof ack !== 'function') return;
+    const startedAt = Date.now();
+    try {
+      ack({ ok: true, ...action() });
+      metrics?.increment('socket.events.completed');
+    } catch (error) {
+      metrics?.increment('socket.events.failed');
+      const eventError = toEventError(error);
+      logOperational('recoverable_error', { code: eventError.code });
+      ack({ ok: false, error: eventError });
+    } finally {
+      metrics?.observe('socket.event_latency_ms', Date.now() - startedAt);
+    }
+  };
 
   const broadcastRoomSnapshot = (roomCode: RoomCode, snapshot: RoomSnapshot): void => {
     io.to(roomChannel(roomCode)).emit('room:state', snapshot);
@@ -222,10 +271,13 @@ export function attachRealtimeServer(
   };
 
   roomManager.subscribe((roomCode, snapshot) => {
+    metrics?.increment('room.snapshot_updates');
     broadcastRoomSnapshot(roomCode, snapshot);
   });
 
   io.on('connection', (socket) => {
+    metrics?.increment('socket.connections');
+    metrics?.increment('socket.connections.active');
     socket.on('host:create-room', (payload, ack) => {
       respond(ack, () => {
         const request = CreateRoomActionRequestSchema.parse(payload);
@@ -236,7 +288,8 @@ export function attachRealtimeServer(
           'host:create-room',
           actionId,
           () => {
-            assertRoomCreationRateLimit(roomCreationAttempts, socket.id);
+            const clientKey = clientIdentity(socket, options.trustedProxy);
+            assertRoomCreationRateLimit(roomCreationAttempts, clientKey, metrics);
             const created = roomManager.createRoom(roomRequest);
             clearSocketBinding(socket, roomManager, broadcastRoomSnapshot);
             roomManager.bindHost(created.roomCode, created.hostToken, socket.id);
@@ -264,6 +317,7 @@ export function attachRealtimeServer(
     socket.on('host:reconnect', (payload, ack) => {
       respond(ack, () => {
         const request = HostReconnectRequestSchema.parse(payload);
+        metrics?.increment('socket.reconnects.host');
         const reconnectHost = (): HostReconnectSuccess => {
           const supersededSocketId = roomManager.getHostSocketId(request.roomCode);
           const snapshot = roomManager.bindHost(request.roomCode, request.hostToken, socket.id);
@@ -378,6 +432,119 @@ export function attachRealtimeServer(
       });
     });
 
+    socket.on('host:set-join-lock', (payload, ack) => {
+      respond(ack, () => {
+        const request = HostJoinLockRequestSchema.parse(payload);
+        return deduplicateAction(
+          actionResponses,
+          request.hostToken,
+          'host:set-join-lock',
+          request.actionId,
+          () => {
+            roomManager.assertHostSocket(request.roomCode, socket.id);
+            const snapshot = roomManager.setJoinLocked(
+              request.roomCode,
+              request.hostToken,
+              request.locked,
+            );
+            broadcastRoomSnapshot(request.roomCode, snapshot);
+            return { roomCode: request.roomCode, snapshot };
+          },
+          fingerprintRequest(request),
+        );
+      });
+    });
+
+    socket.on('host:set-pause', (payload, ack) => {
+      respond(ack, () => {
+        const request = HostPauseRequestSchema.parse(payload);
+        return deduplicateAction(
+          actionResponses,
+          request.hostToken,
+          'host:set-pause',
+          request.actionId,
+          () => {
+            roomManager.assertHostSocket(request.roomCode, socket.id);
+            const snapshot = roomManager.setPaused(
+              request.roomCode,
+              request.hostToken,
+              request.paused,
+            );
+            broadcastRoomSnapshot(request.roomCode, snapshot);
+            return { roomCode: request.roomCode, snapshot };
+          },
+          fingerprintRequest(request),
+        );
+      });
+    });
+
+    socket.on('host:set-drawing-enabled', (payload, ack) => {
+      respond(ack, () => {
+        const request = HostDrawingRequestSchema.parse(payload);
+        return deduplicateAction(
+          actionResponses,
+          request.hostToken,
+          'host:set-drawing-enabled',
+          request.actionId,
+          () => {
+            roomManager.assertHostSocket(request.roomCode, socket.id);
+            const snapshot = roomManager.setDrawingEnabled(
+              request.roomCode,
+              request.hostToken,
+              request.enabled,
+            );
+            broadcastRoomSnapshot(request.roomCode, snapshot);
+            return { roomCode: request.roomCode, snapshot };
+          },
+          fingerprintRequest(request),
+        );
+      });
+    });
+
+    socket.on('host:skip-disconnected', (payload, ack) => {
+      respond(ack, () => {
+        const request = HostRoomActionRequestSchema.parse(payload);
+        return deduplicateAction(
+          actionResponses,
+          request.hostToken,
+          'host:skip-disconnected',
+          request.actionId,
+          () => {
+            roomManager.assertHostSocket(request.roomCode, socket.id);
+            const snapshot = roomManager.skipDisconnected(request.roomCode, request.hostToken);
+            broadcastRoomSnapshot(request.roomCode, snapshot);
+            return { roomCode: request.roomCode, snapshot };
+          },
+          fingerprintRequest(request),
+        );
+      });
+    });
+
+    socket.on('host:rematch', (payload, ack) => {
+      respond(ack, () => {
+        const request = HostRematchRequestSchema.parse(payload);
+        return deduplicateAction(
+          actionResponses,
+          request.hostToken,
+          'host:rematch',
+          request.actionId,
+          () => {
+            roomManager.assertHostSocket(request.roomCode, socket.id);
+            const snapshot = roomManager.rematch(
+              request.roomCode,
+              request.hostToken,
+              request.gameId,
+              request.carryScores,
+              request.settings,
+            );
+            broadcastRoomSnapshot(request.roomCode, snapshot);
+            return { roomCode: request.roomCode, snapshot };
+          },
+          fingerprintRequest(request),
+        );
+      });
+    });
+
     socket.on('host:kick-player', (payload, ack) => {
       respond(ack, () => {
         const request = HostRemovePlayerRequestSchema.parse(payload);
@@ -451,8 +618,11 @@ export function attachRealtimeServer(
     socket.on('player:join', (payload, ack) => {
       respond(ack, () => {
         const request = JoinRoomActionRequestSchema.parse(payload);
+        if (request.playerToken) metrics?.increment('socket.reconnects.player');
         const { actionId, ...joinRequest } = request;
-        const actorKey = joinRequest.playerToken ?? `bootstrap:join:${joinRequest.roomCode}`;
+        const actorKey =
+          joinRequest.playerToken ??
+          `bootstrap:join:${clientIdentity(socket, options.trustedProxy)}:${joinRequest.roomCode}`;
         return deduplicateAction(
           actionResponses,
           actorKey,
@@ -525,6 +695,30 @@ export function attachRealtimeServer(
       });
     });
 
+    socket.on('player:set-ready', (payload, ack) => {
+      respond(ack, () => {
+        const request = PlayerReadyRequestSchema.parse(payload);
+        return deduplicateAction(
+          actionResponses,
+          request.playerToken,
+          'player:set-ready',
+          request.actionId,
+          () => {
+            const playerId = roomManager.getPlayerIdForToken(request.roomCode, request.playerToken);
+            roomManager.assertPlayerSocket(request.roomCode, playerId, socket.id);
+            const snapshot = roomManager.setPlayerReady(
+              request.roomCode,
+              request.playerToken,
+              request.ready,
+            );
+            broadcastRoomSnapshot(request.roomCode, snapshot);
+            return { roomCode: request.roomCode, snapshot, ready: request.ready };
+          },
+          fingerprintRequest(request),
+        );
+      });
+    });
+
     socket.on('player:submit-answer', (payload, ack) => {
       respond(ack, () => {
         const request = PlayerSubmitAnswerRequestSchema.parse(payload);
@@ -542,6 +736,7 @@ export function attachRealtimeServer(
               playerId,
               request.answer,
               request.targetPlayerId,
+              request.skip,
             );
             broadcastRoomSnapshot(request.roomCode, update.snapshot);
             return {
@@ -658,6 +853,13 @@ export function attachRealtimeServer(
     socket.on('display:watch', (payload, ack) => {
       respond(ack, () => {
         const request = DisplayWatchRequestSchema.parse(payload);
+        assertWindowLimit(
+          displayWatchAttempts,
+          clientIdentity(socket, options.trustedProxy),
+          DISPLAY_WATCH_LIMIT,
+          'Too many display connections. Try again shortly.',
+          metrics,
+        );
         const snapshot = roomManager.getRoomSnapshot(request.roomCode);
         clearSocketBinding(socket, roomManager, broadcastRoomSnapshot);
         socket.join(roomChannel(request.roomCode));
@@ -671,7 +873,8 @@ export function attachRealtimeServer(
     });
 
     socket.on('disconnect', () => {
-      roomCreationAttempts.delete(socket.id);
+      metrics?.increment('socket.disconnects');
+      metrics?.increment('socket.connections.active', -1);
       const state = roomManager.disconnectSocket(socket.id);
       const roomCode = socket.data.roomCode;
       if (state && roomCode) broadcastRoomSnapshot(roomCode, state);
@@ -679,15 +882,6 @@ export function attachRealtimeServer(
   });
 
   return io;
-}
-
-function respond<T extends object>(ack: EventAck<T> | undefined, action: () => T): void {
-  if (typeof ack !== 'function') return;
-  try {
-    ack({ ok: true, ...action() });
-  } catch (error) {
-    ack({ ok: false, error: toEventError(error) });
-  }
 }
 
 function deduplicateAction<T extends object>(
@@ -736,8 +930,11 @@ class ActionReceiptStore {
   private readonly limitPerActor: number;
   private readonly bootstrapLimit: number;
   private readonly totalLimit: number;
+  private readonly rateAttempts = new Map<string, number[]>();
+  private readonly metrics: OperationalMetrics | undefined;
 
   constructor(options: RealtimeServerOptions) {
+    this.metrics = options.metrics;
     this.now = options.now ?? Date.now;
     this.ttlMs = positiveInteger(
       options.actionDeduplicationTtlMs ?? ACTION_DEDUPLICATION_TTL_MS,
@@ -770,8 +967,23 @@ class ActionReceiptStore {
     const key = receiptKey(event, actionId);
     if (actor?.has(key)) return;
 
+    const rateKey = `${actorKey}:${event}`;
+    const recent = (this.rateAttempts.get(rateKey) ?? []).filter(
+      (timestamp) => now - timestamp < ACTION_RATE_WINDOW_MS,
+    );
+    if (recent.length >= ACTION_RATE_LIMIT) {
+      this.metrics?.increment('actions.rejected_rate_limit');
+      throw new CachedEventError({
+        code: 'ROOM_LIMIT',
+        message: 'Too many actions in a short period. Try again shortly.',
+      });
+    }
+    recent.push(now);
+    this.rateAttempts.set(rateKey, recent);
+
     const actorLimit = actorKey.startsWith('bootstrap:') ? this.bootstrapLimit : this.limitPerActor;
     if ((actor?.size ?? 0) >= actorLimit || this.receiptCount() >= this.totalLimit) {
+      this.metrics?.increment('actions.rejected_capacity');
       throw new CachedEventError({
         code: 'IDEMPOTENCY_CAPACITY',
         message: 'Too many actions are awaiting safe retry. Try again after the retry window.',
@@ -818,6 +1030,15 @@ class ActionReceiptStore {
   }
 }
 
+function clientIdentity(socket: RoomSocket, trustedProxy = false): string {
+  if (trustedProxy) {
+    const forwarded = socket.handshake.headers['x-forwarded-for'];
+    const first = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(',')[0];
+    if (first?.trim()) return first.trim();
+  }
+  return socket.handshake.address || 'unknown-client';
+}
+
 function receiptKey(event: string, actionId: string): string {
   return `${event}:${actionId}`;
 }
@@ -838,6 +1059,10 @@ function canonicalJson(value: unknown): string {
     .join(',')}}`;
 }
 
+function logOperational(event: string, fields: Record<string, unknown> = {}): void {
+  console.log(JSON.stringify({ event, ...fields }));
+}
+
 function positiveInteger(value: number, name: string): number {
   if (!Number.isInteger(value) || value < 1) throw new Error(`${name} must be a positive integer.`);
   return value;
@@ -856,16 +1081,37 @@ function clearSocketBinding(
   if (snapshot && previousRoomCode) broadcastRoomSnapshot(previousRoomCode, snapshot);
 }
 
-function assertRoomCreationRateLimit(attempts: Map<string, number[]>, socketId: string): void {
+function assertRoomCreationRateLimit(
+  attempts: Map<string, number[]>,
+  socketId: string,
+  metrics?: OperationalMetrics,
+): void {
+  assertWindowLimit(
+    attempts,
+    socketId,
+    ROOM_CREATION_LIMIT,
+    'Too many rooms created from this connection. Try again shortly.',
+    metrics,
+  );
+}
+
+function assertWindowLimit(
+  attempts: Map<string, number[]>,
+  key: string,
+  limit: number,
+  message: string,
+  metrics?: OperationalMetrics,
+): void {
   const now = Date.now();
-  const recent = (attempts.get(socketId) ?? []).filter(
+  const recent = (attempts.get(key) ?? []).filter(
     (timestamp) => now - timestamp < ROOM_CREATION_WINDOW_MS,
   );
-  if (recent.length >= ROOM_CREATION_LIMIT) {
-    throw new RoomManagerError('ROOM_LIMIT', 'Too many rooms created from this connection.');
+  if (recent.length >= limit) {
+    metrics?.increment('actions.rejected_rate_limit');
+    throw new RoomManagerError('ROOM_LIMIT', message);
   }
   recent.push(now);
-  attempts.set(socketId, recent);
+  attempts.set(key, recent);
 }
 
 function toEventError(error: unknown): EventError['error'] {

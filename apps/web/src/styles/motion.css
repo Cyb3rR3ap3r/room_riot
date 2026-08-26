@@ -4,6 +4,105 @@ html.motion-paused *::after {
   animation-play-state: paused !important;
 }
 
+/* Phase transitions are state cues first; decoration is deliberately short and interruptible. */
+.experience-shell[data-phase] .experience-grid > * {
+  animation: phase-settle var(--motion-phase, 220ms) var(--ease-standard) both;
+}
+
+/* Each game supplies a named choreography contract; these phase families make the contract visible
+   without coupling one game's art to another game's markup. */
+[data-phase-choreography$='-ignite'] .stage-art-wrap {
+  animation: choreography-ignite 420ms var(--ease-emphasized) both;
+}
+
+[data-phase-choreography$='-focus'] .stage-art-wrap {
+  animation: choreography-focus 700ms var(--ease-loop) infinite alternate;
+}
+
+[data-phase-choreography$='-reveal'] .stage-art-wrap {
+  animation: choreography-reveal 520ms var(--ease-emphasized) both;
+}
+
+[data-phase-choreography$='-score'] .stage-art-wrap {
+  animation: choreography-score 560ms var(--ease-standard) both;
+}
+
+[data-phase-choreography$='-crown'] .stage-art-wrap {
+  animation: choreography-crown 800ms var(--ease-loop) infinite alternate;
+}
+
+@keyframes choreography-ignite {
+  from {
+    opacity: 0.55;
+    transform: scale(0.94) rotate(-1deg);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes choreography-focus {
+  from {
+    filter: saturate(0.9);
+    transform: translateY(0.1rem);
+  }
+
+  to {
+    filter: saturate(1.12);
+    transform: translateY(-0.1rem);
+  }
+}
+
+@keyframes choreography-reveal {
+  from {
+    clip-path: inset(0 12% 0 12%);
+    transform: scale(0.98);
+  }
+
+  to {
+    clip-path: inset(0);
+    transform: scale(1);
+  }
+}
+
+@keyframes choreography-score {
+  from {
+    filter: brightness(0.88);
+    transform: translateY(0.25rem);
+  }
+
+  to {
+    filter: brightness(1);
+    transform: translateY(0);
+  }
+}
+
+@keyframes choreography-crown {
+  from {
+    filter: drop-shadow(0 0 0 transparent);
+    transform: translateY(0);
+  }
+
+  to {
+    filter: drop-shadow(0 0 1.2rem var(--game-glow));
+    transform: translateY(-0.2rem) scale(1.015);
+  }
+}
+
+@keyframes phase-settle {
+  from {
+    opacity: 0.72;
+    transform: translateY(0.35rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

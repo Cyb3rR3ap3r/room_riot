@@ -10,6 +10,7 @@ import {
   textElement,
   type PublicStageDependencies,
 } from '../public-stage.js';
+import { drawnOutPresentation } from './presentation.js';
 
 export function renderDrawnOutPublicStage(
   state: PublicRoomState,
@@ -25,7 +26,11 @@ export function renderDrawnOutPublicStage(
     artwork,
     'stage-copy drawn-out-stage-copy',
   );
-  frame.visual.className = 'drawn-out-canvas-stage';
+  frame.element.setAttribute(
+    'data-phase-choreography',
+    drawnOutPresentation.phaseChoreography[state.phase],
+  );
+  frame.visual.className = 'drawn-out-canvas-stage stage-art-wrap';
   appendStageHeading(
     frame.copy,
     dependencies,

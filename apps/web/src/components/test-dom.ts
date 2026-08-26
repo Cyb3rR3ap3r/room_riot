@@ -25,6 +25,8 @@ export class FakeElement {
   readonly attributes = new Map<string, string>();
   readonly classList: FakeClassList;
   textContent = '';
+  tabIndex = 0;
+  focused = false;
   private readonly classes = new Set<string>();
   private parent: FakeElement | null = null;
   constructor(readonly tagName: string) {
@@ -65,6 +67,23 @@ export class FakeElement {
     this.attributes.set(name, value);
   }
   addEventListener(): void {}
+  querySelector<T extends FakeElement>(selectors: string): T | null {
+    const acceptsHeading = selectors.includes('h1') || selectors.includes('h2');
+    for (const child of this.children) {
+      if (
+        (acceptsHeading && (child.tagName === 'h1' || child.tagName === 'h2')) ||
+        (selectors.includes('[role="heading"]') && child.attributes.get('role') === 'heading')
+      ) {
+        return child as unknown as T;
+      }
+      const nested = child.querySelector<T>(selectors);
+      if (nested) return nested;
+    }
+    return null;
+  }
+  focus(): void {
+    this.focused = true;
+  }
   private detach(): void {
     if (!this.parent) return;
     const index = this.parent.children.indexOf(this);

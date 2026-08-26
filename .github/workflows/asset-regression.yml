@@ -1,0 +1,44 @@
+name: Asset regression
+
+on:
+  pull_request:
+    paths:
+      - apps/web/assets/**
+      - apps/web/asset-manifest.json
+      - apps/web/scripts/copy-assets.mjs
+      - scripts/check-performance-budget.mjs
+      - package.json
+      - pnpm-lock.yaml
+  workflow_dispatch:
+
+concurrency:
+  group: room-riot-assets-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate changed assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up pnpm and Node.js
+        uses: pnpm/setup@f7d0e5f4b1b3089d2799ef9722859e7ba314c4c8 # v1
+        with:
+          runtime: node@22
+          cache: true
+          install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the web bundle
+        run: pnpm --filter @room-riot/web build
+
+      - name: Check asset transfer and decoded-dimension budgets
+        run: pnpm check:performance

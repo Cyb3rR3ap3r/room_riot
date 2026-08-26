@@ -48,3 +48,14 @@ test('phase presentation fixtures preserve game-specific stage and sound directi
   assert.equal(getGamePresentation('suspect').soundCue('input').waveform(0), 'triangle');
   assert.equal(getGamePresentation('drawn-out').soundCue('input').waveform(0), 'sawtooth');
 });
+
+test('every game provides distinct choreography for the full phase contract', () => {
+  const choreography = GAME_CATALOG.map((game) => {
+    const presentation = getGamePresentation(game.id);
+    const phases = Object.values(presentation.phaseChoreography);
+    assert.equal(phases.length, 9);
+    assert.ok(phases.every((phase) => phase.length > 0));
+    return phases.join('|');
+  });
+  assert.equal(new Set(choreography).size, GAME_CATALOG.length);
+});

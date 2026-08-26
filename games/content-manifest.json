@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "packs": {
+    "groupthink/family": {
+      "categories": ["everyday", "social"],
+      "audience": "general",
+      "answerShape": "short-open",
+      "riskTags": [],
+      "curatedPromptCount": 8
+    },
+    "groupthink/standard": {
+      "categories": ["everyday", "comedy"],
+      "audience": "general",
+      "answerShape": "short-open",
+      "riskTags": [],
+      "curatedPromptCount": 10
+    },
+    "groupthink/after-dark": {
+      "categories": ["adult-life", "social"],
+      "audience": "adults",
+      "answerShape": "short-open",
+      "riskTags": ["adult-themes"],
+      "curatedPromptCount": 8
+    },
+    "hot-take/family": {
+      "categories": ["preferences", "everyday"],
+      "audience": "general",
+      "answerShape": "opinion",
+      "riskTags": [],
+      "curatedPromptCount": 8,
+      "playerTargetedPolicy": "skip"
+    },
+    "hot-take/standard": {
+      "categories": ["preferences", "culture"],
+      "audience": "general",
+      "answerShape": "opinion",
+      "riskTags": [],
+      "curatedPromptCount": 9,
+      "playerTargetedPolicy": "skip"
+    },
+    "hot-take/after-dark": {
+      "categories": ["adult-life", "relationships"],
+      "audience": "adults",
+      "answerShape": "opinion",
+      "riskTags": ["adult-themes", "player-targeted-review"],
+      "curatedPromptCount": 8,
+      "playerTargetedPolicy": "skip"
+    },
+    "suspect/family": {
+      "categories": ["harmless-confessions", "everyday"],
+      "audience": "general",
+      "answerShape": "yes-no-confession",
+      "riskTags": [],
+      "curatedPromptCount": 20
+    },
+    "suspect/standard": {
+      "categories": ["harmless-confessions", "social"],
+      "audience": "general",
+      "answerShape": "yes-no-confession",
+      "riskTags": [],
+      "curatedPromptCount": 20
+    },
+    "suspect/after-dark": {
+      "categories": ["adult-life", "social"],
+      "audience": "adults",
+      "answerShape": "yes-no-confession",
+      "riskTags": ["adult-themes", "player-targeted-review"],
+      "curatedPromptCount": 20
+    },
+    "drawn-out/family": {
+      "categories": ["animals", "everyday", "silly"],
+      "audience": "general",
+      "answerShape": "visual-scene",
+      "riskTags": [],
+      "curatedPromptCount": 25
+    },
+    "drawn-out/standard": {
+      "categories": ["absurd", "everyday", "silly"],
+      "audience": "general",
+      "answerShape": "visual-scene",
+      "riskTags": [],
+      "curatedPromptCount": 25
+    },
+    "drawn-out/after-dark": {
+      "categories": ["adult-life", "absurd"],
+      "audience": "adults",
+      "answerShape": "visual-scene",
+      "riskTags": ["adult-themes"],
+      "curatedPromptCount": 25
+    }
+  }
+}

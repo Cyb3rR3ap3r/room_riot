@@ -1,4 +1,4 @@
-import { randomInt, randomUUID } from 'node:crypto';
+import { createHash, randomInt, randomUUID } from 'node:crypto';
 
 import {
   CreateRoomRequestSchema,
@@ -54,6 +54,8 @@ import {
   createInitialRoomState,
   setGame,
   setPhase,
+  setPaused,
+  setPlayerReady,
   setPlayerConnectionStatus,
   toPublicRoomState,
 } from '@room-riot/game-engine';
@@ -66,11 +68,14 @@ import type {
   PlayerGameView,
   PublicGameView,
 } from './game-registry.js';
+import { RoomPersistence } from './room-persistence.js';
+import type { PersistedRoomRecord } from './room-persistence.js';
+import type { OperationalMetrics } from './metrics.js';
 
 export type { PlayerGameView, PublicGameView } from './game-registry.js';
 
 const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const ROOM_CODE_LENGTH = 4;
+const ROOM_CODE_LENGTH = 6;
 
 export type SocketBinding =
   | { readonly kind: 'host'; readonly roomCode: RoomCode }
@@ -82,10 +87,23 @@ interface RoomSession extends GameRuntimeSlots {
   snapshotRevision: number;
   snapshotFingerprint: string | null;
   readonly hostToken: SessionToken;
+  readonly hostTokenHash: string;
   lastActivityAt: number;
   hostSocketId?: string;
   readonly playerTokens: Map<SessionToken, PlayerId>;
+  readonly playerTokenHashes: Map<string, PlayerId>;
   readonly playerSocketIds: Map<PlayerId, string>;
+}
+
+interface PersistedRoomSession {
+  readonly state: RoomState;
+  readonly roundPlayerIds: readonly PlayerId[];
+  readonly snapshotRevision: number;
+  readonly snapshotFingerprint: string | null;
+  readonly hostTokenHash: string;
+  readonly lastActivityAt: number;
+  readonly playerTokenHashes: readonly (readonly [string, PlayerId])[];
+  readonly slots: GameRuntimeSlots;
 }
 
 const DEFAULT_RECONNECT_GRACE_MS = 15_000;
@@ -164,6 +182,18 @@ export interface RoomManagerOptions {
   readonly randomizePrompts?: boolean;
   /** Server-owned time in which an interrupted player may reclaim the same identity. */
   readonly reconnectGraceMs?: number;
+  /** Optional SQLite path used for restart-safe room snapshots. */
+  readonly persistencePath?: string;
+  readonly metrics?: OperationalMetrics;
+}
+
+export interface RoomManagerOperationalStatus {
+  readonly activeRooms: number;
+  readonly activePlayers: number;
+  readonly draining: boolean;
+  readonly persistenceConfigured: boolean;
+  readonly persistenceRecoveryIssues: number;
+  readonly persistenceWriteFailures: number;
 }
 
 export type RoomSnapshotListener = (roomCode: RoomCode, snapshot: RoomSnapshot) => void;
@@ -180,6 +210,13 @@ export class RoomManager {
   private readonly cleanupTimer: ReturnType<typeof setInterval>;
   private readonly randomizePrompts: boolean;
   private readonly reconnectGraceMs: number;
+  private readonly persistence: RoomPersistence | null;
+  private readonly pendingPersistence = new Map<RoomCode, PersistedRoomRecord>();
+  private readonly metrics: OperationalMetrics | undefined;
+  private persistenceFlushTimer: ReturnType<typeof setImmediate> | null = null;
+  private persistenceWriteFailures = 0;
+  private draining = false;
+  private persistenceRecoveryIssues = 0;
 
   constructor(options: RoomManagerOptions = {}) {
     const maxRooms = options.maxRooms ?? 1_000;
@@ -204,8 +241,13 @@ export class RoomManager {
     this.roomIdleTtlMs = roomIdleTtlMs;
     this.randomizePrompts = randomizePrompts;
     this.reconnectGraceMs = reconnectGraceMs;
+    this.metrics = options.metrics;
+    this.persistence = options.persistencePath
+      ? new RoomPersistence(options.persistencePath)
+      : null;
     this.cleanupTimer = setInterval(() => this.cleanupExpiredRooms(), cleanupIntervalMs);
     this.cleanupTimer.unref?.();
+    this.restorePersistedRooms();
   }
 
   close(): void {
@@ -214,6 +256,29 @@ export class RoomManager {
     this.inputTimers.clear();
     this.reconnectTimers.forEach((timer) => clearTimeout(timer));
     this.reconnectTimers.clear();
+    this.flushPendingPersistence();
+    this.persistence?.close();
+  }
+
+  beginDrain(): void {
+    this.draining = true;
+  }
+
+  getOperationalStatus(): RoomManagerOperationalStatus {
+    return {
+      activeRooms: this.rooms.size,
+      activePlayers: [...this.rooms.values()].reduce(
+        (total, session) =>
+          total +
+          Object.values(session.state.players).filter((player) => player.status !== 'removed')
+            .length,
+        0,
+      ),
+      draining: this.draining,
+      persistenceConfigured: this.persistence !== null,
+      persistenceRecoveryIssues: this.persistenceRecoveryIssues,
+      persistenceWriteFailures: this.persistenceWriteFailures,
+    };
   }
 
   subscribe(listener: RoomSnapshotListener): () => void {
@@ -222,6 +287,12 @@ export class RoomManager {
   }
 
   createRoom(input: CreateRoomRequest = {}): CreatedRoom {
+    if (this.draining) {
+      throw new RoomManagerError(
+        'INVALID_STATE',
+        'The server is shutting down; new rooms are disabled.',
+      );
+    }
     this.cleanupExpiredRooms();
     if (this.rooms.size >= this.maxRooms) {
       throw new RoomManagerError('ROOM_LIMIT', 'The server is at its active room limit.');
@@ -256,10 +327,13 @@ export class RoomManager {
       snapshotRevision: 0,
       snapshotFingerprint: null,
       hostToken,
+      hostTokenHash: hashToken(hostToken),
       lastActivityAt: now,
       playerTokens: new Map(),
+      playerTokenHashes: new Map(),
       playerSocketIds: new Map(),
     });
+    logOperational('room_created', { roomCode });
 
     return {
       roomCode,
@@ -271,9 +345,15 @@ export class RoomManager {
   joinRoom(input: JoinRoomRequest): JoinedRoom {
     const request = JoinRoomRequestSchema.parse(input);
     const session = this.requireRoom(request.roomCode);
+    if (this.draining && !request.playerToken) {
+      throw new RoomManagerError(
+        'INVALID_STATE',
+        'The server is shutting down; new joins are disabled.',
+      );
+    }
 
     if (request.playerToken) {
-      const existingPlayerId = session.playerTokens.get(request.playerToken);
+      const existingPlayerId = this.getPlayerIdForSessionToken(session, request.playerToken);
       if (existingPlayerId) {
         this.cancelReconnectExpiry(session.state.roomCode, existingPlayerId);
         session.state = setPlayerConnectionStatus(session.state, existingPlayerId, 'connected');
@@ -295,6 +375,10 @@ export class RoomManager {
       throw new RoomManagerError('ROOM_FULL', `Room ${session.state.roomCode} is full.`);
     }
 
+    if (session.state.settings.joinLocked) {
+      throw new RoomManagerError('INVALID_STATE', 'The host has locked new joins for this room.');
+    }
+
     const playerId = PlayerIdSchemaFromUuid();
     const playerToken = SessionTokenSchema.parse(randomUUID());
     session.state = addPlayer(session.state, {
@@ -303,6 +387,7 @@ export class RoomManager {
       avatar: request.avatar,
     });
     session.playerTokens.set(playerToken, playerId);
+    session.playerTokenHashes.set(hashToken(playerToken), playerId);
 
     return {
       roomCode: session.state.roomCode,
@@ -321,6 +406,18 @@ export class RoomManager {
     this.assertHost(session, hostToken);
     if (session.state.phase !== 'lobby') {
       throw new RoomManagerError('INVALID_STATE', 'A game can only be started from the lobby.');
+    }
+    if (session.state.readinessRequired) {
+      const activePlayerIds = Object.values(session.state.players)
+        .filter((player) => player.status !== 'removed')
+        .map((player) => player.id);
+      const readyPlayerIds = new Set(session.state.readyPlayerIds);
+      if (activePlayerIds.some((playerId) => !readyPlayerIds.has(playerId))) {
+        throw new RoomManagerError(
+          'INVALID_STATE',
+          'Every connected player must confirm readiness before the rematch starts.',
+        );
+      }
     }
     const parsedGameId = SupportedGameIdSchema.safeParse(gameIdInput);
     if (!parsedGameId.success) {
@@ -347,6 +444,146 @@ export class RoomManager {
     return this.getSnapshot(session);
   }
 
+  setJoinLocked(roomCodeInput: string, hostTokenInput: string, locked: boolean): RoomSnapshot {
+    const session = this.requireAuthorizedSession(roomCodeInput, hostTokenInput);
+    session.state = {
+      ...session.state,
+      settings: { ...session.state.settings, joinLocked: locked },
+      updatedAt: Date.now(),
+    };
+    return this.getSnapshot(session);
+  }
+
+  setDrawingEnabled(roomCodeInput: string, hostTokenInput: string, enabled: boolean): RoomSnapshot {
+    const session = this.requireAuthorizedSession(roomCodeInput, hostTokenInput);
+    session.state = {
+      ...session.state,
+      settings: { ...session.state.settings, drawingEnabled: enabled },
+      updatedAt: Date.now(),
+    };
+    return this.getSnapshot(session);
+  }
+
+  setPaused(roomCodeInput: string, hostTokenInput: string, paused: boolean): RoomSnapshot {
+    const session = this.requireAuthorizedSession(roomCodeInput, hostTokenInput);
+    if (session.state.phase === 'lobby' || session.state.phase === 'winner') {
+      throw new RoomManagerError('INVALID_STATE', 'The room can only be paused during a game.');
+    }
+    if (session.state.paused === paused) return this.getSnapshot(session);
+
+    const now = Date.now();
+    if (paused) {
+      this.clearGameDeadline(session.state.roomCode);
+      session.state = setPaused(session.state, true, now);
+      return this.getSnapshot(session);
+    }
+
+    const pauseStartedAt = session.state.pauseStartedAt;
+    const elapsed = pauseStartedAt === null ? 0 : Math.max(0, now - pauseStartedAt);
+    if (elapsed > 0) this.shiftGameDeadlines(session, elapsed);
+    session.state = setPaused(session.state, false, now);
+    this.scheduleCurrentGameDeadline(session.state.roomCode, session);
+    return this.getSnapshot(session);
+  }
+
+  setPlayerReady(roomCodeInput: string, playerTokenInput: string, ready: boolean): RoomSnapshot {
+    const roomCode = RoomCodeSchema.parse(roomCodeInput);
+    const playerToken = SessionTokenSchema.parse(playerTokenInput);
+    const session = this.requireRoom(roomCode);
+    const playerId = this.getPlayerIdForToken(roomCode, playerToken);
+    if (
+      session.state.phase !== 'lobby' ||
+      session.state.gameId === null ||
+      !session.state.readinessRequired
+    ) {
+      throw new RoomManagerError(
+        'INVALID_STATE',
+        'Readiness is only available while a rematch is waiting to start.',
+      );
+    }
+    session.state = setPlayerReady(session.state, playerId, ready);
+    return this.getSnapshot(session);
+  }
+
+  skipDisconnected(roomCodeInput: string, hostTokenInput: string): RoomSnapshot {
+    const session = this.requireAuthorizedSession(roomCodeInput, hostTokenInput);
+    const disconnected = Object.values(session.state.players).filter(
+      (player) => player.status === 'disconnected',
+    );
+    if (disconnected.length === 0) {
+      throw new RoomManagerError('INVALID_STATE', 'There are no disconnected players to skip.');
+    }
+    disconnected.forEach((player) => this.expireDisconnectedPlayer(session, player.id));
+    if (!session.state.paused) this.expireGameIfNeeded(session, Date.now(), true);
+    return this.getSnapshot(session);
+  }
+
+  rematch(
+    roomCodeInput: string,
+    hostTokenInput: string,
+    gameIdInput: string,
+    carryScores: boolean,
+    settingsInput?: RoomSettingsPatch,
+  ): RoomSnapshot {
+    const session = this.requireAuthorizedSession(roomCodeInput, hostTokenInput);
+    if (session.state.phase !== 'winner') {
+      throw new RoomManagerError(
+        'INVALID_STATE',
+        'A rematch is available after the winner screen.',
+      );
+    }
+    const gameId = SupportedGameIdSchema.parse(gameIdInput);
+    const nextSettings = {
+      ...session.state.settings,
+      ...normalizeSettings(settingsInput),
+      joinLocked: false,
+    };
+    this.assertSupportedRoomCapacity(gameId, nextSettings);
+    const now = Date.now();
+    this.clearGameDeadline(session.state.roomCode);
+    let state = createInitialRoomState({
+      roomCode: session.state.roomCode,
+      now,
+      settings: nextSettings,
+    });
+    const previousPlayers = Object.values(session.state.players).filter(
+      (player) => player.status !== 'removed',
+    );
+    this.assertSupportedPlayerCount(gameId, nextSettings, previousPlayers.length);
+    for (const player of previousPlayers) {
+      state = addPlayer(state, { id: player.id, name: player.name, avatar: player.avatar, now });
+    }
+    state = {
+      ...setGame(state, gameId),
+      phase: 'lobby',
+      readyPlayerIds: [],
+      readinessRequired: true,
+      updatedAt: now,
+    };
+    if (carryScores) {
+      state = {
+        ...state,
+        players: Object.fromEntries(
+          previousPlayers.flatMap((player) => {
+            const nextPlayer = state.players[player.id];
+            return nextPlayer ? [[player.id, { ...nextPlayer, score: player.score }] as const] : [];
+          }),
+        ),
+      };
+    }
+    session.state = state;
+    session.roundPlayerIds = previousPlayers.map((player) => player.id);
+    delete session.groupthink;
+    delete session.hotTake;
+    delete session.suspect;
+    delete session.drawnOut;
+    delete session.groupthinkPrompts;
+    delete session.hotTakePrompts;
+    delete session.suspectPrompts;
+    delete session.drawnOutPrompts;
+    return this.getSnapshot(session);
+  }
+
   reconnectHost(roomCodeInput: string, hostTokenInput: string): RoomSnapshot {
     const roomCode = RoomCodeSchema.parse(roomCodeInput);
     const hostToken = SessionTokenSchema.parse(hostTokenInput);
@@ -360,7 +597,7 @@ export class RoomManager {
     const roomCode = RoomCodeSchema.parse(roomCodeInput);
     const playerToken = SessionTokenSchema.parse(playerTokenInput);
     const session = this.requireRoom(roomCode);
-    const playerId = session.playerTokens.get(playerToken);
+    const playerId = this.getPlayerIdForSessionToken(session, playerToken);
     if (!playerId) throw new RoomManagerError('UNAUTHORIZED', 'Player authorization failed.');
     return this.removePlayer(session, playerId);
   }
@@ -389,6 +626,8 @@ export class RoomManager {
     ];
     this.removeRoom(roomCode, session);
     session.playerTokens.clear();
+    session.playerTokenHashes.clear();
+    logOperational('room_closed', { roomCode });
     return { roomCode, socketIds };
   }
 
@@ -557,7 +796,7 @@ export class RoomManager {
     const roomCode = RoomCodeSchema.parse(roomCodeInput);
     const token = SessionTokenSchema.parse(tokenInput);
     const session = this.requireRoom(roomCode);
-    const playerId = session.playerTokens.get(token);
+    const playerId = this.getPlayerIdForSessionToken(session, token);
     if (!playerId) throw new RoomManagerError('UNAUTHORIZED', 'Player authorization failed.');
     return playerId;
   }
@@ -598,6 +837,7 @@ export class RoomManager {
     playerIdInput: string,
     answer: string,
     targetPlayerIdInput?: string,
+    skip = false,
   ): PlayerGameUpdate {
     const session = this.requireRoom(roomCodeInput);
     this.expireGameIfNeeded(session);
@@ -613,6 +853,7 @@ export class RoomManager {
       playerId,
       answer,
       targetPlayerId,
+      skip,
     );
     this.applyGameTransition(session, transition, now);
     return {
@@ -630,6 +871,9 @@ export class RoomManager {
     this.expireGameIfNeeded(session);
     const playerId = PlayerIdSchemaFromInput(playerIdInput);
     this.assertActiveRoundPlayer(session, playerId);
+    if (!session.state.settings.drawingEnabled) {
+      throw new RoomManagerError('INVALID_STATE', 'Drawing input is disabled by the host.');
+    }
     const now = Date.now();
     const transition = this.gameRegistry.submitDrawing(
       session.state.gameId,
@@ -849,7 +1093,8 @@ export class RoomManager {
     return this.getSnapshot(session);
   }
 
-  private expireGameIfNeeded(session: RoomSession, now = Date.now()): void {
+  private expireGameIfNeeded(session: RoomSession, now = Date.now(), force = false): void {
+    if (session.state.paused && !force) return;
     if (!session.state.gameId) return;
     const deadlineAt = this.gameRegistry.deadlineAt(session.state.gameId, session);
     if (deadlineAt === null || now < deadlineAt) return;
@@ -861,6 +1106,9 @@ export class RoomManager {
   }
 
   private getGameActionContext(session: RoomSession, now: number): GameActionContext {
+    if (session.state.paused) {
+      throw new RoomManagerError('INVALID_STATE', 'The host has paused this room.');
+    }
     return {
       slots: session,
       playerIds: this.getRoundPlayerIds(session),
@@ -872,8 +1120,32 @@ export class RoomManager {
     };
   }
 
+  private shiftGameDeadlines(session: RoomSession, elapsedMs: number): void {
+    const keys = ['groupthink', 'hotTake', 'suspect', 'drawnOut'] as const;
+    keys.forEach((key) => {
+      const game = session[key];
+      if (!game) return;
+      const next = { ...game } as Record<string, unknown>;
+      Object.entries(next).forEach(([field, value]) => {
+        if (/deadlineAt$/i.test(field) && typeof value === 'number') {
+          next[field] = value + elapsedMs;
+        }
+      });
+      session[key] = next as never;
+    });
+  }
+
   private applyGameTransition(session: RoomSession, transition: GameTransition, now: number): void {
+    const previousPhase = session.state.phase;
     session.state = setPhase(session.state, transition.phase, now);
+    if (previousPhase !== transition.phase) {
+      logOperational('phase_changed', {
+        roomCode: session.state.roomCode,
+        gameId: session.state.gameId,
+        from: previousPhase,
+        to: transition.phase,
+      });
+    }
     if (transition.scheduleDeadline) {
       this.scheduleCurrentGameDeadline(session.state.roomCode, session);
     } else {
@@ -883,12 +1155,14 @@ export class RoomManager {
 
   private scheduleCurrentGameDeadline(roomCode: RoomCode, session: RoomSession): void {
     this.clearGameDeadline(roomCode);
+    if (session.state.paused) return;
     if (!session.state.gameId) return;
     const gameId = session.state.gameId;
     const deadlineAt = this.gameRegistry.deadlineAt(gameId, session);
     if (deadlineAt === null) return;
     const timer = setTimeout(
       () => {
+        this.metrics?.observe('timer.drift_ms', Date.now() - deadlineAt);
         const current = this.rooms.get(roomCode);
         if (!current || current.state.gameId !== gameId) return;
         const currentDeadline = this.gameRegistry.deadlineAt(gameId, current);
@@ -931,6 +1205,7 @@ export class RoomManager {
   private removeRoom(roomCode: RoomCode, session: RoomSession): void {
     this.clearGameDeadline(roomCode);
     this.rooms.delete(roomCode);
+    this.persistence?.remove(roomCode);
     this.socketBindings.forEach((binding, socketId) => {
       if (binding.roomCode === roomCode) this.socketBindings.delete(socketId);
     });
@@ -954,6 +1229,9 @@ export class RoomManager {
     session.playerSocketIds.delete(playerId);
     for (const [token, tokenPlayerId] of session.playerTokens) {
       if (tokenPlayerId === playerId) session.playerTokens.delete(token);
+    }
+    for (const [tokenHash, tokenPlayerId] of session.playerTokenHashes) {
+      if (tokenPlayerId === playerId) session.playerTokenHashes.delete(tokenHash);
     }
 
     if (session.roundPlayerIds.includes(playerId)) {
@@ -1168,8 +1446,127 @@ export class RoomManager {
     else this.scheduleCurrentGameDeadline(session.state.roomCode, session);
   }
 
+  private getPlayerIdForSessionToken(
+    session: RoomSession,
+    token: SessionToken,
+  ): PlayerId | undefined {
+    return session.playerTokens.get(token) ?? session.playerTokenHashes.get(hashToken(token));
+  }
+
+  private restorePersistedRooms(): void {
+    if (!this.persistence) return;
+    const now = Date.now();
+    for (const record of this.persistence.load()) {
+      try {
+        const value = JSON.parse(record.payload) as PersistedRoomSession;
+        const roomCode = RoomCodeSchema.parse(value.state?.roomCode);
+        if (
+          roomCode !== record.roomCode ||
+          !value.state ||
+          typeof value.state.players !== 'object' ||
+          value.state.players === null ||
+          !value.hostTokenHash ||
+          !Array.isArray(value.playerTokenHashes)
+        ) {
+          throw new Error('invalid persisted room shape');
+        }
+        if (now - value.lastActivityAt >= this.roomIdleTtlMs) {
+          this.persistence.remove(roomCode);
+          continue;
+        }
+        const persistedSettings = value.state.settings as Partial<RoomSettings>;
+        const migratedState: RoomState = {
+          ...value.state,
+          paused: value.state.paused ?? false,
+          pauseStartedAt: value.state.pauseStartedAt ?? null,
+          readyPlayerIds: Array.isArray(value.state.readyPlayerIds)
+            ? value.state.readyPlayerIds
+            : [],
+          readinessRequired: value.state.readinessRequired ?? false,
+          settings: {
+            ...persistedSettings,
+            joinLocked: persistedSettings.joinLocked ?? false,
+            drawingEnabled: persistedSettings.drawingEnabled ?? true,
+          } as RoomSettings,
+        };
+        const session: RoomSession = {
+          ...value.slots,
+          state: migratedState,
+          roundPlayerIds: value.roundPlayerIds,
+          snapshotRevision: value.snapshotRevision,
+          snapshotFingerprint: value.snapshotFingerprint,
+          hostToken: SessionTokenSchema.parse(randomUUID()),
+          hostTokenHash: value.hostTokenHash,
+          lastActivityAt: value.lastActivityAt,
+          playerTokens: new Map(),
+          playerTokenHashes: new Map(value.playerTokenHashes),
+          playerSocketIds: new Map(),
+        };
+        this.rooms.set(roomCode, session);
+        this.scheduleCurrentGameDeadline(roomCode, session);
+      } catch {
+        this.persistenceRecoveryIssues += 1;
+        console.warn(`[Room Riot] Ignoring incompatible persisted room ${record.roomCode}.`);
+        this.persistence.remove(record.roomCode);
+      }
+    }
+  }
+
+  private persistSession(session: RoomSession): void {
+    if (!this.persistence) return;
+    const slots: GameRuntimeSlots = {};
+    if (session.groupthink) slots.groupthink = session.groupthink;
+    if (session.hotTake) slots.hotTake = session.hotTake;
+    if (session.suspect) slots.suspect = session.suspect;
+    if (session.drawnOut) slots.drawnOut = session.drawnOut;
+    if (session.groupthinkPrompts) slots.groupthinkPrompts = session.groupthinkPrompts;
+    if (session.hotTakePrompts) slots.hotTakePrompts = session.hotTakePrompts;
+    if (session.suspectPrompts) slots.suspectPrompts = session.suspectPrompts;
+    if (session.drawnOutPrompts) slots.drawnOutPrompts = session.drawnOutPrompts;
+    const payload: PersistedRoomSession = {
+      state: session.state,
+      roundPlayerIds: session.roundPlayerIds,
+      snapshotRevision: session.snapshotRevision,
+      snapshotFingerprint: session.snapshotFingerprint,
+      hostTokenHash: session.hostTokenHash,
+      lastActivityAt: session.lastActivityAt,
+      playerTokenHashes: [...session.playerTokenHashes.entries()],
+      slots,
+    };
+    this.pendingPersistence.set(session.state.roomCode, {
+      roomCode: session.state.roomCode,
+      payload: JSON.stringify(payload),
+      updatedAt: Date.now(),
+    });
+    if (this.persistenceFlushTimer === null) {
+      this.persistenceFlushTimer = setImmediate(() => {
+        this.persistenceFlushTimer = null;
+        this.flushPendingPersistence();
+      });
+      this.persistenceFlushTimer.unref?.();
+    }
+  }
+
+  private flushPendingPersistence(): void {
+    if (this.persistenceFlushTimer !== null) {
+      clearImmediate(this.persistenceFlushTimer);
+      this.persistenceFlushTimer = null;
+    }
+    if (!this.persistence || this.pendingPersistence.size === 0) return;
+    const pending = [...this.pendingPersistence.values()];
+    this.pendingPersistence.clear();
+    for (const record of pending) {
+      try {
+        this.persistence.save(record);
+      } catch {
+        this.persistenceWriteFailures += 1;
+        logOperational('persistence_write_failed', { roomCode: record.roomCode });
+      }
+    }
+  }
+
   private assertHost(session: RoomSession, hostToken: SessionToken): void {
-    if (session.hostToken !== hostToken) {
+    if (session.hostTokenHash !== hashToken(hostToken)) {
       throw new RoomManagerError('UNAUTHORIZED', 'Host authorization failed.');
     }
   }
@@ -1306,11 +1703,13 @@ export class RoomManager {
       session.snapshotRevision += 1;
       session.snapshotFingerprint = fingerprint;
     }
-    return {
+    const snapshot = {
       protocolVersion: ROOM_RIOT_PROTOCOL_VERSION,
       revision: session.snapshotRevision,
       ...visibleState,
     };
+    this.persistSession(session);
+    return snapshot;
   }
 
   private getPrivatePlayerState(session: RoomSession, playerId: PlayerId): PlayerGameView | null {
@@ -1368,13 +1767,19 @@ export class RoomManager {
   }
 }
 
+type RoomSettingsPatch = {
+  [Key in keyof RoomSettings]?: RoomSettings[Key] | undefined;
+};
+
 function normalizeSettings(
-  settings: CreateRoomRequest['settings'],
+  settings: RoomSettingsPatch | undefined,
 ): Partial<RoomSettings> | undefined {
   if (!settings) return undefined;
 
   const normalized: Partial<RoomSettings> = {};
   if (settings.maxPlayers !== undefined) normalized.maxPlayers = settings.maxPlayers;
+  if (settings.joinLocked !== undefined) normalized.joinLocked = settings.joinLocked;
+  if (settings.drawingEnabled !== undefined) normalized.drawingEnabled = settings.drawingEnabled;
   if (settings.roundCount !== undefined) normalized.roundCount = settings.roundCount;
   if (settings.contentMode !== undefined) normalized.contentMode = settings.contentMode;
   if (settings.promptMode !== undefined) normalized.promptMode = settings.promptMode;
@@ -1397,4 +1802,12 @@ function PlayerIdSchemaFromUuid(): PlayerId {
 
 function PlayerIdSchemaFromInput(input: string): PlayerId {
   return PlayerIdSchema.parse(input);
+}
+
+function hashToken(token: SessionToken): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+function logOperational(event: string, fields: Record<string, unknown> = {}): void {
+  console.log(JSON.stringify({ event, ...fields }));
 }

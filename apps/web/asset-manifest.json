@@ -37,10 +37,22 @@
       "quality": 90
     },
     {
+      "source": "drawn-out-icon-v2.png",
+      "output": "drawn-out-icon-v2-256.webp",
+      "maxEdge": 256,
+      "quality": 56
+    },
+    {
       "source": "groupthink-icon.png",
       "output": "groupthink-icon.webp",
       "maxEdge": 512,
       "quality": 90
+    },
+    {
+      "source": "groupthink-icon.png",
+      "output": "groupthink-icon-256.webp",
+      "maxEdge": 256,
+      "quality": 56
     },
     {
       "source": "hot-take-icon.png",
@@ -49,10 +61,22 @@
       "quality": 90
     },
     {
+      "source": "hot-take-icon.png",
+      "output": "hot-take-icon-256.webp",
+      "maxEdge": 256,
+      "quality": 56
+    },
+    {
       "source": "suspect-icon-v2.png",
       "output": "suspect-icon-v2.webp",
       "maxEdge": 512,
       "quality": 90
+    },
+    {
+      "source": "suspect-icon-v2.png",
+      "output": "suspect-icon-v2-256.webp",
+      "maxEdge": 256,
+      "quality": 56
     },
     {
       "source": "drawn-out-stage-v2.png",
@@ -61,10 +85,22 @@
       "quality": 90
     },
     {
+      "source": "drawn-out-stage-v2.png",
+      "output": "drawn-out-stage-v2-480.webp",
+      "maxEdge": 480,
+      "quality": 50
+    },
+    {
       "source": "groupthink-reactor-v2.png",
       "output": "groupthink-reactor-v2.webp",
       "maxEdge": 1024,
       "quality": 90
+    },
+    {
+      "source": "groupthink-reactor-v2.png",
+      "output": "groupthink-reactor-v2-480.webp",
+      "maxEdge": 480,
+      "quality": 50
     },
     {
       "source": "hot-take-podium-v2.png",
@@ -73,10 +109,22 @@
       "quality": 90
     },
     {
+      "source": "hot-take-podium-v2.png",
+      "output": "hot-take-podium-v2-480.webp",
+      "maxEdge": 480,
+      "quality": 50
+    },
+    {
       "source": "suspect-stage-v2.png",
       "output": "suspect-stage-v2.webp",
       "maxEdge": 1024,
       "quality": 90
+    },
+    {
+      "source": "suspect-stage-v2.png",
+      "output": "suspect-stage-v2-480.webp",
+      "maxEdge": 480,
+      "quality": 50
     },
     {
       "source": "room-riot-logo.png",

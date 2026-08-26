@@ -20,8 +20,10 @@ test('catalog exposes one complete, uniquely identified definition per supported
   for (const game of GAME_CATALOG) {
     assert.ok(game.label);
     assert.match(game.icon, /^\/assets\/.+\.webp$/);
+    assert.match(game.iconSrcSet, /^\/assets\/.+ 256w, \/assets\/.+ 512w$/);
     assert.match(game.background, /^\/assets\/.+\.webp$/);
     assert.match(game.stageArt, /^\/assets\/.+\.webp$/);
+    assert.match(game.stageArtSrcSet, /^\/assets\/.+ 480w, \/assets\/.+ 1024w$/);
     assert.equal(isSupportedGameId(game.id), true);
     assert.equal(getGameDefinition(game.id), game);
     const limits = getGamePlayerLimits(game.id);

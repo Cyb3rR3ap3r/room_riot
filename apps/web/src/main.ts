@@ -5,11 +5,16 @@ import type {
   DrawnOutMode,
   DisplayWatchRequest,
   HostReconnectRequest,
+  HostJoinLockRequest,
+  HostDrawingRequest,
+  HostPauseRequest,
+  HostRematchRequest,
   HostRemovePlayerRequest,
   HostRoomActionRequest,
   HostStartGameRequest,
   JoinRoomActionRequest,
   PlayerCastVoteRequest,
+  PlayerReadyRequest,
   PlayerSubmitAnswerRequest,
   PlayerSubmitAlibiRequest,
   PlayerSubmitDrawingRequest,
@@ -50,6 +55,9 @@ import { createRoomStageShellComponent } from './components/room-stage-shell.js'
 import { createRosterComponent, type RosterComponent } from './components/roster.js';
 import { createTvDensityLayoutComponent } from './components/tv-density-layout.js';
 import { getGamePresentation } from './games/presentation.js';
+import { normalizeProceduralCueVolume } from './audio.js';
+import { createBrowserPerformanceMonitor } from './performance.js';
+import { getDrawingStrokePresentation } from './games/drawn-out/drawing-presentation.js';
 import { renderPlayerController } from './games/player-controller-registry.js';
 import type {
   PlayerControllerDependencies,
@@ -162,7 +170,7 @@ interface GamePicker {
 }
 
 interface SoundController {
-  readonly button: HTMLButtonElement;
+  readonly element: HTMLElement;
   phaseChanged(phase: RoomPhase, gameId?: SupportedGameId | null): void;
 }
 
@@ -178,9 +186,17 @@ function updatePage(
     title: titleText,
     subtitle: subtitleText,
   });
+  markRenderProfile(clearContent ? 'page-rebuild' : 'page-retained');
   if (clearContent) page.content.replaceChildren();
   updatePageBrand(page, gameId);
   return page;
+}
+
+function markRenderProfile(
+  label: 'page-rebuild' | 'page-retained' | 'controller-rebuild' | 'controller-retained',
+): void {
+  if (typeof performance === 'undefined' || typeof performance.mark !== 'function') return;
+  performance.mark(`room-riot:${label}`);
 }
 
 function updatePageBrand(page: PageParts, gameId: string | null | undefined): void {
@@ -222,21 +238,96 @@ function getRecoveryHandlers(
 }
 
 function createSoundController(): SoundController {
-  const preferences = createPreferenceStore();
+  const SOUND_PREFERENCES_KEY = 'room-riot-sound-preferences';
+  let saved: { soundEnabled: boolean; volume: number; hapticsEnabled: boolean } = {
+    soundEnabled: false,
+    volume: 0.7,
+    hapticsEnabled: true,
+  };
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(SOUND_PREFERENCES_KEY) ?? 'null') as {
+      soundEnabled?: unknown;
+      volume?: unknown;
+      hapticsEnabled?: unknown;
+    } | null;
+    if (parsed) {
+      saved = {
+        soundEnabled: parsed.soundEnabled === true,
+        volume: typeof parsed.volume === 'number' ? Math.min(1, Math.max(0, parsed.volume)) : 0.7,
+        hapticsEnabled: parsed.hapticsEnabled !== false,
+      };
+    }
+  } catch {
+    // Private browsing and disabled storage should not block a game.
+  }
+  const preferences = createPreferenceStore(saved);
+  preferences.subscribe((state) => {
+    try {
+      window.localStorage.setItem(SOUND_PREFERENCES_KEY, JSON.stringify(state));
+    } catch {
+      // Audio remains usable when storage is unavailable.
+    }
+  });
   let context: AudioContext | null = null;
+  let masterGain: GainNode | null = null;
+  preferences.subscribeSelector(
+    (state) => state.volume,
+    (nextVolume) => {
+      if (typeof nextVolume === 'number' && masterGain && context) {
+        masterGain.gain.setTargetAtTime(nextVolume, context.currentTime, 0.02);
+      }
+    },
+  );
   let previousPhase: RoomPhase | null = null;
   let activeGame: SupportedGameId = 'groupthink';
 
   const button = createButton('Enable game audio');
   button.className = 'secondary';
+  button.setAttribute('aria-pressed', String(saved.soundEnabled));
+  const volumeLabel = document.createElement('label');
+  volumeLabel.className = 'sound-volume-control';
+  volumeLabel.textContent = 'Volume';
+  const volume = document.createElement('input');
+  volume.type = 'range';
+  volume.min = '0';
+  volume.max = '1';
+  volume.step = '0.05';
+  volume.value = String(saved.volume);
+  volume.setAttribute('aria-label', 'Game audio volume');
+  volume.addEventListener('input', () => {
+    preferences.update((state) => ({ ...state, volume: Number(volume.value) }));
+  });
+  volumeLabel.append(volume);
+  const element = document.createElement('div');
+  element.className = 'sound-controls';
+  const haptics = createButton('Haptics on');
+  haptics.className = 'secondary';
+  haptics.setAttribute('aria-pressed', String(saved.hapticsEnabled));
+  haptics.addEventListener('click', () => {
+    preferences.update((state) => ({ ...state, hapticsEnabled: !state.hapticsEnabled }));
+  });
+  preferences.subscribeSelector(
+    (state) => state.hapticsEnabled,
+    (enabled) => {
+      haptics.textContent = enabled === false ? 'Haptics off' : 'Haptics on';
+      haptics.setAttribute('aria-pressed', String(enabled !== false));
+    },
+  );
+  element.append(button, volumeLabel, haptics);
   preferences.subscribeSelector(
     (state) => state.soundEnabled,
     (soundEnabled) => {
-      if (!soundEnabled) return;
-      button.textContent = getGamePresentation(activeGame).audioOnLabel;
+      button.textContent = soundEnabled
+        ? getGamePresentation(activeGame).audioOnLabel
+        : getGamePresentation(activeGame).audioEnableLabel;
+      button.setAttribute('aria-pressed', String(soundEnabled));
     },
   );
   button.addEventListener('click', () => {
+    if (preferences.select((state) => state.soundEnabled)) {
+      preferences.update((state) => ({ ...state, soundEnabled: false }));
+      return;
+    }
     const AudioContextConstructor = window.AudioContext;
     if (!AudioContextConstructor) {
       button.textContent = 'Sound Unavailable';
@@ -245,8 +336,11 @@ function createSoundController(): SoundController {
     }
 
     context ??= new AudioContextConstructor();
+    masterGain ??= context.createGain();
+    masterGain.gain.value = preferences.select((state) => state.volume) ?? 0.7;
+    masterGain.connect(context.destination);
     void context.resume();
-    preferences.setState({ soundEnabled: true });
+    preferences.update((state) => ({ ...state, soundEnabled: true }));
   });
 
   const playTone = (
@@ -256,7 +350,7 @@ function createSoundController(): SoundController {
     type: OscillatorType,
     volume: number,
   ): void => {
-    if (!context) return;
+    if (!context || !masterGain) return;
     const oscillator = context.createOscillator();
     const gain = context.createGain();
     const start = context.currentTime + offset;
@@ -265,26 +359,27 @@ function createSoundController(): SoundController {
     gain.gain.setValueAtTime(0.0001, start);
     gain.gain.exponentialRampToValueAtTime(volume, start + 0.018);
     gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-    oscillator.connect(gain).connect(context.destination);
+    oscillator.connect(gain).connect(masterGain);
     oscillator.start(start);
     oscillator.stop(start + duration + 0.02);
   };
 
   const playCue = (phase: RoomPhase): void => {
     const cue = getGamePresentation(activeGame).soundCue(phase);
+    const normalizedVolume = normalizeProceduralCueVolume(cue.volume, cue.notes.length);
     cue.notes.forEach((frequency, index) =>
-      playTone(frequency, index * cue.spacing, cue.duration, cue.waveform(index), cue.volume),
+      playTone(frequency, index * cue.spacing, cue.duration, cue.waveform(index), normalizedVolume),
     );
   };
 
   return {
-    button,
+    element,
     phaseChanged(phase, gameId) {
       if (gameId) {
         activeGame = gameId;
-        if (!preferences.select((state) => state.soundEnabled)) {
-          button.textContent = getGamePresentation(gameId).audioEnableLabel;
-        }
+        button.textContent = preferences.select((state) => state.soundEnabled)
+          ? getGamePresentation(gameId).audioOnLabel
+          : getGamePresentation(gameId).audioEnableLabel;
       }
       if (
         previousPhase &&
@@ -308,7 +403,22 @@ function createButton(label: string, type: 'button' | 'submit' = 'button'): HTML
   const button = document.createElement('button');
   button.type = type;
   button.textContent = label;
+  button.addEventListener('click', () => {
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    if (!reduced && areHapticsEnabled()) window.navigator.vibrate?.(8);
+  });
   return button;
+}
+
+function areHapticsEnabled(): boolean {
+  try {
+    const saved = JSON.parse(
+      window.localStorage.getItem('room-riot-sound-preferences') ?? 'null',
+    ) as { hapticsEnabled?: unknown } | null;
+    return saved?.hapticsEnabled !== false;
+  } catch {
+    return true;
+  }
 }
 
 function createField(
@@ -335,7 +445,11 @@ interface DrawingPad {
   readonly getDrawing: () => DrawingData;
 }
 
-function paintDrawing(canvas: HTMLCanvasElement, drawing: DrawingData | null): void {
+function paintDrawing(
+  canvas: HTMLCanvasElement,
+  drawing: DrawingData | null,
+  sharedStrokeCount = 0,
+): void {
   const context = canvas.getContext('2d');
   if (!context) return;
   context.clearRect(0, 0, canvas.width, canvas.height);
@@ -344,10 +458,11 @@ function paintDrawing(canvas: HTMLCanvasElement, drawing: DrawingData | null): v
   if (!drawing) return;
   context.lineCap = 'round';
   context.lineJoin = 'round';
-  drawing.strokes.forEach((stroke) => {
+  drawing.strokes.forEach((stroke, strokeIndex) => {
     const first = stroke.points[0];
     if (!first) return;
     context.beginPath();
+    context.globalAlpha = getDrawingStrokePresentation(strokeIndex, sharedStrokeCount).opacity;
     context.strokeStyle = stroke.color;
     context.lineWidth = Math.max(1, stroke.width * canvas.width);
     context.moveTo(first.x * canvas.width, first.y * canvas.height);
@@ -356,6 +471,7 @@ function paintDrawing(canvas: HTMLCanvasElement, drawing: DrawingData | null): v
       .forEach((point) => context.lineTo(point.x * canvas.width, point.y * canvas.height));
     context.stroke();
   });
+  context.globalAlpha = 1;
 }
 
 function createDrawingPreview(drawing: DrawingData | null, className = ''): HTMLCanvasElement {
@@ -374,7 +490,7 @@ function createDrawingPad(
 ): DrawingPad {
   const wrapper = document.createElement('section');
   wrapper.className = 'drawing-pad';
-  const canvas = createDrawingPreview(existing);
+  const canvas = createDrawingPreview(null);
   canvas.classList.add('drawing-input');
   canvas.setAttribute('aria-label', 'Drawing canvas');
   const strokes: DrawingData['strokes'][number][] = existing
@@ -383,7 +499,10 @@ function createDrawingPad(
         points: stroke.points.map((point) => ({ ...point })),
       }))
     : [];
+  const sharedStrokeCount = existing?.strokes.length ?? 0;
+  paintDrawing(canvas, { strokes }, sharedStrokeCount);
   let activeStroke: DrawingData['strokes'][number] | null = null;
+  const undone: DrawingData['strokes'][number][] = [];
   let color = '#151022';
   let width = 0.012;
 
@@ -399,13 +518,15 @@ function createDrawingPad(
     canvas.setPointerCapture(event.pointerId);
     activeStroke = { color, width, points: [position(event)] };
     strokes.push(activeStroke);
+    undone.splice(0);
+    updateStatus();
     onChange?.({ strokes });
   });
   canvas.addEventListener('pointermove', (event) => {
     if (!activeStroke || !canvas.hasPointerCapture(event.pointerId)) return;
     if (activeStroke.points.length >= 256) return;
     activeStroke.points.push(position(event));
-    paintDrawing(canvas, { strokes });
+    paintDrawing(canvas, { strokes }, sharedStrokeCount);
     onChange?.({ strokes });
   });
   const endStroke = (event: PointerEvent): void => {
@@ -424,6 +545,7 @@ function createDrawingPad(
     button.setAttribute('aria-pressed', String(swatch === color));
     button.addEventListener('click', () => {
       color = swatch;
+      updateStatus();
       toolbar
         .querySelectorAll<HTMLButtonElement>('.drawing-swatch')
         .forEach((candidate) =>
@@ -442,18 +564,38 @@ function createDrawingPad(
   const undo = createButton('Undo');
   undo.className = 'secondary';
   undo.addEventListener('click', () => {
-    strokes.pop();
-    paintDrawing(canvas, { strokes });
+    const last = strokes.pop();
+    if (last) undone.push(last);
+    paintDrawing(canvas, { strokes }, sharedStrokeCount);
+    updateStatus();
+    onChange?.({ strokes });
+  });
+  const redo = createButton('Redo');
+  redo.className = 'secondary';
+  redo.addEventListener('click', () => {
+    const next = undone.pop();
+    if (next) strokes.push(next);
+    paintDrawing(canvas, { strokes }, sharedStrokeCount);
+    updateStatus();
     onChange?.({ strokes });
   });
   const clear = createButton('Clear');
   clear.className = 'secondary';
   clear.addEventListener('click', () => {
-    strokes.splice(0);
-    paintDrawing(canvas, { strokes });
+    if (strokes.length > 0 && !window.confirm('Clear this drawing?')) return;
+    undone.push(...strokes.splice(0));
+    paintDrawing(canvas, { strokes }, sharedStrokeCount);
+    updateStatus();
     onChange?.({ strokes });
   });
-  toolbar.append(size, undo, clear);
+  const status = document.createElement('small');
+  status.className = 'drawing-status';
+  status.textContent = '0 / 16 strokes';
+  const updateStatus = (): void => {
+    status.textContent = `${strokes.length} / 16 strokes · ${color === '#151022' ? 'dark brush' : 'color brush'}`;
+  };
+  toolbar.append(size, undo, redo, clear, status);
+  updateStatus();
   wrapper.append(canvas, toolbar);
   return {
     element: wrapper,
@@ -481,6 +623,7 @@ function createGameArtwork(
   const image = document.createElement('img');
   image.className = className;
   image.src = game.icon;
+  image.srcset = game.iconSrcSet;
   image.alt = `${game.label} game icon`;
   image.loading = eager ? 'eager' : 'lazy';
   image.decoding = 'async';
@@ -504,7 +647,7 @@ function createPromptModeSelect(value: PromptMode = 'default'): HTMLSelectElemen
   select.name = 'prompt-mode';
   const options: readonly { value: PromptMode; label: string }[] = [
     { value: 'default', label: 'Curated prompt deck (recommended)' },
-    { value: 'ai', label: 'AI remix (local, always available)' },
+    { value: 'ai', label: 'Remix deck (local, always available)' },
   ];
   options.forEach(({ value: optionValue, label }) => {
     const option = document.createElement('option');
@@ -594,6 +737,9 @@ function createGamePicker(
     name.textContent = selected.label;
     const description = document.createElement('p');
     description.textContent = selected.description;
+    const example = document.createElement('p');
+    example.className = 'game-example';
+    example.textContent = `Example: ${selected.example}`;
     const facts = document.createElement('ul');
     facts.className = 'game-facts';
     [selected.players, selected.duration, selected.contentRating, selected.controller].forEach(
@@ -613,7 +759,7 @@ function createGamePicker(
     const format = document.createElement('p');
     format.className = 'game-format';
     format.textContent = `${selected.rounds} · ${selected.pace}`;
-    copy.append(kicker, name, description, mechanics, facts, format);
+    copy.append(kicker, name, description, example, mechanics, facts, format);
     detail.append(copy);
   };
 
@@ -680,6 +826,7 @@ function createStageArtwork(gameId: SupportedGameId, className = ''): HTMLImageE
   const image = document.createElement('img');
   image.className = `stage-art ${className}`.trim();
   image.src = game.stageArt;
+  image.srcset = game.stageArtSrcSet;
   image.alt = presentation.stageArtAlt;
   return image;
 }
@@ -713,6 +860,7 @@ function createExperienceTopbar(
   gameId: SupportedGameId,
   roomCode: string,
   phase: RoomPhase,
+  paused = false,
 ): HTMLElement {
   const game = getGameDefinition(gameId);
   const bar = document.createElement('div');
@@ -730,18 +878,39 @@ function createExperienceTopbar(
   identity.append(copy);
   const status = document.createElement('div');
   status.className = 'experience-live-status';
-  status.innerHTML = `<span aria-hidden="true"></span><strong>${phase}</strong><small>${roomCode}</small>`;
+  status.dataset.paused = String(paused);
+  status.innerHTML = `<span aria-hidden="true"></span><strong>${paused ? 'PAUSED' : phase}</strong><small>${roomCode}</small>`;
+  status.setAttribute('aria-live', 'polite');
   bar.append(identity, status);
   return bar;
 }
 
-function createPublicGameStage(snapshot: RoomSnapshot, gameId: SupportedGameId): HTMLElement {
+function animateScoreValue(element: HTMLElement, from: number, to: number): void {
+  if (from === to || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  const startedAt = performance.now();
+  const duration = 420;
+  const tick = (now: number): void => {
+    const progress = Math.min(1, (now - startedAt) / duration);
+    const eased = 1 - (1 - progress) ** 3;
+    element.textContent = String(Math.round(from + (to - from) * eased));
+    if (progress < 1) window.requestAnimationFrame(tick);
+  };
+  window.requestAnimationFrame(tick);
+}
+
+function createPublicGameStage(
+  snapshot: RoomSnapshot,
+  gameId: SupportedGameId,
+  previousScores: Readonly<Record<string, number>> | null = null,
+): HTMLElement {
   return (
     renderPublicGameStage(snapshot, {
       document,
       createArtwork: createStageArtwork,
       createDrawingPreview,
       now: Date.now,
+      previousScores,
+      animateScore: animateScoreValue,
     }) ?? createLobbyStage(gameId, snapshot.state.phase)
   );
 }
@@ -770,15 +939,23 @@ function updateHostExperience(
   roster: RosterComponent,
   snapshot: RoomSnapshot,
   session: HostSession,
+  previousScores: Readonly<Record<string, number>> | null = null,
 ): HTMLElement {
   const gameId = getGameDefinition(snapshot.game?.id ?? snapshot.state.gameId ?? session.gameId).id;
   const presentation = getGamePresentation(gameId);
   roster.update(snapshot.state, presentation);
   shell.update({
     shellClass: presentation.shellClass,
+    phase: snapshot.state.phase,
     topbar: {
       key: `${gameId}:${session.roomCode}:${snapshot.state.phase}`,
-      render: () => createExperienceTopbar(gameId, session.roomCode, snapshot.state.phase),
+      render: () =>
+        createExperienceTopbar(
+          gameId,
+          session.roomCode,
+          snapshot.state.phase,
+          snapshot.state.paused,
+        ),
     },
     roomPass: {
       key: `${gameId}:${session.roomCode}`,
@@ -786,7 +963,7 @@ function updateHostExperience(
     },
     stage: {
       key: createStageIdentity(snapshot),
-      render: () => createPublicGameStage(snapshot, gameId),
+      render: () => createPublicGameStage(snapshot, gameId, previousScores),
     },
     roster: roster.element,
   });
@@ -801,6 +978,7 @@ function updateDisplayExperience(
   snapshot: RoomSnapshot,
   densityView: LiveDisplayDensityViewModel,
   densityPageIndex: number,
+  previousScores: Readonly<Record<string, number>> | null = null,
 ): HTMLElement {
   const gameId = getGameDefinition(snapshot.game?.id ?? snapshot.state.gameId).id;
   const presentation = getGamePresentation(gameId);
@@ -808,8 +986,9 @@ function updateDisplayExperience(
   const activePlayerCount = snapshot.state.players.filter(
     (player) => player.status !== 'removed',
   ).length;
-  const availability =
-    activePlayerCount >= snapshot.state.settings.maxPlayers
+  const availability = snapshot.state.settings.joinLocked
+    ? 'locked'
+    : activePlayerCount >= snapshot.state.settings.maxPlayers
       ? 'full'
       : snapshot.state.phase === 'lobby'
         ? 'open'
@@ -825,7 +1004,7 @@ function updateDisplayExperience(
     }),
   );
 
-  const publicStage = createPublicGameStage(snapshot, gameId);
+  const publicStage = createPublicGameStage(snapshot, gameId, previousScores);
   publicStage.classList.add(`density-${densityView.plan.mode}`);
   roster.element.classList.remove('density-regular', 'density-compact', 'density-paged');
   roster.element.classList.add(`density-${densityView.plan.mode}`);
@@ -846,9 +1025,16 @@ function updateDisplayExperience(
   }
   shell.update({
     shellClass: presentation.shellClass,
+    phase: snapshot.state.phase,
     topbar: {
       key: `${gameId}:${snapshot.state.roomCode}:${snapshot.state.phase}`,
-      render: () => createExperienceTopbar(gameId, snapshot.state.roomCode, snapshot.state.phase),
+      render: () =>
+        createExperienceTopbar(
+          gameId,
+          snapshot.state.roomCode,
+          snapshot.state.phase,
+          snapshot.state.paused,
+        ),
     },
     roomPass: {
       key: 'retained-phase-aware-join',
@@ -905,6 +1091,7 @@ function renderHost(root: HTMLElement): void {
   let sessionWasReplaced = false;
   let reconnectAttempt = 0;
   let recoveryState: RecoveryState | null = { kind: 'initial-connect', role: 'host' };
+  let previousScores: Readonly<Record<string, number>> | null = null;
   const actionIds = new Map<string, string>();
 
   const showHostEventError = (error: { readonly code: string }, actionLabel = 'Action'): void => {
@@ -1065,7 +1252,7 @@ function renderHost(root: HTMLElement): void {
       const promptModeHint = document.createElement('small');
       promptModeHint.className = 'muted';
       promptModeHint.textContent =
-        'AI remix creates a fresh shuffled deck from local prompt ingredients, so it works offline on the big screen.';
+        'Remix deck creates a fresh shuffled deck from local prompt ingredients, so it works offline on the big screen.';
       promptModeField.append(promptModeHint);
       const advancedSettings = document.createElement('details');
       advancedSettings.className = 'advanced-settings';
@@ -1169,7 +1356,12 @@ function renderHost(root: HTMLElement): void {
     );
     setGameTheme(root, activeGame);
     sound.phaseChanged(state.phase, activeGame);
-    page.content.append(updateHostExperience(experienceShell, experienceRoster, snapshot, session));
+    page.content.append(
+      updateHostExperience(experienceShell, experienceRoster, snapshot, session, previousScores),
+    );
+    previousScores = Object.fromEntries(
+      snapshot.state.players.map((player) => [player.id, player.score]),
+    );
 
     const controls = document.createElement('div');
     controls.className = 'actions';
@@ -1181,18 +1373,132 @@ function renderHost(root: HTMLElement): void {
     displayLink.textContent = 'Open Display';
     controls.className = `actions experience-controls ${hostView.controlsClass}`;
     controls.append(displayLink);
-    controls.append(sound.button);
+    controls.append(sound.element);
+
+    const joinLock = createButton(state.settings.joinLocked ? 'Unlock joins' : 'Lock joins');
+    joinLock.className = 'secondary';
+    joinLock.setAttribute('aria-pressed', String(state.settings.joinLocked));
+    joinLock.addEventListener('click', () => {
+      if (!session) return;
+      const action = beginHostAction(hostMutationKey('host:set-join-lock'), joinLock);
+      const request: HostJoinLockRequest = {
+        actionId: action.actionId,
+        roomCode: session.roomCode,
+        hostToken: session.hostToken,
+        locked: !state.settings.joinLocked,
+      };
+      socket.emit('host:set-join-lock', request, (response: RoomStateResponse) => {
+        action.finish();
+        if (!isSuccess(response)) {
+          showHostEventError(response.error, 'Update join lock');
+          return;
+        }
+        if (!acceptSnapshot(response.snapshot)) return;
+        render();
+      });
+    });
+    controls.append(joinLock);
+
+    if (state.phase !== 'lobby' && state.phase !== 'winner') {
+      const pause = createButton(state.paused ? 'Resume room' : 'Pause room');
+      pause.className = 'secondary';
+      pause.setAttribute('aria-pressed', String(state.paused));
+      pause.addEventListener('click', () => {
+        if (!session) return;
+        if (!state.paused && !window.confirm('Pause the room for everyone?')) return;
+        const action = beginHostAction(hostMutationKey('host:set-pause'), pause);
+        const request: HostPauseRequest = {
+          actionId: action.actionId,
+          roomCode: session.roomCode,
+          hostToken: session.hostToken,
+          paused: !state.paused,
+        };
+        socket.emit('host:set-pause', request, (response: RoomStateResponse) => {
+          action.finish();
+          if (!isSuccess(response)) {
+            showHostEventError(response.error, 'Update pause state');
+            return;
+          }
+          if (!acceptSnapshot(response.snapshot)) return;
+          render();
+        });
+      });
+      controls.append(pause);
+    }
+
+    if (activeGame === 'drawn-out') {
+      const drawingToggle = createButton(
+        state.settings.drawingEnabled ? 'Disable drawing' : 'Enable drawing',
+      );
+      drawingToggle.className = 'secondary';
+      drawingToggle.setAttribute('aria-pressed', String(!state.settings.drawingEnabled));
+      drawingToggle.addEventListener('click', () => {
+        if (!session) return;
+        const action = beginHostAction(hostMutationKey('host:set-drawing-enabled'), drawingToggle);
+        const request: HostDrawingRequest = {
+          actionId: action.actionId,
+          roomCode: session.roomCode,
+          hostToken: session.hostToken,
+          enabled: !state.settings.drawingEnabled,
+        };
+        socket.emit('host:set-drawing-enabled', request, (response: RoomStateResponse) => {
+          action.finish();
+          if (!isSuccess(response)) {
+            showHostEventError(response.error, 'Update drawing access');
+            return;
+          }
+          if (!acceptSnapshot(response.snapshot)) return;
+          render();
+        });
+      });
+      controls.append(drawingToggle);
+    }
+
+    const disconnectedPlayers = state.players.filter((player) => player.status === 'disconnected');
+    if (disconnectedPlayers.length > 0 && state.phase !== 'lobby' && state.phase !== 'winner') {
+      const skip = createButton(`Skip ${disconnectedPlayers.length} disconnected`);
+      skip.className = 'secondary';
+      skip.addEventListener('click', () => {
+        if (!session || !window.confirm('Remove disconnected players from this round?')) return;
+        const action = beginHostAction(hostMutationKey('host:skip-disconnected'), skip);
+        const request: HostRoomActionRequest = {
+          actionId: action.actionId,
+          roomCode: session.roomCode,
+          hostToken: session.hostToken,
+        };
+        socket.emit('host:skip-disconnected', request, (response: RoomStateResponse) => {
+          action.finish();
+          if (!isSuccess(response)) {
+            showHostEventError(response.error, 'Skip disconnected players');
+            return;
+          }
+          if (!acceptSnapshot(response.snapshot)) return;
+          render();
+        });
+      });
+      controls.append(skip);
+    }
 
     if (state.phase === 'lobby') {
       const start = createButton(hostView.primaryAction?.label ?? 'Start Game');
-      start.disabled = hostView.primaryAction?.disabled ?? false;
+      const activePlayers = state.players.filter((player) => player.status !== 'removed');
+      const rematchReady = state.readinessRequired
+        ? activePlayers.every((player) => state.readyPlayerIds.includes(player.id))
+        : true;
+      start.disabled = (hostView.primaryAction?.disabled ?? false) || !rematchReady;
+      if (state.readinessRequired) {
+        const readiness = document.createElement('span');
+        readiness.className = 'pill';
+        readiness.textContent = `${state.readyPlayerIds.length}/${activePlayers.length} ready`;
+        controls.append(readiness);
+      }
       start.addEventListener('click', () => {
         const action = beginHostAction(hostMutationKey('host:start-game'), start);
         const request: HostStartGameRequest = {
           actionId: action.actionId,
           roomCode: session?.roomCode ?? '',
           hostToken: session?.hostToken ?? '',
-          gameId: session?.gameId ?? 'groupthink',
+          gameId: (state.gameId ?? session?.gameId ?? 'groupthink') as SupportedGameId,
         };
         socket.emit('host:start-game', request, (response: RoomStateResponse) => {
           action.finish();
@@ -1289,7 +1595,76 @@ function renderHost(root: HTMLElement): void {
       const phase = document.createElement('span');
       phase.className = 'pill';
       phase.textContent = 'WINNER';
-      controls.append(phase);
+      const nextGame = document.createElement('select');
+      nextGame.className = 'winner-game-select';
+      nextGame.setAttribute('aria-label', 'Next game');
+      GAME_CATALOG.forEach((game) => {
+        const option = document.createElement('option');
+        option.value = game.id;
+        option.textContent = game.label;
+        option.selected = game.id === activeGame;
+        nextGame.append(option);
+      });
+      const carryScoresLabel = document.createElement('label');
+      carryScoresLabel.className = 'winner-score-toggle';
+      const carryScores = document.createElement('input');
+      carryScores.type = 'checkbox';
+      carryScoresLabel.append(carryScores, document.createTextNode(' Carry scores'));
+      const rematchSettings = document.createElement('details');
+      rematchSettings.className = 'winner-settings';
+      const rematchSettingsSummary = document.createElement('summary');
+      rematchSettingsSummary.textContent = 'Adjust settings';
+      const rematchSettingsBody = document.createElement('div');
+      rematchSettingsBody.className = 'winner-settings-body';
+      const roundCount = document.createElement('select');
+      roundCount.setAttribute('aria-label', 'Rematch rounds');
+      [1, 3, 5, 7, 10].forEach((value) => {
+        const option = document.createElement('option');
+        option.value = String(value);
+        option.textContent = `${value} round${value === 1 ? '' : 's'}`;
+        option.selected = value === state.settings.roundCount;
+        roundCount.append(option);
+      });
+      const contentMode = createContentModeSelect(state.settings.contentMode);
+      const drawnOutMode = createDrawnOutModeSelect(state.settings.drawnOutMode);
+      rematchSettingsBody.append(
+        createField('Rounds', roundCount),
+        createField('Content mode', contentMode),
+        createField('Drawn Out mode', drawnOutMode),
+      );
+      rematchSettings.append(rematchSettingsSummary, rematchSettingsBody);
+
+      const runRematch = (button: HTMLButtonElement, label: string): void => {
+        if (!session) return;
+        const action = beginHostAction(hostMutationKey('host:rematch'), button);
+        const request: HostRematchRequest = {
+          actionId: action.actionId,
+          roomCode: session.roomCode,
+          hostToken: session.hostToken,
+          gameId: nextGame.value as SupportedGameId,
+          carryScores: carryScores.checked,
+          settings: {
+            roundCount: Number(roundCount.value),
+            contentMode: contentMode.value as ContentMode,
+            drawnOutMode: drawnOutMode.value as DrawnOutMode,
+          },
+        };
+        socket.emit('host:rematch', request, (response: RoomStateResponse) => {
+          action.finish();
+          if (!isSuccess(response)) {
+            showHostEventError(response.error, label);
+            return;
+          }
+          if (!acceptSnapshot(response.snapshot)) return;
+          render();
+        });
+      };
+      const rematch = createButton('Rematch');
+      rematch.addEventListener('click', () => runRematch(rematch, 'Rematch'));
+      const changeGame = createButton('Change game');
+      changeGame.className = 'secondary';
+      changeGame.addEventListener('click', () => runRematch(changeGame, 'Change game'));
+      controls.append(phase, nextGame, carryScoresLabel, rematchSettings, rematch, changeGame);
     }
 
     const closeRoom = createButton('Close Room');
@@ -1529,6 +1904,7 @@ function renderPlayer(root: HTMLElement): void {
     );
   });
   let renderedActionKey = '';
+  let lastAnnouncedPhase: string | null = null;
   let stateRenderScheduled = false;
   let controllerOperation: ControllerOperationState = { status: 'idle' };
   let acceptedControllerAction: ControllerAcceptedAction | undefined;
@@ -1859,6 +2235,7 @@ function renderPlayer(root: HTMLElement): void {
           roomCode: session.roomCode,
           playerToken: session.playerToken,
           answer: intent.answer,
+          skip: intent.skip ?? false,
           ...(intent.targetPlayerId ? { targetPlayerId: intent.targetPlayerId } : {}),
         };
         socket.emit('player:submit-answer', request, (response: PlayerAnswerResponse) =>
@@ -2099,6 +2476,7 @@ function renderPlayer(root: HTMLElement): void {
           : activePlayerControllerRender
         : null;
     const controllerWasRebuilt = controllerRender !== previousControllerRender;
+    markRenderProfile(controllerWasRebuilt ? 'controller-rebuild' : 'controller-retained');
     activePlayerControllerRender = controllerRender;
     const status = controllerRender?.element ?? document.createElement('div');
     if (!controllerRender) {
@@ -2134,6 +2512,87 @@ function renderPlayer(root: HTMLElement): void {
     } else {
       retryControllerAction = null;
       page.content.append(status);
+    }
+
+    if (state?.phase === 'lobby' && state.readinessRequired && session) {
+      const readyCard = document.createElement('section');
+      readyCard.className = 'card rematch-ready-card';
+      const readyCount = state.readyPlayerIds.length;
+      const activeCount = state.players.filter((player) => player.status !== 'removed').length;
+      const ready = state.readyPlayerIds.includes(session.playerId);
+      const heading = document.createElement('h2');
+      heading.textContent = 'Next game ready check';
+      const copy = document.createElement('p');
+      copy.className = 'muted';
+      copy.textContent = `${readyCount}/${activeCount} players are ready for the rematch.`;
+      const readyButton = createButton(ready ? 'Ready confirmed' : 'I’m ready');
+      readyButton.className = ready ? 'secondary' : '';
+      readyButton.setAttribute('aria-pressed', String(ready));
+      readyButton.addEventListener('click', () => {
+        if (!session) return;
+        const finishPending = beginPending(readyButton);
+        const mutationKey = `player:set-ready:${getActionKey()}:${!ready}`;
+        const request: PlayerReadyRequest = {
+          actionId: getClientActionId(actionIds, mutationKey),
+          roomCode: session.roomCode,
+          playerToken: session.playerToken,
+          ready: !ready,
+        };
+        socket.emit('player:set-ready', request, (response: RoomStateResponse) => {
+          finishPending();
+          if (!isSuccess(response)) {
+            showPlayerEventError(response.error, 'Update rematch readiness');
+            return;
+          }
+          if (!acceptSnapshot(response.snapshot)) return;
+          render();
+        });
+      });
+      readyCard.append(heading, copy, readyButton);
+      page.content.append(readyCard);
+    }
+
+    if (state && controllerGame && state.phase === 'input' && session) {
+      const tutorialKey = `room-riot:tutorial:${controllerGame}:v1`;
+      if (!window.sessionStorage.getItem(tutorialKey)) {
+        const tutorialCopy: Record<SupportedGameId, string> = {
+          groupthink: 'Write the answer that best matches the prompt, then lock it in.',
+          'hot-take': 'Give your take, then vote for the entry that wins the room.',
+          suspect: 'Read your private prompt, answer honestly, then follow the accusation step.',
+          'drawn-out':
+            'Follow the private instruction: draw, describe, guess, or vote when prompted.',
+        };
+        const tutorial = document.createElement('aside');
+        tutorial.className = 'card first-round-tutorial';
+        tutorial.setAttribute('role', 'note');
+        const tutorialHeading = document.createElement('strong');
+        tutorialHeading.textContent = 'First-round tip';
+        const tutorialText = document.createElement('p');
+        tutorialText.textContent = tutorialCopy[controllerGame];
+        const dismiss = createButton('Got it');
+        dismiss.className = 'secondary';
+        dismiss.addEventListener('click', () => {
+          window.sessionStorage.setItem(tutorialKey, 'dismissed');
+          tutorial.remove();
+        });
+        tutorial.append(tutorialHeading, tutorialText, dismiss);
+        page.content.append(tutorial);
+      }
+    }
+
+    if (state) {
+      const phaseKey = `${state.phase}:${state.paused}`;
+      if (phaseKey !== lastAnnouncedPhase) {
+        const announcement = document.createElement('p');
+        announcement.className = 'sr-only';
+        announcement.setAttribute('role', 'status');
+        announcement.setAttribute('aria-live', 'polite');
+        announcement.textContent = state.paused
+          ? 'The host paused the room.'
+          : `Room phase: ${state.phase}.`;
+        page.content.append(announcement);
+        lastAnnouncedPhase = phaseKey;
+      }
     }
 
     if (snapshot) {
@@ -2354,7 +2813,7 @@ function renderDisplay(root: HTMLElement): void {
   const displayDensity = createTvDensityLayoutComponent(document);
   const displayAudio = document.createElement('div');
   displayAudio.className = 'display-audio-control';
-  displayAudio.append(sound.button);
+  displayAudio.append(sound.element);
   displayJoin.element.append(displayAudio);
   const connectionStore = createConnectionStore();
   let connectionStatus = connectionStore.getState();
@@ -2373,6 +2832,7 @@ function renderDisplay(root: HTMLElement): void {
   let densityKey = '';
   let activeDensity: LiveDisplayDensityViewModel | null = null;
   let pageRotationTimer: number | null = null;
+  let previousScores: Readonly<Record<string, number>> | null = null;
   const page = updatePage(pageShell, displayView.title, displayView.subtitle, routeGameId);
   const acceptSnapshot = (payload: unknown): boolean => {
     const parsed = parseRoomSnapshot(payload);
@@ -2468,7 +2928,11 @@ function renderDisplay(root: HTMLElement): void {
         snapshot,
         densityView,
         densityPageIndex,
+        previousScores,
       ),
+    );
+    previousScores = Object.fromEntries(
+      snapshot.state.players.map((player) => [player.id, player.score]),
     );
     if (densityView.plan.hasPagination) {
       pageRotationTimer = window.setTimeout(() => {
@@ -2563,6 +3027,7 @@ function renderDisplay(root: HTMLElement): void {
 }
 
 if (typeof document !== 'undefined') {
+  window.__roomRiotPerformance = createBrowserPerformanceMonitor();
   installMotionVisibility(document);
   window.setInterval(() => {
     document.querySelectorAll<HTMLElement>('[data-deadline-at]').forEach(updateCountdown);

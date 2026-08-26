@@ -50,8 +50,10 @@ Components consume those roles and must not encode another game's selector.
 - Controller type uses `--type-controller-sm/md/lg`; prompts should remain readable at 320 px.
 - Display type uses `--type-display-sm/md/lg`; essential status must remain legible at ten feet.
 - Headings use `--leading-tight`; instructions and recovery copy use `--leading-body`.
-- Current system fonts are an interim production-safe stack. Self-hosted brand typography is
-  tracked in AAA-031.
+- The UI uses self-hosted Atkinson Hyperlegible and Baloo 2 subsets with system fallbacks; numeric
+  countdown and score glyphs use tabular widths.
+- The responsive QA harness exercises a 200% root text scale, but browser zoom and physical large-text
+  review remain release evidence under AAA-026 and AAA-061.
 
 ### Motion and sound
 

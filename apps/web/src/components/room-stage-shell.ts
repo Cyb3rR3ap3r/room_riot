@@ -9,6 +9,7 @@ export interface RetainedSlotUpdate {
 
 export interface RoomStageShellUpdate {
   readonly shellClass: string;
+  readonly phase?: string;
   readonly topbar: RetainedSlotUpdate;
   readonly roomPass: RetainedSlotUpdate;
   readonly stage: RetainedSlotUpdate;
@@ -36,7 +37,13 @@ export function createRoomStageShellComponent(
   const roomPassState: SlotState = { key: '', node: ownerDocument.createElement('div') };
   const stageState: SlotState = { key: '', node: ownerDocument.createElement('div') };
   const rosterState: SlotState = { key: '', node: ownerDocument.createElement('div') };
-  grid.append(roomPassState.node!, stageState.node!, rosterState.node!);
+  const announcement = ownerDocument.createElement('p');
+  announcement.className = 'sr-only phase-announcement';
+  announcement.setAttribute('role', 'status');
+  announcement.setAttribute('aria-live', 'polite');
+  announcement.setAttribute('aria-atomic', 'true');
+  let previousPhase: string | undefined;
+  grid.append(roomPassState.node!, stageState.node!, rosterState.node!, announcement);
   element.append(topbarState.node!, grid);
 
   const updateSlot = (state: SlotState, update: RetainedSlotUpdate): void => {
@@ -50,13 +57,37 @@ export function createRoomStageShellComponent(
   return {
     element,
     update(model) {
+      let phaseChanged = false;
       element.className = `experience-shell ${roleClass} ${model.shellClass}`;
+      if (model.phase) {
+        phaseChanged = previousPhase !== undefined && previousPhase !== model.phase;
+        element.setAttribute('data-phase', model.phase);
+        element.classList.toggle('phase-transitioning', phaseChanged);
+        if (phaseChanged) {
+          announcement.textContent = `Phase: ${model.phase}`;
+        }
+        previousPhase = model.phase;
+      }
       updateSlot(topbarState, model.topbar);
       updateSlot(roomPassState, model.roomPass);
       updateSlot(stageState, model.stage);
       if (rosterState.node !== model.roster) {
         rosterState.node?.replaceWith(model.roster);
         rosterState.node = model.roster;
+      }
+      if (
+        phaseChanged &&
+        model.phase &&
+        ['intro', 'prompt', 'results', 'scoring', 'winner'].includes(model.phase)
+      ) {
+        const stage = stageState.node as HTMLElement & {
+          querySelector?: <T extends Element>(selectors: string) => T | null;
+        };
+        const heading = stage.querySelector?.<HTMLElement>('h1, h2, [role="heading"]');
+        if (heading) {
+          heading.tabIndex = -1;
+          heading.focus({ preventScroll: true });
+        }
       }
     },
   };

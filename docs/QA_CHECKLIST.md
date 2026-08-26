@@ -9,6 +9,8 @@ This checklist covers the physical and network tests that cannot be completed fr
 - [ ] Open the host, display, and player pages from devices on the same private LAN.
 - [ ] Record the TrueNAS address, browser/device versions, player count, and result for each run.
 - [ ] Test once with sound enabled and once with sound disabled.
+- [ ] Confirm `/readyz` is ready before a game and `/metrics` reports the expected room/player count.
+- [ ] Replace the compiled container with the same `/data` dataset and confirm the active room restores.
 
 ## Browser matrix
 
@@ -40,6 +42,9 @@ This checklist covers the physical and network tests that cannot be completed fr
 - [ ] Confirm an already-submitted answer cannot be submitted twice after a reconnect or reload.
 - [ ] Leave a room, then join a different room from the same browser tab; confirm the first room marks the player offline and no longer sends private updates.
 - [ ] Reconnect the same player from a second browser; confirm the first socket is disconnected and cannot submit actions.
+- [ ] Complete a winner screen rematch with the same roster and confirm scores reset only when selected.
+- [ ] Lock and unlock joins from the host; confirm the display changes to “Joining locked.”
+- [ ] Remove a player, skip an offline player, and confirm the display/player notices do not expose tokens.
 
 ## Slow and intermittent Wi-Fi
 
@@ -57,6 +62,54 @@ This checklist covers the physical and network tests that cannot be completed fr
 - [ ] Enable reduced motion in the browser/OS and confirm phase transitions do not animate.
 - [ ] Confirm buttons are comfortable to tap on a phone and that answer text wraps without horizontal scrolling.
 - [ ] Confirm the connection notice is announced by assistive technology and does not hide the primary game controls.
+- [ ] Run the Suspect alibi/vote flow and Drawn Out drawing/guess flow at minimum and maximum supported players.
+
+### Manual screen-reader pass
+
+Run this pass with the browser's native screen reader on a real host/player pair. Confirm the
+announcement is concise and that focus never strands the user behind a rebuilt panel:
+
+- [ ] Join: room-code, name, avatar, validation errors, join success, and connection state are named.
+- [ ] Submit: the prompt, character/status feedback, primary action, acknowledgement, and retry are
+      announced without duplicating the whole page.
+- [ ] Vote: each option has a unique accessible name, selected state, and a clear submit action.
+- [ ] Error: malformed or stale actions announce the recovery message and preserve retryable input.
+- [ ] Results: reveal, score changes, winner, rematch readiness, and the next action are announced.
+
+### Drawing-mode accessibility alternative
+
+Drawn Out is pointer-first by design: the drawing canvas requires a coarse or fine pointer and does
+not claim that a screen reader can author freehand strokes. The canvas has a programmatic label,
+visible stroke/brush state, undo/redo, clear confirmation, and a host-controlled drawing toggle.
+For a player who cannot or should not draw, the host should disable drawing and choose Groupthink,
+Hot Take, or Suspect instead; the room remains playable with text, choice, and vote controls. Do not
+present a disabled drawing round as accessible unless the physical device supports the required
+pointer input. The manual screen-reader pass still covers join, submit, vote, error, and results.
+
+### Release-candidate browser and device matrix
+
+Record the browser/OS, viewport, image or commit under test, and reviewer with each result:
+The automated baseline is captured by `.github/workflows/browser-performance.yml` and archived as a
+CI artifact; local reproduction uses `scripts/browser-performance.mjs` and
+`scripts/browser-layout-matrix.mjs` against a freshly built server.
+
+- [ ] Portrait 360×640 and 390×844: safe-area insets, keyboard resize, no clipped primary action.
+- [ ] Phone landscape: orientation change preserves input, focus, and room state.
+- [ ] 1280×720 and 1920×1080 display: every phase remains readable at viewing distance.
+- [ ] 3840×2160 display: prompts, full rosters, ties, errors, reconnects, and winner state fit.
+- [ ] 200% zoom and increased text size: primary controls remain visible and operable.
+- [ ] Coarse pointer, palm/scroll conflict, pointer cancellation, and drawing recovery behave safely.
+- [ ] QR scan and manual room entry are readable and fast on the target phones.
+- [ ] Screenshot diffs for host, player, and display phases were reviewed intentionally.
+- [ ] LCP, layout shift, long-task, interaction-latency, and frame-time evidence is attached.
+
+### Deployment and release evidence
+
+- [ ] Container replacement restores an unexpired room from the mounted dataset without source mounts.
+- [ ] Production dependency and container scan reports are attached.
+- [ ] SBOM, provenance, immutable tag/digest, multi-architecture, and rollback evidence are attached.
+- [ ] Required CI checks and branch-protection settings are verified on `main`.
+- [ ] Named G0–G5 release sign-offs are recorded in `docs/RELEASE_SIGNOFF.md`.
 
 ## Acceptance
 

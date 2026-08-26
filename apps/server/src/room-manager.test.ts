@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
 import {
@@ -15,6 +18,7 @@ import {
   generateHotTakePrompts,
 } from './prompt-generator.js';
 import { RoomManager, RoomManagerError } from './room-manager.js';
+import { RoomPersistence } from './room-persistence.js';
 
 function joinPlayers(manager: RoomManager, roomCode: RoomCode, count: number, offset = 0): void {
   for (let index = 0; index < count; index += 1) {
@@ -35,10 +39,153 @@ test('creates a room with a valid host token and lobby state', () => {
   const room = manager.createRoom({});
 
   assert.match(room.roomCode, /^[A-Z0-9]{4,6}$/);
+  assert.equal(room.roomCode.length, 6);
   assert.match(room.hostToken, /^[0-9a-f-]{36}$/);
   assert.equal(room.snapshot.state.roomCode, room.roomCode);
   assert.equal(room.snapshot.state.phase, 'lobby');
   assert.equal(room.snapshot.state.settings.maxPlayers, 12);
+});
+
+test('host join lock rejects new players and can be lifted', () => {
+  const manager = new RoomManager();
+  const room = manager.createRoom({});
+  const locked = manager.setJoinLocked(room.roomCode, room.hostToken, true);
+  assert.equal(locked.state.settings.joinLocked, true);
+  assert.throws(
+    () => manager.joinRoom({ roomCode: room.roomCode, name: 'Blocked', avatar: '🎮' }),
+    (error: unknown) => error instanceof RoomManagerError && error.code === 'INVALID_STATE',
+  );
+  manager.setJoinLocked(room.roomCode, room.hostToken, false);
+  assert.equal(
+    manager.joinRoom({ roomCode: room.roomCode, name: 'Allowed', avatar: '🎮' }).snapshot.state
+      .players.length,
+    1,
+  );
+  manager.close();
+});
+
+test('host can pause and resume active games without consuming the deadline', () => {
+  const manager = new RoomManager({ groupthinkInputDurationMs: 100, randomizePrompts: false });
+  const room = manager.createRoom({});
+  const players = [1, 2, 3].map((index) =>
+    manager.joinRoom({ roomCode: room.roomCode, name: `Player ${index}`, avatar: '🎮' }),
+  );
+  manager.startGame(room.roomCode, room.hostToken, 'groupthink');
+  const paused = manager.setPaused(room.roomCode, room.hostToken, true);
+  assert.equal(paused.state.paused, true);
+  assert.equal(paused.state.pauseStartedAt !== null, true);
+  assert.throws(() => manager.submitAnswer(room.roomCode, players[0]!.playerId, 'blocked'), {
+    code: 'INVALID_STATE',
+  });
+  const resumed = manager.setPaused(room.roomCode, room.hostToken, false);
+  assert.equal(resumed.state.paused, false);
+  assert.equal(resumed.state.pauseStartedAt, null);
+  manager.close();
+});
+
+test('host can explicitly skip disconnected players during an active round', () => {
+  const manager = new RoomManager({ randomizePrompts: false });
+  const room = manager.createRoom({});
+  const player = manager.joinRoom({ roomCode: room.roomCode, name: 'Offline', avatar: '🎮' });
+  manager.joinRoom({ roomCode: room.roomCode, name: 'Online', avatar: '🎮' });
+  manager.joinRoom({ roomCode: room.roomCode, name: 'Online 2', avatar: '🎮' });
+  manager.startGame(room.roomCode, room.hostToken, 'groupthink');
+  manager.bindPlayer(room.roomCode, player.playerId, 'offline-socket');
+  manager.disconnectSocket('offline-socket');
+  const skipped = manager.skipDisconnected(room.roomCode, room.hostToken);
+  assert.equal(
+    skipped.state.players.find((entry) => entry.id === player.playerId)?.status,
+    'removed',
+  );
+  assert.equal(
+    skipped.state.players.some((entry) => entry.status === 'disconnected'),
+    false,
+  );
+  manager.close();
+});
+
+test('host can disable drawing input for accessibility constraints', () => {
+  const manager = new RoomManager({ randomizePrompts: false });
+  const room = manager.createRoom({ settings: { maxPlayers: 10, drawnOutMode: 'telephone' } });
+  const players = [1, 2, 3].map((index) =>
+    manager.joinRoom({ roomCode: room.roomCode, name: `Player ${index}`, avatar: '🎮' }),
+  );
+  manager.startGame(room.roomCode, room.hostToken, 'drawn-out');
+  const disabled = manager.setDrawingEnabled(room.roomCode, room.hostToken, false);
+  assert.equal(disabled.state.settings.drawingEnabled, false);
+  assert.throws(
+    () => manager.submitDrawing(room.roomCode, players[0]!.playerId, { strokes: [] } as never),
+    /Drawing input is disabled/,
+  );
+  manager.close();
+});
+
+test('drawing accessibility setting does not disable text answers', () => {
+  const manager = new RoomManager({ randomizePrompts: false });
+  const room = manager.createRoom({
+    gameId: 'groupthink',
+    settings: { maxPlayers: 2, roundCount: 1, drawingEnabled: false },
+  });
+  const first = manager.joinRoom({ roomCode: room.roomCode, name: 'Text Player', avatar: '🎮' });
+  const second = manager.joinRoom({ roomCode: room.roomCode, name: 'Text Player 2', avatar: '🎮' });
+  manager.startGame(room.roomCode, room.hostToken, 'groupthink');
+
+  const submitted = manager.submitAnswer(room.roomCode, first.playerId, 'still available');
+  assert.equal(submitted.snapshot.game?.submittedCount, 1);
+  const results = manager.submitAnswer(room.roomCode, second.playerId, 'still available');
+  assert.equal(results.snapshot.state.phase, 'results');
+  manager.close();
+});
+
+test('restores persisted rooms and authenticates hashed tokens after restart', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'room-riot-'));
+  const databasePath = join(directory, 'rooms.sqlite');
+  const first = new RoomManager({ persistencePath: databasePath, randomizePrompts: false });
+  const room = first.createRoom({});
+  const player = first.joinRoom({ roomCode: room.roomCode, name: 'Alex', avatar: '😎' });
+  first.close();
+
+  const restored = new RoomManager({ persistencePath: databasePath, randomizePrompts: false });
+  assert.equal(restored.hasRoom(room.roomCode), true);
+  assert.equal(restored.getPlayerIdForToken(room.roomCode, player.playerToken), player.playerId);
+  assert.equal(restored.reconnectHost(room.roomCode, room.hostToken).state.roomCode, room.roomCode);
+  restored.close();
+  rmSync(directory, { recursive: true, force: true });
+});
+
+test('coalesces persistence writes outside snapshot generation and flushes on the next turn', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'room-riot-queued-persistence-'));
+  const databasePath = join(directory, 'rooms.sqlite');
+  const manager = new RoomManager({ persistencePath: databasePath });
+  const room = manager.createRoom({});
+  const observer = new RoomPersistence(databasePath);
+  assert.equal(
+    observer.load().some((record) => record.roomCode === room.roomCode),
+    false,
+  );
+
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(
+    observer.load().some((record) => record.roomCode === room.roomCode),
+    true,
+  );
+  assert.equal(manager.getOperationalStatus().persistenceWriteFailures, 0);
+  observer.close();
+  manager.close();
+  rmSync(directory, { recursive: true, force: true });
+});
+
+test('ignores corrupt persisted snapshots and exposes a recovery signal', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'room-riot-corrupt-'));
+  const databasePath = join(directory, 'rooms.sqlite');
+  const persistence = new RoomPersistence(databasePath);
+  persistence.save({ roomCode: 'ABC123', payload: '{"not":"a room"}', updatedAt: Date.now() });
+  persistence.close();
+  const manager = new RoomManager({ persistencePath: databasePath });
+  assert.equal(manager.hasRoom('ABC123'), false);
+  assert.equal(manager.getOperationalStatus().persistenceRecoveryIssues, 1);
+  manager.close();
+  rmSync(directory, { recursive: true, force: true });
 });
 
 test('increments room revisions only when authoritative visible state changes', () => {
@@ -850,6 +997,50 @@ test('runs Drawn Out Classic through drawing, guesses, and winner scoring', () =
     winner.state.players.find((player) => player.id === guessers[0]!.playerId)?.score,
     100,
   );
+  const rematch = manager.rematch(room.roomCode, room.hostToken, 'drawn-out', false);
+  assert.equal(rematch.state.phase, 'lobby');
+  assert.equal(
+    rematch.state.players.every((player) => player.score === 0),
+    true,
+  );
+  players.forEach((player) => manager.setPlayerReady(room.roomCode, player.playerToken, true));
+  const restarted = manager.startGame(room.roomCode, room.hostToken, 'drawn-out');
+  assert.equal(restarted.state.phase, 'input');
+  manager.close();
+});
+
+test('rematch applies adjusted settings without replacing the roster', () => {
+  const manager = new RoomManager({ randomizePrompts: false });
+  const room = manager.createRoom({
+    gameId: 'groupthink',
+    settings: { maxPlayers: 2, roundCount: 1 },
+  });
+  const first = manager.joinRoom({ roomCode: room.roomCode, name: 'First', avatar: '😎' });
+  const second = manager.joinRoom({ roomCode: room.roomCode, name: 'Second', avatar: '👽' });
+  manager.startGame(room.roomCode, room.hostToken, 'groupthink');
+  manager.submitAnswer(room.roomCode, first.playerId, 'same');
+  manager.submitAnswer(room.roomCode, second.playerId, 'same');
+  manager.advanceRound(room.roomCode, room.hostToken);
+
+  const rematch = manager.rematch(room.roomCode, room.hostToken, 'groupthink', false, {
+    roundCount: 3,
+    contentMode: 'after-dark',
+  });
+  assert.equal(rematch.state.phase, 'lobby');
+  assert.equal(rematch.state.settings.roundCount, 3);
+  assert.equal(rematch.state.settings.contentMode, 'after-dark');
+  assert.deepEqual(
+    rematch.state.players.map((player) => player.id),
+    [first.playerId, second.playerId],
+  );
+  assert.throws(
+    () => manager.startGame(room.roomCode, room.hostToken, 'groupthink'),
+    /confirm readiness/i,
+  );
+  manager.setPlayerReady(room.roomCode, first.playerToken, true);
+  manager.setPlayerReady(room.roomCode, second.playerToken, true);
+  const restarted = manager.startGame(room.roomCode, room.hostToken, 'groupthink');
+  assert.equal(restarted.state.phase, 'input');
   manager.close();
 });
 

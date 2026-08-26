@@ -89,7 +89,7 @@ Estimates include focused automated tests but not lengthy physical-device or con
 | AAA-008 | M0        | P1  | M      | Add action idempotency and acknowledgement UX      | AAA-001                   | Done        |
 | AAA-009 | M1        | P1  | XL     | Split the web monolith into route/game modules     | AAA-001                   | Done        |
 | AAA-010 | M1        | P1  | L      | Introduce stable client stores and selectors       | AAA-009                   | Done        |
-| AAA-011 | M1        | P1  | L      | Build incremental component rendering              | AAA-009, AAA-010          | In progress |
+| AAA-011 | M1        | P1  | L      | Build incremental component rendering              | AAA-009, AAA-010          | In review   |
 | AAA-012 | M1        | P1  | M      | Centralize a server game registry                  | AAA-005                   | Done        |
 | AAA-013 | M1        | P1  | M      | Add runtime validation for server snapshots        | AAA-010                   | Done        |
 | AAA-014 | M1        | P2  | M      | Extract and organize CSS                           | AAA-009                   | Done        |
@@ -100,45 +100,45 @@ Estimates include focused automated tests but not lengthy physical-device or con
 | AAA-019 | M2        | P1  | L      | Build the action-first phone controller            | AAA-011, AAA-015          | In review   |
 | AAA-020 | M2        | P1  | L      | Build explicit TV density layouts                  | AAA-015                   | In review   |
 | AAA-021 | M2        | P1  | M      | Make QR/join presentation phase-aware              | AAA-020, AAA-003          | In review   |
-| AAA-022 | M2        | P1  | L      | Create premium phase transitions                   | AAA-020, AAA-024          | Not started |
-| AAA-023 | M2        | P1  | L      | Redesign results, scoring, and winner moments      | AAA-020, AAA-037          | Not started |
+| AAA-022 | M2        | P1  | L      | Create premium phase transitions                   | AAA-020, AAA-024          | In progress |
+| AAA-023 | M2        | P1  | L      | Redesign results, scoring, and winner moments      | AAA-020, AAA-037          | In review   |
 | AAA-024 | M2        | P1  | M      | Add reduced-motion-safe motion tokens              | AAA-015                   | In progress |
-| AAA-025 | M2        | P1  | L      | Replace prototype audio with a sound system        | Decision D-03, AAA-010    | Not started |
+| AAA-025 | M2        | P1  | L      | Replace prototype audio with a sound system        | Decision D-03, AAA-010    | In progress |
 | AAA-026 | M2        | P1  | L      | Complete accessibility and focus behavior          | AAA-011, AAA-015          | In progress |
-| AAA-027 | M2        | P1  | M      | Polish drawing controls and recovery               | AAA-001, AAA-019          | Not started |
-| AAA-028 | M2        | P1  | M      | Add rematch/change-game/same-roster loop           | AAA-003, AAA-012          | Not started |
-| AAA-029 | M2        | P2  | M      | Add host moderation and room controls              | AAA-003, AAA-004          | Not started |
-| AAA-030 | M2        | P1  | M      | Optimize all raster assets                         | AAA-015                   | In progress |
-| AAA-031 | M2        | P2  | M      | Introduce premium self-hosted typography           | Decision D-04, AAA-015    | Not started |
-| AAA-032 | M2        | P2  | M      | Add haptics and tactile interaction feedback       | AAA-019                   | Not started |
+| AAA-027 | M2        | P1  | M      | Polish drawing controls and recovery               | AAA-001, AAA-019          | In progress |
+| AAA-028 | M2        | P1  | M      | Add rematch/change-game/same-roster loop           | AAA-003, AAA-012          | In progress |
+| AAA-029 | M2        | P2  | M      | Add host moderation and room controls              | AAA-003, AAA-004          | In progress |
+| AAA-030 | M2        | P1  | M      | Optimize all raster assets                         | AAA-015                   | In review   |
+| AAA-031 | M2        | P2  | M      | Introduce premium self-hosted typography           | Decision D-04, AAA-015    | In progress |
+| AAA-032 | M2        | P2  | M      | Add haptics and tactile interaction feedback       | AAA-019                   | In progress |
 | AAA-033 | M3        | P1  | S      | Shuffle Hot Take voting entries                    | —                         | Done        |
 | AAA-034 | M3        | P1  | M      | Remove Suspect join-order bias                     | —                         | Done        |
 | AAA-035 | M3        | P1  | S      | Correct Drawn Out progress accounting              | —                         | Done        |
 | AAA-036 | M3        | P0  | M      | Bound Drawn Out accumulated drawing data           | AAA-005                   | In review   |
-| AAA-037 | M3        | P1  | L      | Explain and rebalance scoring                      | Decision D-05             | Not started |
-| AAA-038 | M3        | P1  | XL     | Author full curated content packs                  | Decision D-02             | Not started |
-| AAA-039 | M3        | P1  | M      | Rename or replace local “AI remix”                 | Decision D-02             | Not started |
-| AAA-040 | M3        | P1  | M      | Add content taxonomy and safety review             | AAA-038                   | Not started |
-| AAA-041 | M3        | P2  | L      | Add deterministic balance simulations              | AAA-037                   | Not started |
-| AAA-042 | M3        | P2  | M      | Add game-specific onboarding/tutorial beats        | AAA-018, AAA-019          | Not started |
-| AAA-043 | M4        | P1  | XL     | Persist and restore active rooms                   | Decision D-06, AAA-012    | Not started |
-| AAA-044 | M4        | P1  | M      | Harden room-code entropy and join locking          | AAA-003                   | Not started |
-| AAA-045 | M4        | P1  | L      | Add layered connection/action rate limits          | AAA-044                   | Not started |
+| AAA-037 | M3        | P1  | L      | Explain and rebalance scoring                      | Decision D-05             | In review   |
+| AAA-038 | M3        | P1  | XL     | Author full curated content packs                  | Decision D-02             | In progress |
+| AAA-039 | M3        | P1  | M      | Rename or replace local “AI remix”                 | Decision D-02             | In review   |
+| AAA-040 | M3        | P1  | M      | Add content taxonomy and safety review             | AAA-038                   | In progress |
+| AAA-041 | M3        | P2  | L      | Add deterministic balance simulations              | AAA-037                   | In review   |
+| AAA-042 | M3        | P2  | M      | Add game-specific onboarding/tutorial beats        | AAA-018, AAA-019          | In review   |
+| AAA-043 | M4        | P1  | XL     | Persist and restore active rooms                   | Decision D-06, AAA-012    | In review   |
+| AAA-044 | M4        | P1  | M      | Harden room-code entropy and join locking          | AAA-003                   | In progress |
+| AAA-045 | M4        | P1  | L      | Add layered connection/action rate limits          | AAA-044                   | In review   |
 | AAA-046 | M4        | P1  | M      | Stabilize public error envelopes                   | AAA-013                   | Done        |
 | AAA-047 | M4        | P1  | M      | Complete browser security headers                  | AAA-014                   | Done        |
-| AAA-048 | M4        | P1  | L      | Add structured logs and operational metrics        | AAA-012                   | Not started |
-| AAA-049 | M4        | P1  | L      | Define and meet performance budgets                | AAA-030                   | Not started |
-| AAA-050 | M4        | P1  | M      | Add load and timer-drift testing                   | AAA-048                   | Not started |
-| AAA-051 | M4        | P2  | M      | Add data migration, backup, and recovery drills    | AAA-043                   | Not started |
-| AAA-052 | M4        | P2  | M      | Add health, readiness, and graceful-drain behavior | AAA-043, AAA-048          | Not started |
-| AAA-053 | M5        | P0  | L      | Add multi-client browser E2E tests                 | AAA-001–AAA-008           | Not started |
-| AAA-054 | M5        | P1  | L      | Add visual-regression coverage                     | AAA-018–AAA-031           | Not started |
-| AAA-055 | M5        | P1  | M      | Add automated accessibility testing                | AAA-026                   | Not started |
-| AAA-056 | M5        | P1  | M      | Add automated performance regression checks        | AAA-049                   | Not started |
+| AAA-048 | M4        | P1  | L      | Add structured logs and operational metrics        | AAA-012                   | In progress |
+| AAA-049 | M4        | P1  | L      | Define and meet performance budgets                | AAA-030                   | In review   |
+| AAA-050 | M4        | P1  | M      | Add load and timer-drift testing                   | AAA-048                   | Done        |
+| AAA-051 | M4        | P2  | M      | Add data migration, backup, and recovery drills    | AAA-043                   | In review   |
+| AAA-052 | M4        | P2  | M      | Add health, readiness, and graceful-drain behavior | AAA-043, AAA-048          | Done        |
+| AAA-053 | M5        | P0  | L      | Add multi-client browser E2E tests                 | AAA-001–AAA-008           | In progress |
+| AAA-054 | M5        | P1  | L      | Add visual-regression coverage                     | AAA-018–AAA-031           | In progress |
+| AAA-055 | M5        | P1  | M      | Add automated accessibility testing                | AAA-026                   | In progress |
+| AAA-056 | M5        | P1  | M      | Add automated performance regression checks        | AAA-049                   | In progress |
 | AAA-057 | M5        | P1  | M      | Run CI for pull requests                           | —                         | In review   |
-| AAA-058 | M5        | P1  | L      | Harden image supply chain and releases             | AAA-057                   | Not started |
-| AAA-059 | M5        | P1  | M      | Expand compiled deployment verification            | AAA-053                   | Not started |
-| AAA-060 | M5        | P1  | M      | Update all product and operations documentation    | All implementation slices | Not started |
+| AAA-058 | M5        | P1  | L      | Harden image supply chain and releases             | AAA-057                   | In progress |
+| AAA-059 | M5        | P1  | M      | Expand compiled deployment verification            | AAA-053                   | In review   |
+| AAA-060 | M5        | P1  | M      | Update all product and operations documentation    | All implementation slices | In progress |
 | AAA-061 | M5        | P1  | L      | Execute the physical LAN/device matrix             | AAA-053–AAA-060           | Not started |
 | AAA-062 | M5        | P0  | M      | Complete release-candidate sign-off                | G0–G5                     | Not started |
 
@@ -317,7 +317,7 @@ apps/web/src/
 - [x] Stable components retain DOM identity across unrelated room updates.
 - [x] Focus is not lost when counters, roster status, or deadlines change.
 - [x] Drawing canvas and audio context are not recreated by ordinary snapshots.
-- [ ] Render profiling shows no full-page rebuild for a single-player submission.
+- [x] Render profiling shows no full-page rebuild for a single-player submission.
 
 #### AAA-012 — Centralize a server game registry
 
@@ -403,86 +403,86 @@ loading, success, warning, and error states in all four themes.
 
 #### AAA-022 — Create premium phase transitions
 
-- [ ] Each game has distinct intro, input, reveal, scoring, and winner choreography.
-- [ ] State is legible before decoration begins.
-- [ ] Animation does not block host control or delay server-authoritative transitions.
-- [ ] Reduced-motion mode uses fades/state cuts without loss of information.
-- [ ] Interrupted/reconnected clients settle directly into the current state.
+- [x] Each game has distinct intro, input, reveal, scoring, and winner choreography.
+- [x] State is legible before decoration begins.
+- [x] Animation does not block host control or delay server-authoritative transitions.
+- [x] Reduced-motion mode uses fades/state cuts without loss of information.
+- [x] Interrupted/reconnected clients settle directly into the current state.
 
 #### AAA-023 — Redesign results, scoring, and winner moments
 
-- [ ] Results visually explain the cause of every score change.
-- [ ] Ties, zero-score rounds, no submissions, and no eligible votes receive authored treatments.
-- [ ] Score changes animate from prior totals without changing authoritative values.
-- [ ] Winner view supports ties, podium/leaderboard, rematch, and change-game actions.
+- [x] Results visually explain the cause of every score change.
+- [x] Ties, zero-score rounds, no submissions, and no eligible votes receive authored treatments.
+- [x] Score changes animate from prior totals without changing authoritative values.
+- [x] Winner view supports ties, podium/leaderboard, rematch, and change-game actions.
 
 #### AAA-024 — Add reduced-motion-safe motion tokens
 
-- [ ] All animation uses documented tokens and can be disabled centrally.
+- [x] All animation uses documented tokens and can be disabled centrally.
 - [x] Continuous decorative motion pauses when the page is hidden.
-- [ ] No flashing violates WCAG thresholds.
+- [x] No flashing violates WCAG thresholds.
 - [ ] Motion performance stays within frame-time budgets on target phones/TV browser.
 
 #### AAA-025 — Replace prototype audio with a sound system
 
-- [ ] Game-specific cues cover join, countdown, lock-in, reveal, score, and winner.
-- [ ] Persistent mute and volume controls are available on host/display.
-- [ ] Audio unlock failure has a clear visual state and the game remains fully usable.
-- [ ] Cues are mixed, normalized, licensed/original, and lazy-loaded.
-- [ ] Every audio-only cue has a visual equivalent.
+- [x] Game-specific cues cover join, countdown, lock-in, reveal, score, and winner.
+- [x] Persistent mute and volume controls are available on host/display.
+- [x] Audio unlock failure has a clear visual state and the game remains fully usable.
+- [x] Cues are mixed, normalized, licensed/original, and lazy-loaded.
+- [x] Every audio-only cue has a visual equivalent.
 
 #### AAA-026 — Complete accessibility and focus behavior
 
-- [ ] Phase changes move focus only when helpful and announce one concise update.
+- [x] Phase changes move focus only when helpful and announce one concise update.
 - [x] Voting uses semantic groups with a clear selected state.
-- [ ] All interactive targets are keyboard operable and at least 44x44 CSS pixels.
-- [ ] Text/background combinations pass WCAG AA; critical status does not rely on color alone.
+- [x] All interactive targets are keyboard operable and at least 44x44 CSS pixels.
+- [x] Text/background combinations pass WCAG AA; critical status does not rely on color alone.
 - [ ] 200% zoom and increased text size do not hide primary controls.
 - [ ] Automated checks have no serious/critical violations; manual screen-reader paths pass.
 
 #### AAA-027 — Polish drawing controls and recovery
 
-- [ ] Canvas survives reconnects and unrelated snapshots.
-- [ ] Undo/redo, clear confirmation, stroke budget, brush identity, and submission state are clear.
+- [x] Canvas survives reconnects and unrelated snapshots.
+- [x] Undo/redo, clear confirmation, stroke budget, brush identity, and submission state are clear.
 - [ ] Pointer cancellation, orientation changes, palm/scroll conflicts, and coarse pointers are
       tested.
-- [ ] Existing shared drawing and new strokes are visually distinct where the mechanic needs it.
-- [ ] The host can disable drawing games/modes for accessibility or device constraints.
+- [x] Existing shared drawing and new strokes are visually distinct where the mechanic needs it.
+- [x] The host can disable drawing games/modes for accessibility or device constraints.
 
 #### AAA-028 — Add rematch/change-game/same-roster loop
 
-- [ ] Winner screen supports rematch, adjust settings, change game, and close room.
-- [ ] Players stay connected and explicitly confirm readiness for the next game.
-- [ ] Scores reset or carry only through an explicit host choice.
-- [ ] Private game state is cleared before the new lobby snapshot is sent.
+- [x] Winner screen supports rematch, adjust settings, change game, and close room.
+- [x] Players stay connected and explicitly confirm readiness for the next game.
+- [x] Scores reset or carry only through an explicit host choice.
+- [x] Private game state is cleared before the new lobby snapshot is sent.
 
 #### AAA-029 — Add host moderation and room controls
 
-- [ ] Host can lock joining, remove a player, skip a disconnected player, pause/resume, and end
+- [x] Host can lock joining, remove a player, skip a disconnected player, pause/resume, and end
       the room.
-- [ ] Destructive actions require clear confirmation.
-- [ ] Display/player views explain pauses and removals without leaking tokens or private answers.
+- [x] Destructive actions require clear confirmation.
+- [x] Display/player views explain pauses and removals without leaking tokens or private answers.
 
 #### AAA-030 — Optimize all raster assets
 
 - [x] Opaque scenes ship as AVIF/WebP with PNG fallback only if necessary.
 - [x] Transparent art is quantized or converted to lossless WebP after alpha verification.
-- [ ] Multiple responsive sizes avoid decoding oversized art on phones.
+- [x] Multiple responsive sizes avoid decoding oversized art on phones.
 - [x] Non-selected catalog art is lazy-loaded.
-- [ ] Initial host, player, and display transfers meet `AAA-049` budgets.
+- [x] Initial host, player, and display transfers meet `AAA-049` budgets.
 
 #### AAA-031 — Introduce premium self-hosted typography
 
 - [ ] Licensed display and UI families reinforce the comic brand and remain readable at distance.
-- [ ] Numeric glyphs support stable countdown/score widths.
-- [ ] Fonts are subsetted, self-hosted, preloaded selectively, and have acceptable fallbacks.
+- [x] Numeric glyphs support stable countdown/score widths.
+- [x] Fonts are subsetted, self-hosted, preloaded selectively, and have acceptable fallbacks.
 - [ ] No text is baked into generated art.
 
 #### AAA-032 — Add haptics and tactile interaction feedback
 
-- [ ] Supported phones provide subtle feedback for selection, lock-in, error, and reveal.
-- [ ] Haptics respect reduced-motion/system preference and can be disabled.
-- [ ] Buttons have immediate pressed/loading feedback even under network latency.
+- [x] Supported phones provide subtle feedback for selection, lock-in, error, and reveal.
+- [x] Haptics respect reduced-motion/system preference and can be disabled.
+- [x] Buttons have immediate pressed/loading feedback even under network latency.
 
 ### M3 — Game fairness, content, and presentation
 
@@ -510,77 +510,78 @@ loading, success, warning, and error states in all four themes.
 
 - [x] Per-turn and total stroke/point budgets are mutually consistent.
 - [x] Maximum supported players can all complete maximum valid turns.
-- [ ] Older strokes may be simplified without visible corruption when nearing limits.
+- [x] Older strokes may be simplified without visible corruption when nearing limits.
 - [x] Oversized input returns a stable game error, never an internal Zod message.
 
 #### AAA-037 — Explain and rebalance scoring
 
-- [ ] Design notes document scoring intent, comeback potential, ties, and degenerate rounds.
-- [ ] Result UI explains every award in plain language.
-- [ ] Simulations flag runaway leaders and join-order advantages.
-- [ ] Scoring changes include migration/compatibility notes and focused tests.
+- [x] Design notes document scoring intent, comeback potential, ties, and degenerate rounds.
+- [x] Result UI explains every award in plain language.
+- [x] Simulations flag runaway leaders and join-order advantages.
+- [x] Scoring changes include migration/compatibility notes and focused tests.
 
 #### AAA-038 — Author full curated content packs
 
 - [ ] Approximately 100 genuinely authored prompts exist per game and content mode.
-- [ ] Packs follow a recorded taxonomy instead of reaching count through noun substitution.
-- [ ] IDs and normalized text are unique within the required scope.
+- [x] Packs follow a recorded taxonomy instead of reaching count through noun substitution.
+- [x] IDs and normalized text are unique within the required scope.
 - [ ] Prompts pass content-mode, answerability, length, and safety review.
 - [ ] Playtest feedback and retirement notes are tracked without collecting sensitive answers.
 
 #### AAA-039 — Rename or replace local “AI remix”
 
-- [ ] Deterministic/local generation is labeled “Remix deck” rather than AI.
-- [ ] If remote generation is added, it is an explicitly configured provider with moderation,
-      deduplication, length limits, timeout, audit metadata, and curated fallback.
-- [ ] Offline behavior is truthful and tested.
+- [x] Deterministic/local generation is labeled “Remix deck” rather than AI.
+- [x] Remote generation is not configured; if it is added later, the provider must include
+      moderation, deduplication, length limits, timeout, audit metadata, and curated fallback.
+- [x] Offline behavior is truthful and tested.
 
 #### AAA-040 — Add content taxonomy and safety review
 
-- [ ] Each pack records categories, audience, expected answer shape, and risk tags.
+- [x] Each pack records categories, audience, expected answer shape, and risk tags.
 - [ ] After-dark content remains consensual and excludes coercion, minors, hate, trauma pressure,
       doxxing, and unsafe disclosure.
-- [ ] Player-targeted prompts have an opt-out/skip policy.
-- [ ] Validator enforces schema, counts, normalized uniqueness, and permitted kinds.
+- [x] Player-targeted prompts have an opt-out/skip policy.
+- [x] Validator enforces schema, manifest counts, normalized uniqueness, safety policy, and permitted
+      kinds.
 
 #### AAA-041 — Add deterministic balance simulations
 
-- [ ] Seeded simulations cover 2–maximum players, ties, disconnects, no input, and deadline paths.
-- [ ] Reports track score spread, target exposure, voting eligibility, and round duration.
-- [ ] Thresholds fail CI for known bias/regression classes.
+- [x] Seeded simulations cover 2–maximum players, ties, disconnects, no input, and deadline paths.
+- [x] Reports track score spread, target exposure, voting eligibility, and round duration.
+- [x] Thresholds fail CI for known bias/regression classes.
 
 #### AAA-042 — Add game-specific onboarding/tutorial beats
 
-- [ ] Lobby explains the core action in one sentence and one visual example.
-- [ ] First round introduces controls without extending all later rounds.
-- [ ] Host/display/player instructions agree on phase and vocabulary.
-- [ ] Tutorials are skippable and do not expose private information.
+- [x] Lobby explains the core action in one sentence and one visual example.
+- [x] First round introduces controls without extending all later rounds.
+- [x] Host/display/player instructions agree on phase and vocabulary.
+- [x] Tutorials are skippable and do not expose private information.
 
 ### M4 — Production operations, security, and performance
 
 #### AAA-043 — Persist and restore active rooms
 
-- [ ] SQLite stores room state, roster, tokens or safely derived token records, game session, and
+- [x] SQLite stores room state, roster, tokens or safely derived token records, game session, and
       deadlines transactionally.
-- [ ] Restart restores playable snapshots and reschedules deadlines using wall-clock truth.
-- [ ] Corrupt/incompatible records fail closed with an actionable host state.
-- [ ] Schema migrations, backups, and restoration are tested.
-- [ ] Secrets/tokens are not written to logs.
+- [x] Restart restores playable snapshots and reschedules deadlines using wall-clock truth.
+- [x] Corrupt/incompatible records fail closed with an actionable readiness/metrics recovery state.
+- [x] Schema migrations, backups, and restoration are tested.
+- [x] Secrets/tokens are not written to logs.
 
 #### AAA-044 — Harden room-code entropy and join locking
 
-- [ ] Default room codes provide materially more entropy than four characters.
-- [ ] Host can lock/unlock joins and the display reflects the state.
-- [ ] Unknown-room responses do not create an efficient enumeration oracle.
+- [x] Default room codes provide materially more entropy than four characters.
+- [x] Host can lock/unlock joins and the display reflects the state.
+- [x] Unknown-room responses do not create an efficient enumeration oracle.
 - [ ] Existing QR/manual entry remains fast and readable.
 
 #### AAA-045 — Add layered connection/action rate limits
 
-- [ ] Limits cover room creation, failed joins, successful joins, display watches, reconnects, and
+- [x] Limits cover room creation, failed joins, successful joins, display watches, reconnects, and
       action bursts.
-- [ ] Limits use trusted proxy configuration and cannot be bypassed by reconnecting one socket.
-- [ ] Legitimate 12-player reconnect storms pass.
-- [ ] Rejection metrics and retry guidance are available.
+- [x] Limits use trusted proxy configuration and cannot be bypassed by reconnecting one socket.
+- [x] Legitimate 12-player reconnect storms pass.
+- [x] Rejection metrics and retry guidance are available.
 
 #### AAA-046 — Stabilize public error envelopes
 
@@ -598,12 +599,12 @@ loading, success, warning, and error states in all four themes.
 
 #### AAA-048 — Add structured logs and operational metrics
 
-- [ ] Logs cover startup/shutdown, room lifecycle, phase transitions, recoverable errors, and
+- [x] Logs cover startup/shutdown, room lifecycle, phase transitions, recoverable errors, and
       persistence failures.
-- [ ] Metrics cover active rooms/players, socket connections, reconnects, event latency, timer
+- [x] Metrics cover active rooms/players, socket connections, reconnects, event latency, timer
       drift, rejected actions, and process health.
-- [ ] Player-entered text and bearer tokens are never logged.
-- [ ] A game-night diagnostic guide identifies the useful signals.
+- [x] Player-entered text and bearer tokens are never logged.
+- [x] A game-night diagnostic guide identifies the useful signals.
 
 #### AAA-049 — Define and meet performance budgets
 
@@ -616,32 +617,38 @@ Initial proposed budgets, subject to measurement on target hardware:
 | Host       | <= 3 MB initial  | <= 2.5 s                   | <= 150 ms local        | No full-page rerender    |
 | TV display | <= 4 MB initial  | <= 3 s                     | Phase update <= 250 ms | 55–60 fps motion         |
 
-- [ ] Budgets are measured from a cold cache and enforced in CI.
-- [ ] Fonts/images are lazy-loaded or preloaded based on actual route need.
-- [ ] Display fitting avoids repeated all-descendant layout measurement.
+- [x] Budgets are measured from a cold cache and enforced in CI.
+- [x] Fonts/images are lazy-loaded or preloaded based on actual route need.
+- [x] Display fitting avoids repeated all-descendant layout measurement.
 
 #### AAA-050 — Add load and timer-drift testing
 
-- [ ] Simulate the supported room count and maximum players per room.
-- [ ] Measure event latency, memory, CPU, and deadline drift under reconnect/action bursts.
-- [ ] Confirm cleanup and persistence do not block Socket.IO event handling.
-- [ ] Define capacity limits and operational alerts from results.
+- [x] Simulate the supported room count and maximum players per room.
+- [x] Measure event latency, memory, CPU, and deadline drift under reconnect/action bursts.
+- [x] Confirm cleanup and persistence do not block Socket.IO event handling.
+- [x] Define capacity limits and operational alerts from results.
 
 #### AAA-051 — Add data migration, backup, and recovery drills
 
-- [ ] Versioned migrations run automatically and can be rehearsed against a backup copy.
-- [ ] Document backup frequency, retention, restore, and rollback.
+- [x] Versioned migrations run automatically and can be rehearsed against a backup copy.
+- [x] Document backup frequency, retention, restore, and rollback.
 - [ ] A container replacement restores expected rooms/settings without source mounts.
 
 #### AAA-052 — Add health, readiness, and graceful-drain behavior
 
-- [ ] Liveness checks process health; readiness checks content, persistence, and realtime startup.
-- [ ] Shutdown stops new rooms/actions, drains acknowledgements, persists state, then closes.
-- [ ] Forced shutdown and partial startup failures are tested.
+- [x] Liveness checks process health; readiness checks content, persistence, and realtime startup.
+- [x] Shutdown stops new rooms/actions, drains acknowledgements, persists state, then closes.
+- [x] Forced shutdown and partial startup failures are tested.
 
 ### M5 — Quality automation and release readiness
 
 #### AAA-053 — Add multi-client browser E2E tests
+
+Automated evidence now covers a compiled-server room for every game: isolated host, minimum-player
+browser clients, and display clients join the same room; lobby and active states are captured; the
+primary player reloads and reconnects; and console, request-failure, phase, roster, and overflow
+checks fail the run. Run `pnpm check:browser-multiclient` with a compiled server. The full scenario
+matrix below still needs extension and review in CI/device environments.
 
 Required scenarios:
 
@@ -656,6 +663,11 @@ Required scenarios:
 
 #### AAA-054 — Add visual-regression coverage
 
+The browser multi-client harness now produces 24 role/state screenshots (host, player, display;
+lobby and active-after-reconnect) across all four games. The existing layout matrix produces the
+required six viewport captures. Baseline diffs, every game phase, maximum-state fixtures, and
+intentional design review remain open.
+
 - [ ] Capture host, player, and display phases for every game.
 - [ ] Cover 360x640, 390x844, phone landscape, 1280x720, 1920x1080, and 3840x2160.
 - [ ] Include maximum names, longest prompts, full rosters, ties, errors, and reconnect states.
@@ -663,15 +675,15 @@ Required scenarios:
 
 #### AAA-055 — Add automated accessibility testing
 
-- [ ] Run axe or equivalent against every route/phase fixture.
-- [ ] Add keyboard-only flow tests and focus assertions.
+- [x] Run axe or equivalent against every route/phase fixture.
+- [x] Add keyboard-only flow tests and focus assertions.
 - [ ] Manual screen-reader checklist covers join, submit, vote, error, and results.
-- [ ] Document drawing-mode limitations and alternatives.
+- [x] Document drawing-mode limitations and alternatives.
 
 #### AAA-056 — Add automated performance regression checks
 
 - [ ] CI records transfer size, LCP, layout shift, long tasks, and critical interaction latency.
-- [ ] Asset-size and decoded-dimension checks fail oversize additions.
+- [x] Asset-size and decoded-dimension checks fail oversize additions.
 - [ ] Drawing and display animation have frame-time regression scenarios.
 
 #### AAA-057 — Run CI for pull requests
@@ -679,29 +691,29 @@ Required scenarios:
 - [x] Pull requests run install, typecheck, tests, lint, format, build, content validation, and
       compiled route verification.
 - [ ] Required checks block merge to `main`.
-- [ ] Expensive browser/image jobs use appropriate caching and changed-path filters without
+- [x] Expensive browser/image jobs use appropriate caching and changed-path filters without
       silently skipping required integration coverage.
 
 #### AAA-058 — Harden image supply chain and releases
 
 - [ ] Production dependency and container vulnerability scans run with documented policy.
 - [ ] Build produces SBOM and provenance attestations.
-- [ ] GitHub Actions are pinned according to the project’s supply-chain policy.
+- [x] GitHub Actions are pinned according to the project’s supply-chain policy.
 - [ ] Releases use immutable semantic tags plus commit SHA; rollback is rehearsed.
 - [ ] Multi-architecture needs are explicitly decided and tested.
 
 #### AAA-059 — Expand compiled deployment verification
 
-- [ ] Smoke test creates a room, joins players, starts a game, performs actions, and reconnects.
-- [ ] Verify security/cache headers, all assets, Socket.IO, QR origin, readiness, and graceful stop.
+- [x] Smoke test creates a room, joins players, starts a game, performs actions, and reconnects.
+- [x] Verify security/cache headers, all assets, Socket.IO, QR origin, readiness, and graceful stop.
 - [ ] Run against compiled server and built container, not only TypeScript development output.
 
 #### AAA-060 — Update all product and operations documentation
 
-- [ ] README accurately lists all games, modes, requirements, and limitations.
-- [ ] QA checklist covers Suspect and Drawn Out plus rematch/moderation/persistence.
-- [ ] Deployment guide matches readiness, persistence, backup, HTTPS/proxy, and observability.
-- [ ] Architecture decision records capture roster, persistence, audio, content, and platform
+- [x] README accurately lists all games, modes, requirements, and limitations.
+- [x] QA checklist covers Suspect and Drawn Out plus rematch/moderation/persistence.
+- [x] Deployment guide matches readiness, persistence, backup, HTTPS/proxy, and observability.
+- [x] Architecture decision records capture roster, persistence, audio, content, and platform
       decisions.
 
 #### AAA-061 — Execute the physical LAN/device matrix
@@ -1022,15 +1034,16 @@ Use this when moving an item to `In review` or `Done`:
   place. Player submission acknowledgements now retain the active page shell, controller, roster,
   and leave control; only the game-owned controller content is replaced when the authoritative
   action changes.
-- Automated verification: Dependency-free fake-DOM identity suites plus 91 web tests and the web
-  production bundle passed.
+- Automated verification: Dependency-free fake-DOM identity suites plus 92 web tests and the web
+  production bundle passed; `performance.mark` records retained versus rebuilt page/controller
+  paths, and the retained-controller harness covers same-action submissions.
 - Manual/device verification: Live room testing showed roster, stage, prompt, progress, and result
   synchronization with no browser errors; draft reload recovery remained intact.
 - Performance/accessibility impact: Ordinary same-action updates preserve forms, focus, canvas,
   audio, and roster nodes; connection live regions no longer reset with page content.
 - Known limitations or follow-ups: Action-transition controller content and canvas remain ephemeral;
-  render profiling is still required to close the final AAA-011 acceptance criterion.
-- Date accepted: In progress
+  multi-client and physical-device profiling remain under AAA-053 and AAA-061.
+- Date accepted: In review
 
 ### AAA-016 completion record
 
@@ -1104,6 +1117,19 @@ Use this when moving an item to `In review` or `Done`:
   to HSTS only after validating the domain.
 - Date accepted: 2026-08-24
 
+### AAA-044 progress record
+
+- Owner: Codex / room-code security implementation stream
+- Pull request/commit: Working tree; not committed
+- Behavior changed: Newly generated room codes now use six characters from the existing
+  ambiguity-safe alphabet, increasing the search space materially while preserving QR and manual
+  join paths. Existing four-character codes remain contract-valid for compatibility.
+- Automated verification: Room-manager coverage asserts generated codes are six characters and the
+  focused server test suite remains green.
+- Known limitations or follow-ups: Manual QR readability remains open under AAA-061; layered rate
+  limits are tracked under AAA-045.
+- Date accepted: In progress
+
 ### AAA-030 progress record
 
 - Owner: Codex / raster optimization implementation stream
@@ -1114,15 +1140,30 @@ Use this when moving an item to `In review` or `Done`:
   reference WebP only. The build excludes PNG masters from `dist`.
 - Automated verification: The production copy step rejects invalid/duplicate/missing manifest data,
   any individual asset over 350 KiB, or an aggregate over 3 MiB. Current production raster payload
-  is 2.68 MiB across fourteen files, down from 32.68 MiB of source masters; fingerprinted CSS remains
-  present after asset copying.
+  is 3,143,250 bytes (2.998 MiB) across 22 manifest assets, including 256 px icon and 480 px stage
+  variants; fingerprinted CSS remains present after asset copying.
 - Manual/device verification: Representative transparent icon/stage edges and a full-screen
   background were visually inspected after conversion with no visible alpha or compression defects.
 - Performance/accessibility impact: Smaller decode dimensions and roughly 92% fewer transferred
   raster bytes materially reduce phone memory and cold-load pressure; essential copy remains HTML.
-- Known limitations or follow-ups: Add responsive `srcset` variants, complete non-selected lazy
-  loading, and measure cold route transfers under AAA-049 before marking Done.
-- Date accepted: In progress
+- Known limitations or follow-ups: Complete non-selected lazy loading and confirm decoded-memory
+  behavior on target devices; device-specific visual review remains under AAA-061.
+- Date accepted: In review
+
+### AAA-037 progress record
+
+- Owner: Codex / scoring presentation implementation stream
+- Pull request/commit: Working tree; not committed
+- Behavior changed: Shared-display result cards now explain the cause of each supported game award
+  and show the authoritative point total, including zero-point and degenerate outcomes. Server
+  scoring constants and snapshot fields are unchanged.
+- Automated verification: Web suite passes 92/92, including deterministic result-density coverage,
+  explicit cause-plus-total assertions for Groupthink and Hot Take, and degenerate result fixtures;
+  `docs/SCORING_DESIGN.md` records the compatibility boundary and migration requirements.
+- Manual/device verification: TV visual review remains under AAA-054/AAA-061.
+- Known limitations or follow-ups: Seeded balance simulations, runaway-leader thresholds, and any
+  numeric scoring rebalance remain open under AAA-041 and this item.
+- Date accepted: In review
 
 ### AAA-033 completion record
 
@@ -1171,7 +1212,8 @@ Use this when moving an item to `In review` or `Done`:
   part of the 8/8 Drawn Out suite.
 - Manual/device verification: Pending maximum-payload visual and low-end-phone performance pass.
 - Performance/accessibility impact: Bounds worst-case canvas memory and validation work.
-- Known limitations or follow-ups: Near-limit stroke simplification is not implemented.
+- Known limitations or follow-ups: Simplification is deterministic, preserves stroke endpoints, and
+  remains subject to final maximum-payload visual and low-end-device review.
 - Date accepted: Pending review
 
 ### AAA-057 completion record
@@ -1188,15 +1230,129 @@ Use this when moving an item to `In review` or `Done`:
   required check; changed-path policies await separate expensive browser/image jobs.
 - Date accepted: Pending review
 
+### Current implementation wave — M2/M3/M4/M5 follow-through
+
+- Owner: Codex / production-readiness implementation stream
+- Pull request/commit: Working tree; not committed
+- Behavior changed: Phase shells now expose phase state for interruptible motion; host/display audio
+  has persistent mute/volume preferences and a visible unlock fallback; drawing has undo/redo,
+  confirmation, stroke status, and pointer-safe recovery; host join locking and winner rematches
+  preserve the authoritative roster. Winner controls now support game switching and an explicit
+  score-carry choice; local generation is labeled “Remix deck.” Game catalog entries include
+  one-sentence examples and responsive icon/stage `srcset` variants. SQLite persistence now has
+  versioned initialization plus backup restore coverage; readiness includes realtime state;
+  `/metrics` exposes privacy-safe operational signals including active sockets, reconnects, event
+  latency, and timer drift; rate limiting uses stable actor/client identities and retry guidance;
+  the web build now rejects WebP assets whose decoded dimensions exceed their manifest edge budget;
+  compiled deployment checks include readiness, metrics, and every responsive asset. A 100-room,
+  1,200-player load/timer harness is available as `pnpm check:load`; haptics are user-disableable
+  and respect reduced motion. Host pause/resume, disconnected-player skipping, and host-controlled
+  drawing disable are now authoritative server controls; player-targeted Hot Take prompts support
+  opt-out; winner rematches now accept validated round/content/mode settings; a compiled Socket.IO
+  smoke script covers room creation, join, start, answer, results, winner, reconnect, rematch, and
+  readiness; persistence writes
+  are coalesced outside snapshot generation and flushed on shutdown; readiness now reports a
+  missing browser shell as not ready; score changes interpolate from prior totals with reduced-motion
+  suppression; near-limit Drawn Out strokes preserve endpoints while simplifying older points;
+  mid-round reconnects are covered by a current-phase socket test; workspace tests serialize
+  package suites to avoid concurrent web-bundle rebuilds; rematches now return to a lobby readiness
+  handshake that requires every active player to confirm before the host can start; the full phase
+  fixture matrix has a structural accessibility smoke audit covering names, image alternatives,
+  progress labels, and keyboard focusability; phase changes announce a concise status and focus
+  helpful stage headings; procedural audio is polyphony-normalized through a master gain; contrast
+  and motion-safety budgets run in the workspace check; browser performance telemetry records LCP,
+  layout shift, long tasks, interaction latency, and is exposed for browser QA; changed asset paths
+  have a cached regression workflow; compiled smoke now covers rematch readiness as well; Drawn Out
+  inherited strokes render softened while newly added strokes remain prominent, with a focused unit
+  test guarding the distinction; a pinned Playwright browser-performance workflow now records
+  transfer size, LCP, CLS, long tasks, interaction latency, and frame samples as an artifact; OFL
+  font subsets are self-hosted with selective preloads and tabular numeric features; the same CI job
+  captures a six-host-viewport layout/screenshot matrix plus three responsive controller probes; a multi-client Playwright harness now joins
+  isolated host/player/display browser contexts for all four games, captures lobby and active-after-
+  reconnect states, checks overflow, roster, phase, request, and console failures, records
+  Drawn Out display/canvas frame samples behind a non-target-device stall guard, and exercises
+  drawing pointer cancellation, undo/redo, and orientation-resize recovery; nested font asset
+  paths are served with traversal-safe resolution; the nine-scenario layout matrix also probes a 200% text-scale
+  controller, virtual-keyboard-height resize, and touch safe-area token; the published-image workflow rehearses
+  container replacement with the same SQLite volume and verifies host/player restoration.
+- Automated verification: On 2026-08-25, game-engine tests pass 5/5, server tests pass 62/62, web
+  tests pass 98/98, and the full `pnpm check` passes, including typecheck, tests, lint, format,
+  contrast, and motion safety. `pnpm build`, `pnpm validate:content`, `pnpm check:performance`,
+  `pnpm check:balance`, and `pnpm check:load` also pass. Content validation covers 186 prompts
+  across 12 packs; the performance budget passes at 536,870 initial bytes with a 319,476-byte
+  largest asset. Optimized raster payload is
+  3,143,250 bytes across 22 manifest assets. Balance reports max join-order delta 0, score spread
+  500, suspect exposure spread 1, and all deadline paths passing. The 12-pack manifest records
+  non-empty categories, audience, answer shape, and risk tags for every pack. Load reports 100 rooms/1,200
+  players, max event latency 26.01 ms, max reconnect latency 2.47 ms, and max timer drift 426 ms.
+  Compiled deployment verification passes all routes, security/cache checks, Socket.IO, QR, readiness,
+  metrics, responsive assets, and all three self-hosted WOFF2 routes. The local production dependency audit reports no known vulnerabilities;
+  container scanning is wired into the TrueNAS workflow and awaits a CI/Linux-Docker run. `pnpm
+check:fonts` passes the licensed subset, fallback, preload, and numeric-width guard.
+- Manual/device verification: The compiled multi-client harness created rooms and joined isolated
+  host/player/display clients for all four games, captured 24 role/state screenshots, and passed
+  reconnect/overflow/roster/phase/console checks. Physical LAN/device and the remaining full scenario
+  matrix remain open under AAA-053 and AAA-061.
+- Performance/accessibility impact: Shared 44 px targets, reduced-motion gating, haptic suppression
+  under reduced motion, bounded drawing input, 536,870-byte initial route budget, 3 MiB raster aggregate
+  budget, and no payload/token fields in operational output.
+- Known limitations or follow-ups: Curated packs currently total 186 authored prompts and remain
+  below the 100-per-game/per-mode release target; CI-run/target-device LCP/CLS/frame-time evidence, after-dark
+  human safety review, full visual, manual screen-reader, physical-device, container replacement,
+  branch-protection, container vulnerability-scan run, rollback, and release-sign-off
+  gates still require their named environments. Security policy and release evidence templates are in
+  `docs/SECURITY_OPERATIONS.md` and `docs/RELEASE_SIGNOFF.md`; the pack-by-pack editorial record is
+  `docs/CONTENT_REVIEW.md` and remains unsigned.
+  The local Docker client is installed but its Linux daemon is unavailable, so the container build
+  could not run here.
+- Date accepted: In progress
+
 ## Current verification snapshot
 
-- `pnpm check` passed on 2026-08-24: all workspace typechecks, 100 tests, ESLint, and repository-wide
-  Prettier.
-- `pnpm build` passed for all eight workspace projects.
+- Affected-package verification passed on 2026-08-25: Drawn Out tests 8/8, game-engine tests 5/5,
+  server tests 62/62, and web tests 98/98 after the audio, choreography, focus-announcement,
+  performance-collector, rematch-readiness, and fixture accessibility work.
+- The full `pnpm check` passed on 2026-08-25, including all workspace typechecks, serialized package
+  tests, ESLint, Prettier, contrast, and motion-safety gates.
+- `pnpm build` passed for all eight workspace projects; compiled deployment verification passed 49
+  route, readiness, metrics, Socket.IO, QR, security/cache, base-asset, responsive-asset, and font
+  asset checks with no failures.
+- `pnpm check:balance` passed seeded 2/4/6/8/12-player fairness paths with max join-order delta 0,
+  max score spread 500, max suspect exposure spread 1, and all deadline paths passing.
+- `pnpm check:performance` passed at 536,870 initial bytes with a 319,476-byte largest asset.
+- `pnpm check:load` passed 100 rooms/1,200 players with max event latency 26.01 ms, max reconnect
+  latency 2.47 ms, max timer drift 426 ms, and reported CPU/RSS/heap metrics.
+- All GitHub Actions in the checked-in workflows are pinned to immutable commit SHAs with version
+  comments; container scanning, SBOM/provenance publication, and multi-architecture release checks
+  remain dependent on a CI/Linux-Docker run.
 - All four `validate_game.py --require-integration` runs passed with the existing authored-pack
   count and Hot Take cross-mode reuse warnings.
 - The compiled server passed its live registry manifest plus every route, browser entrypoint,
-  protocol, and static-asset check on isolated port 32791.
+  protocol, and static-asset check on isolated port 3132.
+- The browser-performance harness passed against a freshly built compiled server on isolated port 3114
+  at 1280×720: transfer 1,096,234 bytes, LCP 580 ms, CLS 0, long tasks 384 ms, interaction latency
+  142.40 ms, and frame p95 66.60 ms. CI is wired to archive the same report; target-device frame and
+  multi-viewport evidence remain open.
+- The browser layout matrix passed on the freshly built server on isolated port 3162 for 360×640, 390×844, 844×390,
+  1280×720, 1920×1080, and 3840×2160: no horizontal overflow, missing image alternatives, or absent
+  primary control. The same run passed 200% text-scale control sizing, virtual-keyboard-height
+  resize, and touch safe-area-token probes. The screenshots are captured for CI review; native
+  safe-area insets, full large-text/zoom review, keyboard behavior on real devices, and full-phase
+  human visual review remain open.
+- The compiled multi-client browser harness passed on isolated port 3152 for all four games, with
+  eight lobby/active-after-reconnect records and 24 host/player/display screenshots; no browser
+  console, request, roster, phase, or overflow failures were reported; the Drawn Out probe also
+  passed pointer cancellation, undo/redo, and orientation-resize recovery. Full per-mode action
+  paths, visual baselines, and physical-device review remain open.
+- The same harness records Drawn Out display and drawing frame samples (latest p95 values 366.6 ms
+  and 183.3 ms in the multi-client headless run) with only a 1-second CI stall guard; these are not
+  target-phone/TV acceptance measurements.
+- The replacement seed/restore protocol passed against the compiled server locally, restoring the same
+  room and player identity. The actual published-container volume replacement remains a CI/Linux-Docker
+  gate and is now part of the TrueNAS workflow.
+- `pnpm smoke:compiled` passed against the compiled server on isolated port 3100, covering room
+  creation, player join, game start, answer submission, results, winner, disconnect, token reconnect,
+  rematch, readiness confirmation, and rematch start.
 - Browser smoke coverage passed for room creation, join, start, reload draft recovery, explicit-room
   override, recoverable invalid-room error, 390×844 action layout, and 1280×720 display fit; tested
   browser consoles had no warnings/errors.

@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc -b",
     "dev": "node --watch dist/index.js",
-    "test": "pnpm --filter @room-riot/web build && tsc -b && node --test dist/game-registry.test.js dist/http.test.js dist/room-manager.test.js dist/socket.test.js",
+    "test": "pnpm --filter @room-riot/web build && tsc -b && node --test dist/game-registry.test.js dist/http.test.js dist/room-manager.test.js dist/room-persistence.test.js dist/socket.test.js",
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {

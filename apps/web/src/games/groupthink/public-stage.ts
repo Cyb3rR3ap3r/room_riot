@@ -22,6 +22,10 @@ export function renderGroupthinkPublicStage(
     groupthinkPresentation.stageClass,
     dependencies.createArtwork('groupthink'),
   );
+  frame.element.setAttribute(
+    'data-phase-choreography',
+    groupthinkPresentation.phaseChoreography[state.phase],
+  );
   appendStageHeading(
     frame.copy,
     dependencies,

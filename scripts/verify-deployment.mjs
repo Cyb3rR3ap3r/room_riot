@@ -82,6 +82,20 @@ const checks = [
     },
   },
   {
+    path: '/readyz',
+    validate: async (response) => {
+      const body = await response.json();
+      return response.ok && body.status === 'ready' && body.engineReady === true;
+    },
+  },
+  {
+    path: '/metrics',
+    validate: async (response) => {
+      const body = await response.json();
+      return response.ok && typeof body.uptimeSeconds === 'number' && body.process?.rssBytes > 0;
+    },
+  },
+  {
     path: '/host',
     validate: async (response) =>
       response.ok && (await response.text()).toLowerCase().includes('room riot'),
@@ -146,12 +160,31 @@ const checks = [
     'suspect-bg-v2.webp',
     'suspect-stage-v2.webp',
     'drawn-out-icon-v2.webp',
+    'drawn-out-icon-v2-256.webp',
     'drawn-out-bg-v2.webp',
     'drawn-out-stage-v2.webp',
+    'drawn-out-stage-v2-480.webp',
+    'groupthink-icon-256.webp',
+    'groupthink-reactor-v2-480.webp',
+    'hot-take-icon-256.webp',
+    'hot-take-podium-v2-480.webp',
+    'suspect-icon-v2-256.webp',
+    'suspect-stage-v2-480.webp',
   ].map((assetName) => ({
     path: `/assets/${assetName}`,
     validate: async (response) =>
       response.ok && (response.headers.get('content-type') ?? '').includes('image/webp'),
+  })),
+  ...[
+    'room-riot-ui-latin-400.woff2',
+    'room-riot-ui-latin-700.woff2',
+    'room-riot-display-latin-700.woff2',
+  ].map((assetName) => ({
+    path: `/assets/fonts/${assetName}`,
+    validate: async (response) =>
+      response.ok &&
+      (response.headers.get('content-type') ?? '').includes('font/woff2') &&
+      (await response.arrayBuffer()).byteLength > 1_000,
   })),
 ];
 

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import { resolve } from 'node:path';
+import { extname, resolve, sep } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import QRCode from 'qrcode';
@@ -10,6 +10,7 @@ import { INTERNAL_ERROR_MESSAGE } from '@room-riot/contracts';
 import { createInitialRoomState } from '@room-riot/game-engine';
 
 import { GAME_PAGE_ROUTES, GAME_REGISTRY_METADATA } from './game-registry.js';
+import type { OperationalMetrics } from './metrics.js';
 import type { RoomManager } from './room-manager.js';
 
 export interface ServerMetadata {
@@ -21,6 +22,9 @@ export interface HttpOptions {
   readonly webRoot?: string;
   readonly publicOrigin?: string;
   readonly enableHsts?: boolean;
+  readonly metrics?: OperationalMetrics;
+  readonly realtimeReady?: () => boolean;
+  readonly webReady?: () => boolean;
 }
 
 const BASE_SECURITY_HEADERS = {
@@ -93,6 +97,46 @@ export function createRequestHandler(metadata: ServerMetadata, options: HttpOpti
       return;
     }
 
+    if (request.method === 'GET' && requestUrl.pathname === '/readyz') {
+      const engineReady = createInitialRoomState({ roomCode: 'READY', now: 0 }).phase === 'lobby';
+      const operational = options.roomManager?.getOperationalStatus();
+      const realtimeReady = options.realtimeReady?.() ?? true;
+      const webReady = options.webReady?.() ?? true;
+      const persistenceReady = operational ? operational.persistenceRecoveryIssues === 0 : true;
+      const ready =
+        engineReady &&
+        webReady &&
+        realtimeReady &&
+        persistenceReady &&
+        !(operational?.draining ?? false);
+      writeJson(
+        response,
+        ready ? 200 : 503,
+        {
+          status: ready ? 'ready' : 'not_ready',
+          service: 'room-riot-server',
+          version: metadata.version,
+          engineReady,
+          webReady,
+          realtimeReady,
+          persistenceReady,
+          ...(operational ? { operational } : {}),
+        },
+        securityHeaders,
+      );
+      return;
+    }
+
+    if (request.method === 'GET' && requestUrl.pathname === '/metrics') {
+      writeJson(
+        response,
+        200,
+        options.metrics?.snapshot(options.roomManager?.getOperationalStatus()),
+        securityHeaders,
+      );
+      return;
+    }
+
     if (request.method === 'GET' && requestUrl.pathname === '/api/games') {
       writeJson(
         response,
@@ -159,24 +203,52 @@ export function createRequestHandler(metadata: ServerMetadata, options: HttpOpti
         return;
       }
 
-      const assetMatch = requestUrl.pathname.match(/^\/assets\/([a-z0-9][a-z0-9._-]*)$/i);
-      if (assetMatch) {
-        const assetName = assetMatch[1] ?? '';
-        const contentType = assetName.endsWith('.webp')
-          ? 'image/webp'
-          : assetName.endsWith('.css')
-            ? 'text/css; charset=utf-8'
-            : 'application/octet-stream';
+      const assetPath = requestUrl.pathname.startsWith('/assets/')
+        ? requestUrl.pathname.slice('/assets/'.length)
+        : null;
+      const assetSegments = assetPath
+        ? (() => {
+            try {
+              return decodeURIComponent(assetPath).split('/');
+            } catch {
+              return null;
+            }
+          })()
+        : null;
+      const assetRoot = resolve(options.webRoot, 'assets');
+      const resolvedAssetPath = assetSegments?.every((segment) =>
+        /^[a-z0-9][a-z0-9._-]*$/i.test(segment),
+      )
+        ? resolve(assetRoot, ...assetSegments)
+        : null;
+      if (
+        assetSegments &&
+        resolvedAssetPath &&
+        resolvedAssetPath !== assetRoot &&
+        resolvedAssetPath.startsWith(`${assetRoot}${sep}`)
+      ) {
+        const assetName = assetSegments.at(-1) ?? '';
+        const extension = extname(assetName).toLowerCase();
+        const contentType =
+          extension === '.webp'
+            ? 'image/webp'
+            : extension === '.png'
+              ? 'image/png'
+              : extension === '.svg'
+                ? 'image/svg+xml'
+                : extension === '.css'
+                  ? 'text/css; charset=utf-8'
+                  : extension === '.woff2'
+                    ? 'font/woff2'
+                    : extension === '.woff'
+                      ? 'font/woff'
+                      : extension === '.txt'
+                        ? 'text/plain; charset=utf-8'
+                        : 'application/octet-stream';
         const cacheControl = /^room-riot\.[a-f0-9]{12}\.css$/.test(assetName)
           ? 'public, max-age=31536000, immutable'
           : 'public, max-age=86_400';
-        void serveFile(
-          response,
-          resolve(options.webRoot, 'assets', assetName),
-          contentType,
-          cacheControl,
-          securityHeaders,
-        );
+        void serveFile(response, resolvedAssetPath, contentType, cacheControl, securityHeaders);
         return;
       }
     }

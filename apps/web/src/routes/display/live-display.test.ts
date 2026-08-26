@@ -19,6 +19,20 @@ test('maps every production game result to deterministic stage density items', (
   }
 });
 
+test('explains result awards with their cause and authoritative point total', () => {
+  const groupthink = createLiveDisplayDensityViewModel(
+    createGamePhaseFixture('groupthink', 'results', 'maximum').snapshot,
+    VIEWPORT,
+  );
+  const hotTake = createLiveDisplayDensityViewModel(
+    createGamePhaseFixture('hot-take', 'results', 'maximum').snapshot,
+    VIEWPORT,
+  );
+
+  assert.match(groupthink.plan.pages[0]!.items[0]!.secondary ?? '', /matching player.*points/);
+  assert.match(hotTake.plan.pages[0]!.items[0]!.secondary ?? '', /vote.*points/);
+});
+
 test('uses roster density during active play and excludes removed players', () => {
   const fixture = createGamePhaseFixture('hot-take', 'input', 'maximum');
   const removedId = fixture.snapshot.state.players[0]!.id;

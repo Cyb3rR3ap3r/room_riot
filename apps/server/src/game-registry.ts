@@ -313,6 +313,7 @@ interface GameAdapter {
     playerId: PlayerId,
     answer: string,
     targetPlayerId?: PlayerId,
+    skip?: boolean,
   ): GameTransition;
   submitDrawing(
     context: GameActionContext,
@@ -443,7 +444,7 @@ const GAME_ADAPTERS = {
     playerView({ slots, playerNames }, playerId) {
       return slots.hotTake ? getHotTakePlayerView(slots.hotTake, playerId, playerNames) : null;
     },
-    submitAnswer(context, registry, playerId, answer, targetPlayerId) {
+    submitAnswer(context, registry, playerId, answer, targetPlayerId, skip) {
       const game = requireSlot(context.slots.hotTake, 'Hot Take');
       context.slots.hotTake = submitHotTakeAnswer(
         game,
@@ -452,6 +453,7 @@ const GAME_ADAPTERS = {
         targetPlayerId,
         context.playerIds,
         context.now,
+        skip,
       );
       if (allHotTakePlayersSubmitted(context.slots.hotTake, context.playerIds)) {
         context.slots.hotTake = revealHotTakeAnswers(
@@ -838,9 +840,10 @@ export class ServerGameRegistry {
     playerId: PlayerId,
     answer: string,
     targetPlayerId?: PlayerId,
+    skip?: boolean,
   ): GameTransition {
     return this.runPublicAction(() =>
-      this.adapter(gameId).submitAnswer(context, this, playerId, answer, targetPlayerId),
+      this.adapter(gameId).submitAnswer(context, this, playerId, answer, targetPlayerId, skip),
     );
   }
 
@@ -850,6 +853,9 @@ export class ServerGameRegistry {
     playerId: PlayerId,
     drawing: DrawingData,
   ): GameTransition {
+    if (!context.settings.drawingEnabled) {
+      throw new GameActionError('Drawing input is disabled for this room.');
+    }
     return this.runPublicAction(() =>
       this.adapter(gameId).submitDrawing(context, this, playerId, drawing),
     );

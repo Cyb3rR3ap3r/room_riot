@@ -604,6 +604,22 @@ input::placeholder {
   font-size: 1.25rem;
 }
 
+.scoreboard li strong.score-change {
+  animation: score-change 420ms var(--ease-standard) both;
+}
+
+@keyframes score-change {
+  from {
+    color: var(--white);
+    transform: scale(0.88);
+  }
+
+  to {
+    color: var(--yellow);
+    transform: scale(1);
+  }
+}
+
 .center {
   text-align: center;
   justify-items: center;
@@ -611,4 +627,84 @@ input::placeholder {
 
 .center .qr {
   width: min(16rem, 60vw);
+}
+.sound-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.experience-live-status[data-paused='true'] {
+  border-color: var(--yellow);
+  color: var(--yellow);
+}
+
+.experience-shell.phase-transitioning .experience-grid {
+  animation: phase-settle 360ms ease-out both;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.winner-game-select,
+.winner-score-toggle {
+  min-height: 2.75rem;
+}
+
+.winner-game-select {
+  border: 1px solid var(--color-border-strong);
+  border-radius: 0.75rem;
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+}
+
+.winner-score-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.rematch-ready-card {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.rematch-ready-card h2,
+.rematch-ready-card p {
+  margin: 0;
+}
+
+.sound-volume-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.sound-volume-control input {
+  width: 5.5rem;
+  accent-color: var(--game-primary, var(--accent));
+}
+
+.game-example {
+  margin: 0 0 0.8rem;
+  border-left: 3px solid var(--game-accent, var(--accent));
+  padding-left: 0.7rem;
+  color: var(--text);
+  font-weight: 750;
 }

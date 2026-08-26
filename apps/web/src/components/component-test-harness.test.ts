@@ -19,6 +19,7 @@ import {
   renderComponentFixture,
 } from './component-test-harness.js';
 import { asInteractive, collectText, InteractiveTestDocument } from './interactive-test-dom.js';
+import type { InteractiveTestElement } from './interactive-test-dom.js';
 import { createRoomStageShellComponent } from './room-stage-shell.js';
 
 test('fixture generator covers every public/private game status and stress population', () => {
@@ -111,6 +112,48 @@ test('shared components render the complete game fixture matrix and preserve lon
     );
     assert.match(rendered.recoveryDiagnostic, /room=RIOT/);
   }
+});
+
+test('fixture matrix passes the production accessibility smoke audit', () => {
+  const violations: string[] = [];
+  const interactiveTags = new Set(['button', 'input', 'textarea', 'select']);
+  const visit = (
+    element: InteractiveTestElement,
+    fixtureId: string,
+    ownerDocument: InteractiveTestDocument,
+  ): void => {
+    const tag = element.tagName.toLowerCase();
+    const hasName = Boolean(
+      element.textContent.trim() ||
+      element.attributes.get('aria-label') ||
+      element.attributes.get('aria-labelledby') ||
+      element.attributes.get('title'),
+    );
+    if (interactiveTags.has(tag) && !hasName) {
+      violations.push(`${fixtureId}: ${tag} has no accessible name`);
+    }
+    if (interactiveTags.has(tag)) {
+      element.focus();
+      if (ownerDocument.activeElement !== element) {
+        violations.push(`${fixtureId}: ${tag} cannot receive keyboard focus`);
+      }
+    }
+    if (tag === 'img' && !element.attributes.has('alt')) {
+      violations.push(`${fixtureId}: img has no alt attribute`);
+    }
+    if (tag === 'progress' && !element.attributes.get('aria-label')) {
+      violations.push(`${fixtureId}: progress has no accessible label`);
+    }
+    element.children.forEach((child) => visit(child, fixtureId, ownerDocument));
+  };
+
+  for (const fixture of createAllGamePhaseFixtures()) {
+    const ownerDocument = new InteractiveTestDocument();
+    const rendered = renderComponentFixture(fixture, ownerDocument);
+    visit(asInteractive(rendered.root), fixture.id, ownerDocument);
+  }
+
+  assert.deepEqual(violations, []);
 });
 
 test('production game renderers expose distinctive dense and empty result states', () => {

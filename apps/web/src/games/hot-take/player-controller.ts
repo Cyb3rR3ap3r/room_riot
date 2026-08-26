@@ -83,6 +83,26 @@ function renderAnswerForm(
   }
   const submit = createButton(dependencies.document, 'Drop My Take', 'submit');
   form.append(submit);
+  if (targetSelect) {
+    const skip = createButton(dependencies.document, 'Skip this prompt');
+    skip.className = 'secondary';
+    skip.addEventListener('click', () => {
+      dependencies.mutations.submitAnswer({
+        answer: 'Skipped',
+        skip: true,
+        trigger: skip,
+        acceptedAction: {
+          phase: 'input',
+          action: 'answer',
+          title: 'Prompt skipped',
+          acceptedLabel: 'Skipped prompt',
+          acceptedValue: 'Skipped',
+          nextStep: 'Waiting for the remaining takes.',
+        },
+      });
+    });
+    form.append(skip);
+  }
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     const answer = targetSelect?.value ?? textInput?.value ?? '';

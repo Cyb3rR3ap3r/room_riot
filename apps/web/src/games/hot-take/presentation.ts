@@ -41,6 +41,17 @@ export const hotTakePresentation: GamePresentation = {
         : 'Live on the Hot Take stage',
   stageLobbyTitle: 'Get the room ready to bring the heat.',
   stageFallbackTitle: 'Make it spicy.',
+  phaseChoreography: {
+    lobby: 'stage-idle',
+    intro: 'stage-ignite',
+    prompt: 'stage-prompt',
+    input: 'stage-focus',
+    alibi: 'stage-focus',
+    voting: 'stage-reveal',
+    results: 'stage-score',
+    scoring: 'stage-score',
+    winner: 'stage-crown',
+  },
   soundCue: (phase) => ({
     notes:
       phase === 'winner'

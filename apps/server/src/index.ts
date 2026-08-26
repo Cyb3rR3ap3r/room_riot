@@ -1,11 +1,13 @@
 import { createServer } from 'node:http';
 import type { Server as HttpServer } from 'node:http';
+import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createRequestHandler } from './http.js';
 import { RoomManager } from './room-manager.js';
 import { attachRealtimeServer } from './socket.js';
+import { OperationalMetrics } from './metrics.js';
 
 const runtimes = new WeakMap<
   HttpServer,
@@ -19,6 +21,7 @@ export interface ServerOptions {
   readonly webRoot?: string;
   readonly publicOrigin?: string;
   readonly enableHsts?: boolean;
+  readonly persistencePath?: string;
   readonly roomManager?: RoomManager;
 }
 
@@ -26,7 +29,15 @@ export function startServer(options: ServerOptions = {}) {
   const host = options.host ?? process.env.HOST ?? '0.0.0.0';
   const port = options.port ?? Number(process.env.PORT ?? 3000);
   const version = options.version ?? process.env.npm_package_version ?? '0.1.0';
-  const roomManager = options.roomManager ?? new RoomManager();
+  const persistencePath = options.persistencePath ?? process.env.ROOM_RIOT_DB;
+  const metrics = new OperationalMetrics();
+  const roomManager =
+    options.roomManager ??
+    new RoomManager({
+      ...(persistencePath ? { persistencePath } : {}),
+      metrics,
+    });
+  let realtimeReady = false;
   const webRoot =
     options.webRoot ?? resolve(dirname(fileURLToPath(import.meta.url)), '../../web/dist');
   const publicOrigin = options.publicOrigin ?? process.env.PUBLIC_ORIGIN;
@@ -39,10 +50,14 @@ export function startServer(options: ServerOptions = {}) {
         webRoot,
         ...(publicOrigin ? { publicOrigin } : {}),
         ...(enableHsts ? { enableHsts } : {}),
+        metrics,
+        webReady: () => existsSync(resolve(webRoot, 'index.html')),
+        realtimeReady: () => realtimeReady,
       },
     ),
   );
-  const realtimeServer = attachRealtimeServer(server, roomManager);
+  const realtimeServer = attachRealtimeServer(server, roomManager, { metrics });
+  realtimeReady = true;
   runtimes.set(server, {
     closeRealtime: (callback) => realtimeServer.close(callback),
     roomManager,
@@ -52,7 +67,7 @@ export function startServer(options: ServerOptions = {}) {
     const address = server.address();
     const location =
       typeof address === 'object' && address ? `${address.address}:${address.port}` : address;
-    console.log(`Room Riot server listening on ${location}`);
+    console.log(JSON.stringify({ event: 'server_started', location, version }));
   });
 
   return server;
@@ -64,6 +79,7 @@ export function stopServer(server: HttpServer, callback: () => void): void {
     server.close(callback);
     return;
   }
+  runtime.roomManager.beginDrain();
   runtime.closeRealtime(() => {
     runtime.roomManager.close();
     server.close(callback);
@@ -80,7 +96,7 @@ function isMainModule(): boolean {
 if (isMainModule()) {
   const server = startServer();
   const shutdown = (signal: string) => {
-    console.log(`Received ${signal}; shutting down.`);
+    console.log(JSON.stringify({ event: 'server_shutdown_requested', signal }));
     stopServer(server, () => process.exit(0));
     const forceExit = setTimeout(() => process.exit(1), 5_000);
     forceExit.unref();

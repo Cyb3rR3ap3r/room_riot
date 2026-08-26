@@ -22,6 +22,10 @@ export function renderHotTakePublicStage(
     hotTakePresentation.stageClass,
     dependencies.createArtwork('hot-take'),
   );
+  frame.element.setAttribute(
+    'data-phase-choreography',
+    hotTakePresentation.phaseChoreography[state.phase],
+  );
   appendStageHeading(
     frame.copy,
     dependencies,

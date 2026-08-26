@@ -60,7 +60,10 @@ function createResultItems(snapshot: RoomSnapshot): ResultItems | null {
       items: game.groups.map((group, index) => ({
         id: `group:${index}`,
         primary: group.answer,
-        secondary: `${group.count} match${group.count === 1 ? '' : 'es'} · ${group.points} pts`,
+        secondary:
+          group.points > 0
+            ? `${group.count} matching player${group.count === 1 ? '' : 's'} → ${group.points} points`
+            : 'No matching players → 0 points',
         score: group.points,
       })),
       contentSelector: '.thought-clusters li',
@@ -79,7 +82,7 @@ function createResultItems(snapshot: RoomSnapshot): ResultItems | null {
         ...(game.status === 'voting'
           ? {}
           : {
-              secondary: `${entry.voteCount} vote${entry.voteCount === 1 ? '' : 's'} · ${entry.points} pts`,
+              secondary: `${entry.voteCount} vote${entry.voteCount === 1 ? '' : 's'} → ${entry.points} points`,
               score: entry.points,
             }),
       })),
@@ -95,8 +98,8 @@ function createResultItems(snapshot: RoomSnapshot): ResultItems | null {
         primary: vote.targetPlayerIds.length
           ? vote.targetPlayerIds.map((id) => playerName(snapshot, id)).join(' + ')
           : 'No match',
-        secondary: `${vote.count} vote${vote.count === 1 ? '' : 's'}`,
-        score: vote.count,
+        secondary: `${vote.count} vote${vote.count === 1 ? '' : 's'} → ${sumPlayerPoints(game.roundScores, vote.targetPlayerIds)} target points`,
+        score: sumPlayerPoints(game.roundScores, vote.targetPlayerIds),
       })),
       contentSelector: '.suspect-vote-summary li',
     };
@@ -109,7 +112,8 @@ function createResultItems(snapshot: RoomSnapshot): ResultItems | null {
         items: game.chain.map((entry, index) => ({
           id: `chain:${index}`,
           primary: playerName(snapshot, entry.playerId),
-          secondary: entry.kind === 'drawing' ? 'Drawing link' : entry.text,
+          secondary: `${entry.kind === 'drawing' ? 'Drawing link' : entry.text} → ${playerPoints(game.roundScores, entry.playerId)} points`,
+          score: playerPoints(game.roundScores, entry.playerId),
         })),
         contentSelector: '.drawn-out-chain li',
       };
@@ -121,8 +125,8 @@ function createResultItems(snapshot: RoomSnapshot): ResultItems | null {
         items: game.votes.map((vote) => ({
           id: `vote:${vote.playerId}`,
           primary: playerName(snapshot, vote.playerId),
-          secondary: `${vote.count} vote${vote.count === 1 ? '' : 's'}`,
-          score: vote.count,
+          secondary: `${vote.count} vote${vote.count === 1 ? '' : 's'} → ${playerPoints(game.roundScores, vote.playerId)} points`,
+          score: playerPoints(game.roundScores, vote.playerId),
         })),
         contentSelector: '.drawn-out-fake-results li',
       };
@@ -133,8 +137,8 @@ function createResultItems(snapshot: RoomSnapshot): ResultItems | null {
       items: game.guesses.map((guess) => ({
         id: `guess:${guess.playerId}`,
         primary: guess.text,
-        secondary: `${playerName(snapshot, guess.playerId)} · ${guess.correct ? 'Correct' : 'Not quite'}`,
-        score: guess.correct ? 1 : 0,
+        secondary: `${playerName(snapshot, guess.playerId)} · ${guess.correct ? 'Correct' : 'Not quite'} → ${playerPoints(game.roundScores, guess.playerId)} points`,
+        score: playerPoints(game.roundScores, guess.playerId),
       })),
       contentSelector: '.drawn-out-guesses li',
     };
@@ -174,4 +178,18 @@ function createScoreItems(snapshot: RoomSnapshot): readonly TvDensityItem[] {
 
 function playerName(snapshot: RoomSnapshot, playerId: string): string {
   return snapshot.state.players.find((player) => player.id === playerId)?.name ?? 'Unknown player';
+}
+
+function playerPoints(
+  scores: readonly { readonly playerId: string; readonly points: number }[],
+  playerId: string,
+): number {
+  return scores.find((score) => score.playerId === playerId)?.points ?? 0;
+}
+
+function sumPlayerPoints(
+  scores: readonly { readonly playerId: string; readonly points: number }[],
+  playerIds: readonly string[],
+): number {
+  return playerIds.reduce((total, playerId) => total + playerPoints(scores, playerId), 0);
 }

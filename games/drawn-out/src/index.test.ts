@@ -208,8 +208,10 @@ test('maximum Fake Artist roster can use the full per-turn budget', () => {
   assert.equal(session.drawing?.strokes.length, DRAWN_OUT_MAX_TOTAL_STROKES);
   assert.equal(
     session.drawing?.strokes.reduce((total, stroke) => total + stroke.points.length, 0),
-    DRAWN_OUT_MAX_TOTAL_POINTS,
+    Math.floor(DRAWN_OUT_MAX_TOTAL_POINTS * 0.9),
   );
+  assert.deepEqual(session.drawing?.strokes[0]?.points.at(0), maxTurn.strokes[0]?.points.at(0));
+  assert.deepEqual(session.drawing?.strokes[0]?.points.at(-1), maxTurn.strokes[0]?.points.at(-1));
 });
 
 test('drawing limits return stable game errors', () => {

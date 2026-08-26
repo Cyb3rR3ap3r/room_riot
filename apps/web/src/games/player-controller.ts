@@ -13,6 +13,7 @@ export type PlayerDraftPatch = Omit<Partial<PlayerDraft>, 'actionKey'>;
 export interface SubmitAnswerIntent {
   readonly answer: string;
   readonly targetPlayerId?: string;
+  readonly skip?: boolean;
   readonly trigger: HTMLButtonElement;
   readonly acceptedAction: ControllerAcceptedAction;
 }

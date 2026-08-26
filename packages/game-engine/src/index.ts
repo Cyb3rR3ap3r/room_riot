@@ -34,8 +34,12 @@ export interface RoomState {
   readonly roomCode: RoomCode;
   readonly phase: RoomPhase;
   readonly gameId: GameId | null;
+  readonly paused: boolean;
+  readonly pauseStartedAt: number | null;
   readonly settings: RoomSettings;
   readonly players: Readonly<Record<PlayerId, PlayerState>>;
+  readonly readyPlayerIds: readonly PlayerId[];
+  readonly readinessRequired: boolean;
   readonly createdAt: number;
   readonly updatedAt: number;
 }
@@ -67,8 +71,12 @@ export interface PublicRoomState {
   readonly roomCode: RoomCode;
   readonly phase: RoomPhase;
   readonly gameId: GameId | null;
+  readonly paused: boolean;
+  readonly pauseStartedAt: number | null;
   readonly settings: RoomSettings;
   readonly players: readonly PublicPlayerState[];
+  readonly readyPlayerIds: readonly PlayerId[];
+  readonly readinessRequired: boolean;
 }
 
 export function createInitialRoomState(input: CreateRoomStateInput): RoomState {
@@ -80,8 +88,12 @@ export function createInitialRoomState(input: CreateRoomStateInput): RoomState {
     roomCode,
     phase: 'lobby',
     gameId: null,
+    paused: false,
+    pauseStartedAt: null,
     settings,
     players: {},
+    readyPlayerIds: [],
+    readinessRequired: false,
     createdAt: now,
     updatedAt: now,
   };
@@ -127,14 +139,47 @@ export function setGame(state: RoomState, gameId: string): RoomState {
     ...state,
     gameId: GameIdSchema.parse(gameId),
     phase: 'intro',
+    readyPlayerIds: [],
+    readinessRequired: false,
     updatedAt: Date.now(),
   };
+}
+
+export function setPlayerReady(
+  state: RoomState,
+  playerIdInput: string,
+  ready: boolean,
+  now = Date.now(),
+): RoomState {
+  const playerId = PlayerIdSchema.parse(playerIdInput);
+  const player = state.players[playerId];
+  if (!player || player.status === 'removed') {
+    throw new Error(`Player ${playerId} is not active in room ${state.roomCode}.`);
+  }
+  const readyPlayerIds = new Set(state.readyPlayerIds);
+  if (ready) readyPlayerIds.add(playerId);
+  else readyPlayerIds.delete(playerId);
+  return { ...state, readyPlayerIds: [...readyPlayerIds], updatedAt: now };
 }
 
 export function setPhase(state: RoomState, phase: RoomPhase, now = Date.now()): RoomState {
   return {
     ...state,
     phase,
+    updatedAt: now,
+  };
+}
+
+export function setPaused(
+  state: RoomState,
+  paused: boolean,
+  now = Date.now(),
+  pauseStartedAt: number | null = paused ? now : null,
+): RoomState {
+  return {
+    ...state,
+    paused,
+    pauseStartedAt,
     updatedAt: now,
   };
 }
@@ -177,8 +222,14 @@ export function setPlayerConnectionStatus(
     throw new Error(`Player ${id} is not in room ${state.roomCode}.`);
   }
 
+  const readyPlayerIds =
+    status === 'removed'
+      ? state.readyPlayerIds.filter((readyId) => readyId !== id)
+      : state.readyPlayerIds;
+
   return {
     ...state,
+    readyPlayerIds,
     players: {
       ...state.players,
       [id]: {
@@ -197,7 +248,11 @@ export function toPublicRoomState(state: RoomState): PublicRoomState {
     roomCode: state.roomCode,
     phase: state.phase,
     gameId: state.gameId,
+    paused: state.paused,
+    pauseStartedAt: state.pauseStartedAt,
     settings: state.settings,
+    readyPlayerIds: state.readyPlayerIds,
+    readinessRequired: state.readinessRequired,
     players: Object.values(state.players).map(
       ({ id, name, avatar, status, score, disconnectedAt, reconnectDeadlineAt }) => ({
         id,

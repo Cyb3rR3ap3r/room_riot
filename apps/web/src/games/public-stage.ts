@@ -10,6 +10,8 @@ export interface PublicStageDependencies {
   readonly createArtwork: (gameId: SupportedGameId) => HTMLElement;
   readonly createDrawingPreview: (drawing: DrawingData, className: string) => HTMLElement;
   readonly now: () => number;
+  readonly previousScores?: Readonly<Record<string, number>> | null;
+  readonly animateScore?: (element: HTMLElement, from: number, to: number) => void;
 }
 
 export interface StageFrame {
@@ -98,10 +100,16 @@ export function appendScoreboard(
   );
   for (const player of rankedPlayers) {
     const item = dependencies.document.createElement('li');
-    item.append(
-      textElement(dependencies.document, 'span', `${player.avatar} ${player.name}`),
-      textElement(dependencies.document, 'strong', String(player.score)),
-    );
+    item.append(textElement(dependencies.document, 'span', `${player.avatar} ${player.name}`));
+    const score = textElement(dependencies.document, 'strong', String(player.score));
+    const previousScore = dependencies.previousScores?.[player.id];
+    if (typeof previousScore === 'number' && previousScore !== player.score) {
+      score.className = 'score-change';
+      score.dataset.scoreFrom = String(previousScore);
+      score.dataset.scoreTo = String(player.score);
+      dependencies.animateScore?.(score, previousScore, player.score);
+    }
+    item.append(score);
     list.append(item);
   }
   section.append(list);

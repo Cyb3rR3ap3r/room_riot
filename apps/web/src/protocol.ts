@@ -9,12 +9,17 @@ import type {
   DisplayWatchRequest,
   EventResponse,
   HostReconnectRequest,
+  HostJoinLockRequest,
+  HostDrawingRequest,
+  HostPauseRequest,
   HostRemovePlayerRequest,
+  HostRematchRequest,
   HostRoomActionRequest,
   HostStartGameRequest,
   JoinRoomActionRequest,
   PlayerCastVoteRequest,
   PlayerLeaveRoomRequest,
+  PlayerReadyRequest,
   PlayerSubmitDrawingRequest,
   PlayerSubmitAnswerRequest,
   PlayerSubmitAlibiRequest,
@@ -197,6 +202,31 @@ export interface SocketLike {
     ack: (response: RoomStateResponse) => void,
   ): this;
   emit(
+    event: 'host:set-join-lock',
+    payload: HostJoinLockRequest,
+    ack: (response: RoomStateResponse) => void,
+  ): this;
+  emit(
+    event: 'host:set-pause',
+    payload: HostPauseRequest,
+    ack: (response: RoomStateResponse) => void,
+  ): this;
+  emit(
+    event: 'host:set-drawing-enabled',
+    payload: HostDrawingRequest,
+    ack: (response: RoomStateResponse) => void,
+  ): this;
+  emit(
+    event: 'host:skip-disconnected',
+    payload: HostRoomActionRequest,
+    ack: (response: RoomStateResponse) => void,
+  ): this;
+  emit(
+    event: 'host:rematch',
+    payload: HostRematchRequest,
+    ack: (response: RoomStateResponse) => void,
+  ): this;
+  emit(
     event: 'host:leave',
     payload: HostRoomActionRequest,
     ack: (response: LeaveRoomResponse) => void,
@@ -215,6 +245,11 @@ export interface SocketLike {
     event: 'player:join',
     payload: JoinRoomActionRequest,
     ack: (response: PlayerJoinResponse) => void,
+  ): this;
+  emit(
+    event: 'player:set-ready',
+    payload: PlayerReadyRequest,
+    ack: (response: RoomStateResponse) => void,
   ): this;
   emit(
     event: 'player:submit-answer',

@@ -86,12 +86,32 @@ test('resolves player-targeted prompts without exposing answer ownership', () =>
   );
 });
 
+test('player-targeted prompts support an opt-out without entering the ballot', () => {
+  let session = createHotTakeSession([prompts[1]!], 1, 1_000, 30_000);
+  session = submitHotTakeAnswer(session, 'p1', 'Skipped', undefined, playerIds, undefined, true);
+  session = submitHotTakeAnswer(session, 'p2', 'p3', 'p3', playerIds);
+  session = submitHotTakeAnswer(session, 'p3', 'p2', 'p2', playerIds);
+  session = revealHotTakeAnswers(session, 2_000, 10_000);
+
+  assert.equal(getHotTakePlayerView(session, 'p1', playerNames).ownAnswer, 'Skipped');
+  assert.equal(session.entries.length, 2);
+  assert.equal(
+    session.entries.some((entry) => entry.answer === 'Skipped'),
+    false,
+  );
+  session = submitHotTakeVote(session, 'p2', session.answers.p3!.entryId, 3_000);
+  session = submitHotTakeVote(session, 'p3', session.answers.p2!.entryId, 3_000);
+  assert.equal(allHotTakePlayersVoted(session, playerIds), true);
+  session = revealHotTakeVotes(session);
+  assert.equal(session.roundScores.p1, 0);
+});
+
 test('creates one stable ballot order independent of submission timing', () => {
   const base = createHotTakeSession([prompts[0]!], 1, 1_000, 30_000);
   const answers = {
-    p1: { entryId: 'entry-alpha', display: 'A', targetPlayerId: null },
-    p2: { entryId: 'entry-bravo', display: 'B', targetPlayerId: null },
-    p3: { entryId: 'entry-charlie', display: 'C', targetPlayerId: null },
+    p1: { entryId: 'entry-alpha', display: 'A', targetPlayerId: null, skipped: false },
+    p2: { entryId: 'entry-bravo', display: 'B', targetPlayerId: null, skipped: false },
+    p3: { entryId: 'entry-charlie', display: 'C', targetPlayerId: null, skipped: false },
   };
   const reverseAnswers = {
     p3: answers.p3,

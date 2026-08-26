@@ -53,6 +53,8 @@ export type ConnectionState = 'connecting' | 'connected' | 'reconnecting';
 
 export interface ClientPreferences {
   readonly soundEnabled: boolean;
+  readonly volume?: number;
+  readonly hapticsEnabled?: boolean;
 }
 
 export interface RevisionedRoomSnapshot {
@@ -134,5 +136,9 @@ export const createDraftStore = <T>(initialDraft: T | null = null): Store<T | nu
   createStore(initialDraft);
 
 export const createPreferenceStore = (
-  initialPreferences: ClientPreferences = { soundEnabled: false },
+  initialPreferences: ClientPreferences = {
+    soundEnabled: false,
+    volume: 0.7,
+    hapticsEnabled: true,
+  },
 ): Store<ClientPreferences> => createStore(initialPreferences);

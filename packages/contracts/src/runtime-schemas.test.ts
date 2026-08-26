@@ -158,7 +158,7 @@ test('requires room identity, protocol version, and revision on private state en
     false,
   );
   assert.equal(
-    PlayerStateEnvelopeSchema.safeParse({ ...envelope, protocolVersion: 2 }).success,
+    PlayerStateEnvelopeSchema.safeParse({ ...envelope, protocolVersion: 3 }).success,
     false,
   );
 });
@@ -171,8 +171,11 @@ test('rejects incompatible and malformed room snapshots', () => {
       roomCode: 'ABCD',
       phase: 'input',
       gameId: 'groupthink',
+      paused: false,
+      pauseStartedAt: null,
       settings: {
         maxPlayers: 12,
+        drawingEnabled: true,
         roundCount: 5,
         contentMode: 'standard',
         promptMode: 'default',
@@ -184,7 +187,7 @@ test('rejects incompatible and malformed room snapshots', () => {
     roster: { roundPlayerIds: [], queuedPlayerIds: [] },
   };
   assert.equal(RoomSnapshotSchema.parse(snapshot).protocolVersion, ROOM_RIOT_PROTOCOL_VERSION);
-  assert.equal(RoomSnapshotSchema.safeParse({ ...snapshot, protocolVersion: 2 }).success, false);
+  assert.equal(RoomSnapshotSchema.safeParse({ ...snapshot, protocolVersion: 3 }).success, false);
   assert.equal(RoomSnapshotSchema.safeParse({ ...snapshot, revision: 0 }).success, false);
   assert.equal(
     RoomSnapshotSchema.safeParse({
