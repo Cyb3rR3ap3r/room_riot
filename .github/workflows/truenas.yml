@@ -187,6 +187,8 @@ jobs:
             exit 1
           fi
 
+          node scripts/verify-deployment.mjs http://127.0.0.1:3100
+
       - name: Scan published image for high and critical vulnerabilities
         run: >-
           docker run --rm
@@ -197,9 +199,6 @@ jobs:
           --severity HIGH,CRITICAL
           --exit-code 0
           ${{ steps.image.outputs.repository }}:sha-${{ github.sha }}
-
-      - name: Verify published image routes and headers
-        run: node scripts/verify-deployment.mjs http://127.0.0.1:3100
 
       - name: Rehearse container replacement and SQLite restore
         shell: bash
