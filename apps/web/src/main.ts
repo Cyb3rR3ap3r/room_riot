@@ -1765,6 +1765,25 @@ function renderHost(root: HTMLElement): void {
     render();
     socket.emit('host:reconnect', request, (response: HostReconnectResponse) => {
       if (!isSuccess(response)) {
+        if (response.error.code === 'ROOM_NOT_FOUND' || response.error.code === 'UNAUTHORIZED') {
+          const staleSession = session;
+          const launcherGame =
+            staleSession?.gameId ?? getGameFromPathname(window.location.pathname) ?? 'groupthink';
+          sessionStore.setState(null);
+          snapshotStore.setState(null);
+          if (staleSession) {
+            removeRoomSession<HostSession>(
+              window.localStorage,
+              HOST_STORAGE_KEY,
+              staleSession.roomCode,
+            );
+          }
+          sessionWasReplaced = false;
+          recoveryState = null;
+          window.history.replaceState(null, '', buildHostRoute(launcherGame));
+          render();
+          return;
+        }
         recoveryState = getRecoveryStateForEventError(response.error, {
           role: 'host',
           roomCode: session?.roomCode ?? roomFromUrl,

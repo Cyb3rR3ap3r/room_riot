@@ -155,10 +155,11 @@ test('event recovery diagnostics preserve safe codes and reject credential-shape
   const credential = '123e4567-e89b-12d3-a456-426614174000';
   const state = getRecoveryStateForEventError(
     { code: 'INTERNAL_ERROR' },
-    { role: 'host', roomCode: 'RAGE', clientVersion: credential },
+    { role: 'host', roomCode: 'RAGE42', clientVersion: credential },
   );
   const copy = createRecoveryStateViewModel(state).diagnosticCopy;
   assert.match(copy, /state=server-unavailable/);
   assert.match(copy, /error=INTERNAL_ERROR/);
+  assert.match(copy, /room=RAGE42/);
   assert.doesNotMatch(copy, new RegExp(credential));
 });

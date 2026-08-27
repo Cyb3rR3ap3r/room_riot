@@ -280,7 +280,7 @@ function clampInteger(value: number, minimum: number, maximum: number): number {
 
 function safeRoomCode(value: string | undefined): string | undefined {
   const normalized = value?.trim().toUpperCase();
-  return normalized && /^[A-Z2-9]{4}$/.test(normalized) ? normalized : undefined;
+  return normalized && /^[A-Z0-9]{4,6}$/.test(normalized) ? normalized : undefined;
 }
 
 function safeDiagnosticValue(value: string | undefined): string | undefined {
