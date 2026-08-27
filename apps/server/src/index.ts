@@ -21,7 +21,6 @@ export interface ServerOptions {
   readonly webRoot?: string;
   readonly publicOrigin?: string;
   readonly enableHsts?: boolean;
-  readonly persistencePath?: string;
   readonly roomManager?: RoomManager;
 }
 
@@ -29,14 +28,8 @@ export function startServer(options: ServerOptions = {}) {
   const host = options.host ?? process.env.HOST ?? '0.0.0.0';
   const port = options.port ?? Number(process.env.PORT ?? 3000);
   const version = options.version ?? process.env.npm_package_version ?? '0.1.0';
-  const persistencePath = options.persistencePath ?? process.env.ROOM_RIOT_DB;
   const metrics = new OperationalMetrics();
-  const roomManager =
-    options.roomManager ??
-    new RoomManager({
-      ...(persistencePath ? { persistencePath } : {}),
-      metrics,
-    });
+  const roomManager = options.roomManager ?? new RoomManager({ metrics });
   let realtimeReady = false;
   const webRoot =
     options.webRoot ?? resolve(dirname(fileURLToPath(import.meta.url)), '../../web/dist');

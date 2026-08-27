@@ -14,7 +14,7 @@
 1. Check `/healthz`, then `/readyz`, before inviting players.
 2. Check `/metrics` for active rooms, socket disconnects, snapshot updates, and memory growth.
 3. Use the host recovery panel for a reconnect or stale-client report; never copy bearer tokens into a ticket.
-4. If replacing the container, set `ROOM_RIOT_DB` to the persistent SQLite path and restore the latest backup before opening new rooms.
+4. A container replacement clears active rooms and player sessions; create a new room after the replacement.
 5. During a planned stop, readiness turns unhealthy first; wait for the process to close before replacing it.
 
 ## Capacity guardrails
@@ -24,9 +24,11 @@ latency below one second and deadline drift below one second. Treat those as ale
 promise of unlimited capacity: investigate sustained `socket.event_latency_ms`, `timer.drift_ms`, memory,
 or active-room growth before increasing limits.
 
-## Persistence
+## Restarts
 
-The server stores active-room snapshots in SQLite using WAL mode. Back up the database file with the built-in persistence backup operation or a filesystem snapshot while the service is running. Keep daily backups for seven days and one weekly backup for four weeks. Test a restore against a copy before using it in a live deployment.
+The current local-lab deployment stores active-room state in memory. Restarts and container
+replacements clear active rooms, room codes, player sessions, and in-progress games. Static game
+content and the application image are unaffected.
 
 ## Common recoveries
 

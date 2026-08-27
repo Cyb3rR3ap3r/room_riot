@@ -2,7 +2,8 @@
 
 This deployment targets TrueNAS SCALE ElectricEel (24.10) using the Custom App YAML
 workflow. The current image serves the host, display, player, QR, health, and Socket.IO
-endpoints from one container.
+endpoints from one container. This local-lab deployment keeps active room state in memory, so
+restarting the container clears active rooms.
 
 ## 1. Build and publish the image
 
@@ -36,34 +37,24 @@ The image is self-contained and does not need internet access after it has been 
 
 The release workflow intentionally publishes both `linux/amd64` and `linux/arm64`. That covers
 the common x86 TrueNAS host and ARM-based installations without changing the application image or
-the persistent `/data` contract. The exact `sha-COMMIT_SHA` tag is the deployment identity; `main`
+the stateless runtime contract. The exact `sha-COMMIT_SHA` tag is the deployment identity; `main`
 and `latest` are convenience aliases only. Buildx is configured to emit an SBOM and maximum-detail
 provenance attestation, and the published image must be inspected for both platforms before a
-release is accepted. A registry/container-security scan and the rollback rehearsal remain release
-environment checks, not local development checks.
+release is accepted. The registry/container-security scan remains a release environment check,
+not a local development check.
 
-## 2. Create the persistent dataset
+## 2. Storage
 
-Create a dataset before opening the Custom App wizard, for example:
-
-```text
-/mnt/tank/apps/room-riot
-```
-
-The container runs as the unprivileged `node` user (UID/GID 1000). Grant that UID/GID Modify
-access to the dataset, or use the ACL controls in the Custom App storage configuration. Mount
-the dataset at `/data`. Do not mount the application source tree or the Docker socket.
-
-TrueNAS recommends preparing host-path datasets before installing a Custom App. See the
-[TrueNAS Custom App storage guidance](https://www.truenas.com/docs/scale/26/apps/installcustomappscreens/)
-for the current Host Path and ACL fields.
+No dataset is required for this local-lab deployment. The image keeps active room state in
+memory and does not write `/data/rooms.sqlite`. If an older installation has a host-path mount
+for `/data`, it can be removed. Do not mount the application source tree or the Docker socket.
 
 ## 3. Install the Custom App
 
 1. Open **Apps → Discover → Install via YAML**.
 2. Use `room-riot` as the application name.
 3. Paste [`room-riot.compose.yaml`](./room-riot.compose.yaml) into the YAML editor.
-4. Replace the image repository and `/mnt/REPLACE_WITH_POOL/room-riot` host path.
+4. Replace the image repository with the registry namespace and immutable tag from the workflow artifact.
 5. If port 3000 is occupied, change only the host side of the mapping, for example
    `13000:3000`.
 6. Install the app and wait for it to become **Running**.
@@ -112,23 +103,13 @@ the generated TrueNAS bundle. Apply its Compose YAML in the Custom App editor an
 Keep the previous `sha-COMMIT_SHA` tag available so rollback is just changing the tag back.
 Avoid using `latest` for a game-night server.
 
-For the rehearsal, record the active immutable tag, deploy a newer tag, verify `/readyz` and one
-room join, switch the Compose image back to the recorded tag, and verify the same SQLite-backed room
-state. Keep the before/after image digests with the release evidence.
+For a rollback, change the image tag back to the previous immutable tag. Upgrades and rollbacks
+clear active in-memory rooms, so create a new room after the app is running.
 
-## 5. Backup and recovery
+## 5. Restarts
 
-The image stores active-room snapshots in `/data/rooms.sqlite` using SQLite WAL mode. A clean
-container replacement restores unexpired rooms, roster identities, private game state, and
-deadlines from that file. Keep the dataset mounted and writable by UID/GID 1000:
-
-```bash
-tar -czf /mnt/tank/backups/room-riot-$(date +%Y%m%d).tar.gz \
-  -C /mnt/tank/apps/room-riot .
-```
-
-Prefer ZFS snapshots/replication for routine backups. Before restoring, stop the Custom App,
-restore the dataset contents, confirm the UID/GID ACL, and start the app again.
+Active rooms, player sessions, room codes, and in-progress games are held in memory. A container
+restart or replacement clears them; static game content and the application image are unaffected.
 
 ## 6. Verification
 
@@ -152,16 +133,14 @@ ROOM_RIOT_EXPECT_HSTS=true node scripts/verify-deployment.mjs https://room-riot.
 It checks `/healthz`, `/readyz`, `/metrics`, all three browser routes, and the Socket.IO client asset. Then perform the
 manual game-night check: scan the QR code, join with at least 12 phones, start both Groupthink
 and Hot Take, reload one player during input, and confirm that the display and phones recover.
-The release workflow also seeds a room in the published image, replaces the container while keeping
-the `/data` volume, and verifies host/player restoration with
-`scripts/container-replacement-smoke.mjs`.
+The release workflow verifies startup, health, routes, and Socket.IO connectivity against the
+published image.
 
 ## Troubleshooting
 
 - **The app is not Running:** inspect the Custom App logs and confirm the image tag is reachable.
 - **The page does not open:** verify the host port is unused and that the TrueNAS firewall/LAN
   allows it.
-- **The app starts but cannot write durable data:** verify the `/data` host path and ACL entry
-  for UID/GID 1000.
+- **Rooms disappear after a restart:** this is expected for the local-lab in-memory configuration.
 - **Players join the wrong server:** open `/host` from the same LAN origin players will use;
   the QR code uses that origin automatically.

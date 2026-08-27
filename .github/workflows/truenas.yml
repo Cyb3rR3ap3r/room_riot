@@ -210,27 +210,6 @@ jobs:
           --exit-code 0
           ${{ steps.image.outputs.repository }}:sha-${{ github.sha }}
 
-      - name: Rehearse container replacement and SQLite restore
-        shell: bash
-        env:
-          IMAGE: ${{ steps.image.outputs.repository }}:sha-${{ github.sha }}
-        run: |
-          volume="room-riot-recovery-${GITHUB_RUN_ID}"
-          state="$RUNNER_TEMP/room-riot-recovery.json"
-          cleanup() {
-            docker rm --force room-riot-recovery-a room-riot-recovery-b >/dev/null 2>&1 || true
-            docker volume rm "$volume" >/dev/null 2>&1 || true
-          }
-          trap cleanup EXIT
-          docker volume create "$volume"
-          docker run --detach --name room-riot-recovery-a --publish 3201:3000 --volume "$volume:/data" "$IMAGE"
-          node scripts/wait-for-health.mjs http://127.0.0.1:3201/healthz
-          node scripts/container-replacement-smoke.mjs seed http://127.0.0.1:3201 "$state"
-          docker rm --force room-riot-recovery-a
-          docker run --detach --name room-riot-recovery-b --publish 3201:3000 --volume "$volume:/data" "$IMAGE"
-          node scripts/wait-for-health.mjs http://127.0.0.1:3201/healthz
-          node scripts/container-replacement-smoke.mjs verify http://127.0.0.1:3201 "$state"
-
       - name: Prepare TrueNAS deployment bundle
         shell: bash
         env:
