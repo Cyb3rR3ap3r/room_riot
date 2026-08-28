@@ -104,6 +104,7 @@ import {
   type ControllerOperationState,
 } from './routes/player/controller-view-model.js';
 import { getClientActionId } from './state/action-ids.js';
+import { createClientId } from './state/client-id.js';
 import { clearPendingOperation, getOrCreatePendingOperation } from './state/pending-operations.js';
 import { installMotionVisibility } from './state/motion.js';
 import {
@@ -1757,7 +1758,7 @@ function renderHost(root: HTMLElement): void {
       return;
     }
     const request: HostReconnectRequest = {
-      actionId: window.crypto.randomUUID(),
+      actionId: createClientId(),
       roomCode: session.roomCode,
       hostToken: session.hostToken,
     };
@@ -2632,7 +2633,7 @@ function renderPlayer(root: HTMLElement): void {
         socket.emit(
           'player:leave',
           {
-            actionId: window.crypto.randomUUID(),
+            actionId: createClientId(),
             roomCode: currentSession.roomCode,
             playerToken: currentSession.playerToken,
           },

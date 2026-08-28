@@ -1,4 +1,5 @@
 import type { StorageLike } from './session-store.js';
+import { createClientId } from './client-id.js';
 
 export interface PendingOperation<T = unknown> {
   readonly actionId: string;
@@ -36,7 +37,7 @@ export function getOrCreatePendingOperation<T>(
   storageKey: string,
   operationKey: string,
   payload: T,
-  createId: () => string = () => globalThis.crypto.randomUUID(),
+  createId: () => string = createClientId,
 ): PendingOperation<T> {
   const operations = readPendingOperations(storage, storageKey);
   const existing = operations[operationKey];
