@@ -21,6 +21,7 @@ const styleSources = [
   'tv-layout.css',
   'games/drawn-out.css',
   'showcase.css',
+  'revamp.css',
   'motion.css',
 ];
 

@@ -6,19 +6,19 @@
   --room-riot-text-scale: 1;
 
   /* Core palette and semantic contrast roles. */
-  --color-ink: #080b16;
-  --color-surface: rgba(17, 23, 41, 0.9);
-  --color-surface-solid: #111729;
-  --color-line: rgba(152, 177, 220, 0.24);
-  --color-text: #f7f9ff;
-  --color-muted: #9aa7c4;
-  --color-accent: #26e6f2;
-  --color-accent-hot: #ff2ea6;
-  --color-focus: #ffd429;
-  --color-success: #71f59a;
-  --color-warning: #ffbe4d;
-  --color-error: #ff92b9;
-  --color-on-accent: #06101a;
+  --color-ink: #070912;
+  --color-surface: rgba(17, 20, 31, 0.94);
+  --color-surface-solid: #11141f;
+  --color-line: rgba(235, 240, 255, 0.14);
+  --color-text: #f7f4ed;
+  --color-muted: #a6a8b2;
+  --color-accent: #3ce6e0;
+  --color-accent-hot: #ff4c9b;
+  --color-focus: #ffe066;
+  --color-success: #75e6a4;
+  --color-warning: #ffc761;
+  --color-error: #ff8eac;
+  --color-on-accent: #071313;
 
   /* Spatial rhythm: 4 px base, composed for controller and TV density. */
   --space-1: 0.25rem;
@@ -36,15 +36,15 @@
   --space-safe-left: max(var(--space-4), env(safe-area-inset-left));
   --space-tv-overscan: clamp(1rem, 3vw, 3rem);
 
-  --radius-sm: 0.65rem;
-  --radius-md: 1rem;
-  --radius-lg: 1.4rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.8rem;
+  --radius-lg: 1.1rem;
   --radius-pill: 999px;
   --outline-width: 3px;
   --outline-offset: 3px;
-  --elevation-1: 0 0.75rem 1.8rem rgba(0, 0, 0, 0.2);
-  --elevation-2: 0 1.5rem 3.5rem rgba(0, 0, 0, 0.3);
-  --elevation-accent: 0 0.75rem 1.8rem rgba(38, 230, 242, 0.16);
+  --elevation-1: 0 0.8rem 2.4rem rgba(0, 0, 0, 0.28);
+  --elevation-2: 0 2rem 5rem rgba(0, 0, 0, 0.42);
+  --elevation-accent: 0 0.8rem 2.5rem rgba(60, 230, 224, 0.14);
   --halftone-size: 4rem;
   --halftone-opacity: 0.16;
 

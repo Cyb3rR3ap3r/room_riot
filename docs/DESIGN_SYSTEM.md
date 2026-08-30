@@ -5,6 +5,17 @@ immediate enough for a phone, and consistent enough that players always know wha
 The source of truth for implemented CSS values is `apps/web/src/styles/tokens.css`; this document
 defines how those tokens and components are intended to be used.
 
+## 2026 visual direction
+
+- **Visual thesis:** an after-hours broadcast console where the room code is the unmistakable live
+  signal and each game changes the color of the broadcast rail, not the interaction grammar.
+- **Signature:** oversized, tabular, high-tracking room codes framed by a thin electric status rail.
+- **Composition:** dark architectural planes, restrained borders, and dense controls balanced by
+  generous stage space; decorative cards and nested glass layers are avoided.
+- **Motion:** page hierarchy enters once in reading order; selection and phase changes are brief,
+  interruptible, and compositor-friendly. Reduced motion removes every nonessential transition.
+- **Voice:** direct, social, and show-ready. Labels describe the outcome players or hosts will get.
+
 ## Experience principles
 
 1. **The next action wins.** The active prompt and primary action have the strongest hierarchy.
