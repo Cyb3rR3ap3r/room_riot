@@ -1,8 +1,5 @@
 import type { PhaseAwareJoinViewModel } from '../routes/display/join-presentation.js';
-
-interface DomDocument {
-  createElement(tagName: string): HTMLElement;
-}
+import { createJoinCommandCenterComponent } from './join-command-center.js';
 
 export interface PhaseAwareJoinComponent {
   readonly element: HTMLElement;
@@ -10,36 +7,31 @@ export interface PhaseAwareJoinComponent {
 }
 
 export function createPhaseAwareJoinComponent(
-  ownerDocument: DomDocument = document,
+  ownerDocument: { createElement(tagName: string): HTMLElement } = document,
 ): PhaseAwareJoinComponent {
-  const element = ownerDocument.createElement('aside');
-  const title = ownerDocument.createElement('h2');
-  const instruction = ownerDocument.createElement('p');
-  const address = ownerDocument.createElement('a');
-  address.className = 'phase-join__manual-url';
-  const roomCode = ownerDocument.createElement('strong');
-  roomCode.className = 'phase-join__room-code';
-  const qr = ownerDocument.createElement('img');
-  qr.className = 'phase-join__qr';
-  element.append(title, instruction, address, roomCode, qr);
+  const commandCenter = createJoinCommandCenterComponent(ownerDocument);
 
   return {
-    element,
+    element: commandCenter.element,
     update(model) {
-      element.className = `phase-aware-join join-mode-${model.mode}`;
-      element.setAttribute('aria-label', model.accessibleLabel);
-      element.setAttribute('data-availability', model.availability);
-      element.hidden = model.mode === 'hidden';
-      title.textContent = model.title;
-      instruction.textContent = model.instruction;
-      address.textContent = model.manualUrl ?? '';
-      address.setAttribute('href', model.manualUrl ?? '');
-      address.hidden = !model.manualUrl;
-      roomCode.textContent = model.roomCode ?? '';
-      roomCode.hidden = !model.roomCode;
-      qr.setAttribute('src', model.qr?.src ?? '');
-      qr.setAttribute('alt', model.qr?.alt ?? '');
-      qr.hidden = !model.qr;
+      commandCenter.element.hidden = model.mode === 'hidden';
+      commandCenter.update({
+        className: `phase-aware-join join-mode-${model.mode}`,
+        accessibleLabel: model.accessibleLabel,
+        availability: model.availability,
+        eyebrow: model.mode === 'full' ? 'Player access' : 'Room access',
+        title: model.title,
+        instruction: model.instruction,
+        statusLabel:
+          model.availability === 'open'
+            ? 'Open'
+            : model.availability === 'queued'
+              ? 'Next round'
+              : model.title,
+        roomCode: model.roomCode,
+        manualUrl: model.manualUrl,
+        qr: model.qr,
+      });
     },
   };
 }

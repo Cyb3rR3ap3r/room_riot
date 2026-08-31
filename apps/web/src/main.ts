@@ -44,6 +44,7 @@ import {
   type PageShellComponent,
 } from './components/page-shell.js';
 import { createPhaseAwareJoinComponent } from './components/phase-aware-join.js';
+import { createJoinCommandCenterComponent } from './components/join-command-center.js';
 import { createRecoveryPanel, type RecoveryActionHandlers } from './components/recovery-panel.js';
 import {
   createRecoveryDiagnosticCopy,
@@ -835,26 +836,25 @@ function createStageArtwork(gameId: SupportedGameId, className = ''): HTMLImageE
 function createRoomPass(roomCode: string, gameId: SupportedGameId): HTMLElement {
   const game = getGameDefinition(gameId);
   const presentation = getGamePresentation(gameId);
-  const panel = document.createElement('aside');
-  panel.className = presentation.roomPassClass;
-  const eyebrow = document.createElement('span');
-  eyebrow.className = 'experience-eyebrow';
-  eyebrow.textContent = presentation.roomPassEyebrow;
-  const label = document.createElement('span');
-  label.className = 'room-pass-label';
-  label.textContent = 'Join at this address';
-  const address = document.createElement('strong');
-  address.className = 'join-address';
-  address.textContent = `${window.location.host}${buildPlayRoute(gameId)}`;
-  const code = document.createElement('strong');
-  code.className = 'room-code';
-  code.textContent = roomCode;
-  const qr = document.createElement('img');
-  qr.className = 'qr';
-  qr.alt = `QR code to join ${game.label}`;
-  qr.src = `/api/rooms/${encodeURIComponent(roomCode)}/qr.svg`;
-  panel.append(eyebrow, label, address, code, qr);
-  return panel;
+  const joinUrl = new URL(buildPlayRoute(gameId, roomCode), window.location.origin).toString();
+  const commandCenter = createJoinCommandCenterComponent(document);
+  commandCenter.update({
+    className: `${presentation.roomPassClass} join-mode-full`,
+    accessibleLabel: `Player join information for ${game.label}, room ${roomCode}`,
+    availability: 'open',
+    eyebrow: presentation.roomPassEyebrow,
+    title: 'Bring the room in',
+    instruction: 'Scan the QR code or enter the room code on a phone.',
+    statusLabel: 'Open',
+    roomCode,
+    manualUrl: joinUrl,
+    manualUrlLabel: `${window.location.host}${buildPlayRoute(gameId)}`,
+    qr: {
+      src: `/api/rooms/${encodeURIComponent(roomCode)}/qr.svg`,
+      alt: `QR code to join ${game.label}, room ${roomCode}`,
+    },
+  });
+  return commandCenter.element;
 }
 
 function createExperienceTopbar(

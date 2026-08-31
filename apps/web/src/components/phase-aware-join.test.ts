@@ -17,10 +17,17 @@ test('renders a complete lobby join panel with a wrapped manual URL and descript
     }),
   );
   const root = asFake(component.element);
+  const credentials = root.children[2]!;
+  const scan = root.children[3]!;
+  const qr = scan.children[0]?.children[0];
   assert.ok(root.classList.contains('join-mode-full'));
-  assert.match(root.children[2]?.textContent ?? '', /^https:\/\//);
-  assert.equal(root.children[2]?.attributes.get('href'), root.children[2]?.textContent);
-  assert.match(root.children[4]?.attributes.get('alt') ?? '', /room DRAW/i);
+  assert.match(credentials.children[3]?.textContent ?? '', /^https:\/\//);
+  assert.equal(
+    credentials.children[3]?.attributes.get('href'),
+    credentials.children[3]?.textContent,
+  );
+  assert.match(qr?.attributes.get('alt') ?? '', /room DRAW/i);
+  assert.equal(scan.children[1]?.textContent, 'Scan to join instantly');
 });
 
 test('removes every join credential and QR attribute when the room becomes locked', () => {
@@ -44,10 +51,14 @@ test('removes every join credential and QR attribute when the room becomes locke
     }),
   );
   const root = asFake(component.element);
+  const credentials = root.children[2]!;
+  const scan = root.children[3]!;
+  const qr = scan.children[0]?.children[0];
   assert.ok(root.classList.contains('join-mode-locked'));
-  assert.equal(root.children[2]?.textContent, '');
-  assert.equal(root.children[2]?.attributes.get('href'), '');
-  assert.equal(root.children[3]?.textContent, '');
-  assert.equal(root.children[4]?.attributes.get('src'), '');
-  assert.equal(root.children[4]?.attributes.get('alt'), '');
+  assert.equal(credentials.children[3]?.textContent, '');
+  assert.equal(credentials.children[3]?.attributes.get('href'), '');
+  assert.equal(credentials.children[1]?.textContent, '');
+  assert.equal(qr?.attributes.get('src'), '');
+  assert.equal(qr?.attributes.get('alt'), '');
+  assert.equal(root.attributes.get('data-availability'), 'locked');
 });

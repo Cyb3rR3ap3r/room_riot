@@ -335,7 +335,461 @@ textarea:focus {
 }
 
 .experience-grid {
+  grid-template-columns: minmax(17.5rem, 0.92fr) minmax(25rem, 1.65fr) minmax(15rem, 0.78fr);
   gap: 0.7rem;
+}
+
+/* The join command center is shared by every game and both room-facing screens. */
+.join-command {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  align-content: center;
+  justify-items: stretch;
+  gap: clamp(0.75rem, 1.7vh, 1.2rem);
+  border: 1px solid color-mix(in srgb, var(--game-accent) 28%, var(--color-line));
+  border-radius: var(--radius-md);
+  padding: clamp(1rem, 2vw, 1.5rem);
+  background: linear-gradient(
+    155deg,
+    color-mix(in srgb, var(--game-primary) 7%, #0d1019),
+    #090b13 72%
+  );
+  box-shadow:
+    inset 0 1px rgba(255, 255, 255, 0.04),
+    0 1rem 2.5rem rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+  text-align: left;
+  animation: join-command-arrive 480ms var(--ease-emphasized) both;
+}
+
+.join-command::after {
+  position: absolute;
+  z-index: -1;
+  right: -30%;
+  bottom: -18%;
+  width: 18rem;
+  aspect-ratio: 1;
+  border: 1px solid color-mix(in srgb, var(--game-accent) 26%, transparent);
+  border-radius: 50%;
+  content: '';
+  opacity: 0.72;
+  box-shadow:
+    0 0 0 2.25rem color-mix(in srgb, var(--game-accent) 4%, transparent),
+    0 0 0 4.5rem color-mix(in srgb, var(--game-primary) 3%, transparent);
+}
+
+.join-command__ambient {
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  background:
+    radial-gradient(
+      circle at 88% 74%,
+      color-mix(in srgb, var(--game-accent) 13%, transparent),
+      transparent 34%
+    ),
+    linear-gradient(
+      150deg,
+      color-mix(in srgb, var(--game-primary) 6%, transparent),
+      transparent 50%
+    );
+  pointer-events: none;
+}
+
+.join-command__intro {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.join-command__eyebrow-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.join-command__status {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.38rem;
+  border: 1px solid color-mix(in srgb, var(--game-accent) 35%, var(--color-line));
+  border-radius: 999px;
+  padding: 0.28rem 0.52rem;
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--game-accent) 8%, #090b13);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.join-command__status > span:first-child {
+  width: 0.48rem;
+  height: 0.48rem;
+  border-radius: 50%;
+  background: var(--game-accent);
+  box-shadow: 0 0 0.65rem color-mix(in srgb, var(--game-accent) 72%, transparent);
+  animation: join-status-pulse 2.4s var(--ease-loop) infinite;
+}
+
+.join-command[data-availability='locked'] .join-command__status > span:first-child,
+.join-command[data-availability='full'] .join-command__status > span:first-child,
+.join-command[data-availability='closed'] .join-command__status > span:first-child {
+  background: var(--color-muted);
+  box-shadow: none;
+  animation: none;
+}
+
+.join-command__intro h2 {
+  max-width: 12ch;
+  margin: 0;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-size: clamp(1.55rem, 2.2vw, 2.25rem);
+  line-height: 0.98;
+  letter-spacing: -0.035em;
+}
+
+.join-command__intro p {
+  max-width: 32ch;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: clamp(0.76rem, 1vw, 0.92rem);
+  line-height: 1.42;
+}
+
+.join-command__credentials {
+  display: grid;
+  min-width: 0;
+  justify-items: start;
+  gap: 0.22rem;
+  border-block: 1px solid var(--color-line);
+  padding-block: clamp(0.7rem, 1.5vh, 1rem);
+}
+
+.join-command__step,
+.join-command__address-label,
+.join-command__scan figcaption {
+  color: var(--color-muted);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.join-command__code,
+.lab-room-pass .join-command__code,
+.heat-room-pass .join-command__code,
+.suspect-room-pass .join-command__code,
+.drawn-out-room-pass .join-command__code {
+  max-width: 100%;
+  margin: 0.08rem 0 0.45rem;
+  color: var(--game-accent);
+  font-family: var(--font-ui);
+  font-size: clamp(2.45rem, 5.5vh, 4.7rem);
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  line-height: 0.9;
+  letter-spacing: 0.12em;
+  overflow-wrap: anywhere;
+  text-shadow: none;
+  transform: none;
+}
+
+.join-command__address {
+  display: block;
+  max-width: 100%;
+  margin-top: 0.16rem;
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: clamp(0.68rem, 1vw, 0.82rem);
+  font-weight: 700;
+  line-height: 1.3;
+  text-decoration-color: color-mix(in srgb, var(--game-accent) 62%, transparent);
+  text-decoration-thickness: 0.08em;
+  text-overflow: ellipsis;
+  text-underline-offset: 0.18em;
+  white-space: nowrap;
+}
+
+.join-command__address:focus-visible {
+  border-radius: 0.2rem;
+  outline: 0.18rem solid var(--game-accent);
+  outline-offset: 0.22rem;
+}
+
+.join-command__scan {
+  display: grid;
+  min-height: 0;
+  align-content: center;
+  justify-items: center;
+  gap: 0.65rem;
+  margin: 0;
+}
+
+.join-command__qr-frame {
+  position: relative;
+  display: grid;
+  width: clamp(7.5rem, 17vh, 11rem);
+  max-width: 100%;
+  aspect-ratio: 1;
+  place-items: center;
+  padding: 0.38rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--game-accent) 70%, white);
+  border-radius: var(--radius-md);
+  background: #fff;
+  box-shadow:
+    0 1.1rem 2.5rem rgba(0, 0, 0, 0.42),
+    0 0 1.4rem color-mix(in srgb, var(--game-accent) 16%, transparent);
+}
+
+.join-command__qr-frame::after {
+  position: absolute;
+  z-index: 2;
+  inset: 0.2rem;
+  border: 1px solid color-mix(in srgb, var(--game-accent) 42%, transparent);
+  border-radius: calc(var(--radius-md) - 0.25rem);
+  content: '';
+  pointer-events: none;
+}
+
+.join-command__qr,
+.lab-room-pass .join-command__qr,
+.heat-room-pass .join-command__qr,
+.suspect-room-pass .join-command__qr,
+.drawn-out-room-pass .join-command__qr {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  max-width: none;
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: calc(var(--radius-md) - 0.32rem);
+  background: white;
+  box-shadow: none;
+  object-fit: contain;
+  transform: none;
+}
+
+.join-command__scan-line {
+  position: absolute;
+  z-index: 0;
+  inset: -55%;
+  background: conic-gradient(
+    from 90deg,
+    transparent 0 42%,
+    color-mix(in srgb, var(--game-accent) 80%, white) 48%,
+    transparent 54% 100%
+  );
+  animation: join-scan-orbit 6s linear infinite;
+}
+
+.join-command__scan figcaption {
+  color: color-mix(in srgb, var(--game-accent) 74%, white);
+  text-align: center;
+}
+
+.join-mode-compact.join-command,
+.join-mode-locked.join-command {
+  grid-template-rows: auto auto;
+  align-content: center;
+  text-align: center;
+}
+
+.join-mode-compact .join-command__eyebrow-row,
+.join-mode-locked .join-command__eyebrow-row {
+  justify-content: center;
+}
+
+.join-mode-compact .join-command__intro,
+.join-mode-locked .join-command__intro,
+.join-mode-compact .join-command__credentials,
+.join-mode-locked .join-command__credentials {
+  justify-items: center;
+}
+
+.join-mode-compact .join-command__intro h2,
+.join-mode-locked .join-command__intro h2 {
+  max-width: none;
+}
+
+.join-mode-compact .join-command__credentials,
+.join-mode-locked .join-command__credentials {
+  border-bottom: 0;
+}
+
+.display-experience .join-command {
+  height: 100%;
+  padding: clamp(0.8rem, 1.8vh, 1.35rem);
+  font-size: 1rem;
+}
+
+.join-command > .display-audio-control {
+  position: absolute;
+  z-index: 3;
+  right: 0.65rem;
+  bottom: 0.65rem;
+  width: max-content;
+  max-width: calc(100% - 1.3rem);
+  margin: 0;
+  opacity: 0.78;
+  transform: scale(0.82);
+  transform-origin: right bottom;
+  transition: opacity 160ms var(--ease-standard);
+}
+
+.join-command > .display-audio-control .sound-controls > :not(:first-child) {
+  display: none;
+}
+
+.join-command > .display-audio-control:hover,
+.join-command > .display-audio-control:focus-within {
+  opacity: 1;
+}
+
+/* Host controls occupy a reserved dock instead of covering the lobby content. */
+.host-page[data-game-id] {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.host-page[data-game-id] > .content {
+  height: 100%;
+  min-height: 0;
+}
+
+.host-page[data-game-id] .host-experience {
+  height: calc(100dvh - var(--space-safe-top) - var(--space-safe-bottom));
+  min-height: 0;
+}
+
+.host-experience .experience-grid {
+  height: calc(100% - 5.5rem);
+  min-height: 0;
+  padding-bottom: 6.25rem;
+  overflow: hidden;
+}
+
+.host-experience .join-command,
+.host-experience .consensus-stage,
+.host-experience .heat-stage,
+.host-experience .suspect-stage,
+.host-experience .drawn-out-stage,
+.host-experience .mind-roster,
+.host-experience .audience-roster,
+.host-experience .jury-roster,
+.host-experience .artist-roster {
+  min-height: 0;
+}
+
+@media (max-width: 1050px) {
+  .experience-grid {
+    grid-template-columns: minmax(17rem, 0.82fr) minmax(24rem, 1.8fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .host-page[data-game-id] {
+    height: auto;
+    overflow: visible;
+  }
+
+  .host-page[data-game-id] > .content,
+  .host-page[data-game-id] .host-experience,
+  .host-experience .experience-grid {
+    height: auto;
+    overflow: visible;
+  }
+
+  .host-experience .experience-grid {
+    padding-bottom: 0.8rem;
+  }
+
+  .join-command {
+    min-height: 31rem;
+  }
+
+  .join-command__intro h2 {
+    max-width: none;
+  }
+}
+
+@media (max-height: 760px) and (min-width: 721px) {
+  .display-page[data-game-id] .display-experience {
+    padding: max(2.5vh, env(safe-area-inset-top)) max(3vw, env(safe-area-inset-right))
+      max(2.5vh, env(safe-area-inset-bottom)) max(3vw, env(safe-area-inset-left));
+  }
+
+  .display-page[data-game-id] .experience-topbar {
+    min-height: 4.6rem;
+  }
+
+  .display-page[data-game-id] .display-experience .experience-grid {
+    height: calc(100% - 4.6rem);
+    padding: 0.6rem;
+  }
+
+  .display-experience .join-command {
+    gap: 0.55rem;
+    padding: 0.75rem;
+  }
+
+  .display-experience .join-command__intro h2 {
+    font-size: 1.42rem;
+  }
+
+  .display-experience .join-command__intro p {
+    font-size: 0.72rem;
+  }
+
+  .display-experience .join-command__credentials {
+    padding-block: 0.55rem;
+  }
+
+  .display-experience .join-command__code {
+    font-size: clamp(2.15rem, 5vh, 3rem);
+  }
+
+  .display-experience .join-command__qr-frame {
+    width: clamp(7.5rem, 19vh, 9.5rem);
+  }
+}
+
+@keyframes join-command-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(0.55rem) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes join-status-pulse {
+  50% {
+    opacity: 0.55;
+    transform: scale(0.78);
+  }
+}
+
+@keyframes join-scan-orbit {
+  to {
+    transform: rotate(1turn);
+  }
 }
 
 .lab-room-pass,
