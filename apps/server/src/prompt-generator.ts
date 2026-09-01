@@ -1,6 +1,8 @@
 import { randomInt, randomUUID } from 'node:crypto';
 
 import type { ContentMode } from '@room-riot/contracts';
+import { loadBlankLinePrompts } from '@room-riot/blank-line';
+import type { BlankLinePrompt } from '@room-riot/blank-line';
 import { loadDrawnOutPrompts } from '@room-riot/drawn-out';
 import type { DrawnOutPrompt } from '@room-riot/drawn-out';
 import { loadGroupthinkPrompts } from '@room-riot/groupthink';
@@ -9,6 +11,8 @@ import { loadHotTakePrompts } from '@room-riot/hot-take';
 import type { HotTakePrompt } from '@room-riot/hot-take';
 import { loadSuspectPrompts } from '@room-riot/suspect';
 import type { SuspectPrompt } from '@room-riot/suspect';
+import { loadWavelengthPrompts } from '@room-riot/wavelength';
+import type { WavelengthPrompt } from '@room-riot/wavelength';
 
 /**
  * Generates a large, local prompt deck for the AI mode.
@@ -81,6 +85,30 @@ export function generateDrawnOutPrompts(
     .map((prompt, index) => ({
       ...prompt,
       id: `ai-drawn-out-${index + 1}-${randomUUID()}`,
+    }));
+}
+
+export function generateBlankLinePrompts(
+  contentMode: ContentMode,
+  count = 100,
+): readonly BlankLinePrompt[] {
+  return shuffle([...loadBlankLinePrompts(contentMode)])
+    .slice(0, Math.max(1, Math.min(count, 100)))
+    .map((prompt, index) => ({
+      ...prompt,
+      id: `ai-blank-line-${index + 1}-${randomUUID()}`,
+    }));
+}
+
+export function generateWavelengthPrompts(
+  contentMode: ContentMode,
+  count = 100,
+): readonly WavelengthPrompt[] {
+  return shuffle([...loadWavelengthPrompts(contentMode)])
+    .slice(0, Math.max(1, Math.min(count, 100)))
+    .map((prompt, index) => ({
+      ...prompt,
+      id: `ai-wavelength-${index + 1}-${randomUUID()}`,
     }));
 }
 

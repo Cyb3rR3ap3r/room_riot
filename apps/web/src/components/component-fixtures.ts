@@ -1,15 +1,19 @@
 import { getGamePlayerLimits, ROOM_RIOT_PROTOCOL_VERSION } from '@room-riot/contracts';
 import type { RoomPhase, SupportedGameId } from '@room-riot/contracts';
+import type { BlankLinePlayerView, BlankLinePublicView } from '@room-riot/blank-line';
 import type { PublicPlayerState, PublicRoomState } from '@room-riot/game-engine';
 import type { DrawnOutPlayerView, DrawnOutPublicView, DrawnOutStatus } from '@room-riot/drawn-out';
 import type { GroupthinkPlayerView, GroupthinkPublicView } from '@room-riot/groupthink';
 import type { HotTakePlayerView, HotTakePublicView } from '@room-riot/hot-take';
 import type { SuspectPlayerView, SuspectPublicView } from '@room-riot/suspect';
+import type { WavelengthPlayerView, WavelengthPublicView } from '@room-riot/wavelength';
 
 import type { PlayerGameView, RoomSnapshot } from '../protocol.js';
 
 export const LONG_FIXTURE_TEXT =
   'A spectacularly overcomplicated answer involving a runaway parade float, twelve confused pigeons, and a ceremonial sandwich that absolutely nobody remembered ordering — repeated context keeps this fixture intentionally long for wrapping and overflow characterization.';
+const BLANK_LINE_FIXTURE_PROMPT =
+  'A runaway parade float carrying twelve confused pigeons and one ceremonial sandwich';
 
 export const GAME_PHASES = {
   groupthink: ['input', 'results', 'complete'],
@@ -24,6 +28,8 @@ export const GAME_PHASES = {
     'results',
     'complete',
   ],
+  'blank-line': ['drawing', 'voting', 'results', 'complete'],
+  wavelength: ['clue', 'tuning', 'intercept', 'results', 'complete'],
 } as const;
 
 export type GamePhaseMap = typeof GAME_PHASES;
@@ -167,6 +173,7 @@ function createRoomState(
       contentMode: 'standard',
       promptMode: 'default',
       drawnOutMode: 'classic',
+      wavelengthMode: 'signal-clash',
     },
     players,
     readyPlayerIds: [],
@@ -187,7 +194,13 @@ function createPublicView(
   status: string,
   players: readonly PublicPlayerState[],
   population: FixturePopulation,
-): GroupthinkPublicView | HotTakePublicView | SuspectPublicView | DrawnOutPublicView {
+):
+  | GroupthinkPublicView
+  | HotTakePublicView
+  | SuspectPublicView
+  | DrawnOutPublicView
+  | BlankLinePublicView
+  | WavelengthPublicView {
   const totalPlayers = players.length;
   const roundScores = players.map((player, index) => ({
     playerId: player.id,
@@ -272,6 +285,89 @@ function createPublicView(
             count: population === 'dense-tie' ? 2 : 1,
           }))
         : [],
+      roundScores: revealed ? roundScores : [],
+    };
+  }
+  if (gameId === 'blank-line') {
+    const revealed = status === 'results' || status === 'complete';
+    const activePlayerId = status === 'drawing' ? (players[0]?.id ?? null) : null;
+    return {
+      id: 'blank-line',
+      status: status as BlankLinePublicView['status'],
+      roundNumber: common.roundNumber,
+      totalRounds: common.totalRounds,
+      prompt: revealed ? BLANK_LINE_FIXTURE_PROMPT : null,
+      promptId: revealed ? 'fixture-blank-line' : null,
+      deadlineAt: common.deadlineAt,
+      activePlayerId,
+      nextPlayerIds: players.slice(1, 3).map((player) => player.id),
+      playerOrder: players.map((player) => player.id),
+      circuit: 2,
+      totalCircuits: 2,
+      turnIndex: totalPlayers,
+      totalTurns: totalPlayers * 2,
+      drawing: { strokes: [] },
+      strokeTimeline: [],
+      submittedCount: status === 'voting' ? totalPlayers : 0,
+      totalPlayers,
+      blankPlayerId: revealed ? (players[0]?.id ?? null) : null,
+      blankCaught: revealed ? true : null,
+      voteSummary: revealed
+        ? players.map((player, index) => ({
+            playerId: player.id,
+            count: index === 0 ? Math.max(1, totalPlayers - 1) : 0,
+          }))
+        : [],
+      roundScores: revealed ? roundScores : [],
+    };
+  }
+  if (gameId === 'wavelength') {
+    const revealed = status === 'results' || status === 'complete';
+    const activeTeam = players.filter((_, index) => index % 2 === 0).map((player) => player.id);
+    const otherTeam = players.filter((_, index) => index % 2 === 1).map((player) => player.id);
+    return {
+      id: 'wavelength',
+      mode: 'signal-clash',
+      status: status as WavelengthPublicView['status'],
+      roundNumber: common.roundNumber,
+      totalRounds: common.totalRounds,
+      totalPlayers,
+      promptId: 'fixture-wavelength',
+      leftPole: 'Barely a signal',
+      rightPole: 'Impossible to miss',
+      clue: status === 'clue' ? null : 'Sunday sunrise',
+      deadlineAt: common.deadlineAt,
+      teams: { cyan: activeTeam, magenta: otherTeam },
+      activeTeamId: 'cyan',
+      broadcasterId: players[0]?.id ?? 'fixture-broadcaster',
+      receiverIds: activeTeam.slice(1),
+      interceptorIds: otherTeam,
+      submittedCount: status === 'tuning' ? Math.max(0, activeTeam.length - 1) : 0,
+      expectedCount: status === 'tuning' ? Math.max(0, activeTeam.length - 1) : otherTeam.length,
+      target: revealed ? 64 : null,
+      consensus: revealed ? 61 : null,
+      markers: revealed
+        ? activeTeam
+            .slice(1)
+            .map((playerId) => ({ playerId, position: 61, confidence: 2 as const }))
+        : [],
+      result: revealed
+        ? {
+            target: 64,
+            consensus: 61,
+            distance: 3,
+            spread: 0,
+            accuracyPoints: 5,
+            syncBonus: 1,
+            activeTeamPoints: 6,
+            interceptPrediction: 'locked',
+            interceptOutcome: 'locked',
+            interceptCorrect: true,
+            interceptPoints: 2,
+          }
+        : null,
+      roomScore: revealed ? 6 : 0,
+      teamScores: { cyan: revealed ? 6 : 0, magenta: revealed ? 2 : 0 },
       roundScores: revealed ? roundScores : [],
     };
   }
@@ -383,6 +479,60 @@ function createPlayerView(
       ownVoteTargetIds: status === 'results' ? [players[0]!.id] : [],
       candidatePlayerIds: players.map((player) => player.id),
       selectedPlayerIds: players.slice(0, 2).map((player) => player.id),
+    };
+  }
+  if (gameId === 'blank-line') {
+    const blankStatus = status as BlankLinePlayerView['status'];
+    const task: BlankLinePlayerView['task'] =
+      blankStatus === 'drawing' ? 'draw' : blankStatus === 'voting' ? 'vote' : 'wait';
+    return {
+      id: 'blank-line',
+      status: blankStatus,
+      roundNumber: 3,
+      totalRounds: 5,
+      deadlineAt: blankStatus === 'results' || blankStatus === 'complete' ? null : 60_000,
+      task,
+      instruction: LONG_FIXTURE_TEXT,
+      privatePrompt: BLANK_LINE_FIXTURE_PROMPT,
+      isBlank: false,
+      isActive: task === 'draw',
+      hasSubmitted: task === 'wait',
+      drawing: { strokes: [] },
+      candidatePlayerIds: players.slice(1).map((player) => player.id),
+      ownVotePlayerId: null,
+    };
+  }
+  if (gameId === 'wavelength') {
+    const wavelengthStatus = status as WavelengthPlayerView['status'];
+    const playerId = players[0]?.id ?? 'fixture-player';
+    const task: WavelengthPlayerView['task'] =
+      wavelengthStatus === 'clue'
+        ? 'clue'
+        : wavelengthStatus === 'tuning'
+          ? 'tune'
+          : wavelengthStatus === 'intercept'
+            ? 'intercept'
+            : 'wait';
+    return {
+      id: 'wavelength',
+      mode: 'signal-clash',
+      status: wavelengthStatus,
+      roundNumber: 3,
+      totalRounds: 5,
+      leftPole: 'Barely a signal',
+      rightPole: 'Impossible to miss',
+      clue: wavelengthStatus === 'clue' ? null : 'Sunday sunrise',
+      deadlineAt: wavelengthStatus === 'results' || wavelengthStatus === 'complete' ? null : 60_000,
+      teamId: 'cyan',
+      activeTeamId: 'cyan',
+      broadcasterId: playerId,
+      task,
+      instruction: LONG_FIXTURE_TEXT,
+      privateTarget: task === 'clue' ? 64 : null,
+      ownMarker: task === 'tune' ? null : { playerId, position: 61, confidence: 2 },
+      ownIntercept: task === 'intercept' ? null : 'locked',
+      isGuestReceiver: false,
+      hasSubmitted: task === 'wait',
     };
   }
   const drawnStatus = status as DrawnOutStatus;

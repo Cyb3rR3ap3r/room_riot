@@ -22,6 +22,7 @@ import type {
   RoomPhase,
   RoomCode,
   SessionToken,
+  WavelengthMode,
 } from '@room-riot/contracts';
 
 import {
@@ -489,6 +490,7 @@ function createDrawingPreview(drawing: DrawingData | null, className = ''): HTML
 function createDrawingPad(
   existing: DrawingData | null = null,
   onChange?: (drawing: DrawingData) => void,
+  maxStrokes = 16,
 ): DrawingPad {
   const wrapper = document.createElement('section');
   wrapper.className = 'drawing-pad';
@@ -516,7 +518,7 @@ function createDrawingPad(
     };
   };
   canvas.addEventListener('pointerdown', (event) => {
-    if (strokes.length >= 16) return;
+    if (strokes.length >= maxStrokes) return;
     canvas.setPointerCapture(event.pointerId);
     activeStroke = { color, width, points: [position(event)] };
     strokes.push(activeStroke);
@@ -592,9 +594,9 @@ function createDrawingPad(
   });
   const status = document.createElement('small');
   status.className = 'drawing-status';
-  status.textContent = '0 / 16 strokes';
+  status.textContent = `0 / ${maxStrokes} strokes`;
   const updateStatus = (): void => {
-    status.textContent = `${strokes.length} / 16 strokes · ${color === '#151022' ? 'dark brush' : 'color brush'}`;
+    status.textContent = `${strokes.length} / ${maxStrokes} stroke${maxStrokes === 1 ? '' : 's'} · ${color === '#151022' ? 'dark brush' : 'color brush'}`;
   };
   toolbar.append(size, undo, redo, clear, status);
   updateStatus();
@@ -606,7 +608,13 @@ function createDrawingPad(
 }
 
 function setGameTheme(root: HTMLElement, gameId: string | null | undefined): void {
-  root.classList.remove('game-groupthink', 'game-hot-take', 'game-suspect', 'game-drawn-out');
+  root.classList.remove(
+    'game-groupthink',
+    'game-hot-take',
+    'game-suspect',
+    'game-drawn-out',
+    'game-blank-line',
+  );
   if (!gameId) {
     delete root.dataset.gameId;
     return;
@@ -686,6 +694,23 @@ function createDrawnOutModeSelect(value: DrawnOutMode = 'classic'): HTMLSelectEl
     { value: 'classic', label: 'Classic — draw, then guess' },
     { value: 'telephone', label: 'Telephone — draw and describe chain' },
     { value: 'fake-artist', label: 'Fake Artist — blend in without the prompt' },
+  ];
+  options.forEach(({ value: optionValue, label }) => {
+    const option = document.createElement('option');
+    option.value = optionValue;
+    option.textContent = label;
+    option.selected = optionValue === value;
+    select.append(option);
+  });
+  return select;
+}
+
+function createWavelengthModeSelect(value: WavelengthMode = 'signal-clash'): HTMLSelectElement {
+  const select = document.createElement('select');
+  select.name = 'wavelength-mode';
+  const options: readonly { value: WavelengthMode; label: string }[] = [
+    { value: 'signal-clash', label: 'Signal Clash — two competing teams' },
+    { value: 'open-channel', label: 'Open Channel — one cooperative room' },
   ];
   options.forEach(({ value: optionValue, label }) => {
     const option = document.createElement('option');
@@ -1233,12 +1258,14 @@ function renderHost(root: HTMLElement): void {
       const form = document.createElement('form');
       form.className = 'card form game-launcher';
       let drawnOutModeField: HTMLElement | null = null;
+      let wavelengthModeField: HTMLElement | null = null;
       let updateLauncherGuidance: (() => void) | null = null;
       const gamePicker = createGamePicker(routeGameId ?? 'groupthink', (game) => {
         window.history.replaceState(null, '', buildHostRoute(game.id));
         setGameTheme(root, game.id);
         updatePageBrand(page, game.id);
         if (drawnOutModeField) drawnOutModeField.hidden = game.id !== 'drawn-out';
+        if (wavelengthModeField) wavelengthModeField.hidden = game.id !== 'wavelength';
         updateLauncherGuidance?.();
       });
       form.append(gamePicker.element);
@@ -1248,6 +1275,10 @@ function renderHost(root: HTMLElement): void {
       drawnOutModeField = createField('Drawn Out mode', drawnOutMode);
       drawnOutModeField.hidden = gamePicker.getValue() !== 'drawn-out';
       form.append(drawnOutModeField);
+      const wavelengthMode = createWavelengthModeSelect();
+      wavelengthModeField = createField('WaveLength mode', wavelengthMode);
+      wavelengthModeField.hidden = gamePicker.getValue() !== 'wavelength';
+      form.append(wavelengthModeField);
       const promptMode = createPromptModeSelect();
       const promptModeField = createField('Question source', promptMode);
       const promptModeHint = document.createElement('small');
@@ -1284,10 +1315,11 @@ function renderHost(root: HTMLElement): void {
           maxPlayers: getGamePresentation(gameId).getPlayerLimits(
             drawnOutMode.value as DrawnOutMode,
           ).maximum,
-          roundCount: 5,
+          roundCount: gameId === 'wavelength' ? 7 : 5,
           contentMode: contentMode.value as ContentMode,
           promptMode: promptMode.value as PromptMode,
           drawnOutMode: drawnOutMode.value as DrawnOutMode,
+          wavelengthMode: wavelengthMode.value as WavelengthMode,
         };
         const pending = getOrCreatePendingOperation(
           window.sessionStorage,
@@ -1296,7 +1328,7 @@ function renderHost(root: HTMLElement): void {
           { gameId, settings },
         );
         const action = beginHostAction(
-          `host:create-room:${gameId}:${contentMode.value}:${promptMode.value}:${drawnOutMode.value}`,
+          `host:create-room:${gameId}:${contentMode.value}:${promptMode.value}:${drawnOutMode.value}:${wavelengthMode.value}`,
           submit,
           pending.actionId,
         );
@@ -1628,10 +1660,12 @@ function renderHost(root: HTMLElement): void {
       });
       const contentMode = createContentModeSelect(state.settings.contentMode);
       const drawnOutMode = createDrawnOutModeSelect(state.settings.drawnOutMode);
+      const wavelengthMode = createWavelengthModeSelect(state.settings.wavelengthMode);
       rematchSettingsBody.append(
         createField('Rounds', roundCount),
         createField('Content mode', contentMode),
         createField('Drawn Out mode', drawnOutMode),
+        createField('WaveLength mode', wavelengthMode),
       );
       rematchSettings.append(rematchSettingsSummary, rematchSettingsBody);
 
@@ -1648,6 +1682,7 @@ function renderHost(root: HTMLElement): void {
             roundCount: Number(roundCount.value),
             contentMode: contentMode.value as ContentMode,
             drawnOutMode: drawnOutMode.value as DrawnOutMode,
+            wavelengthMode: wavelengthMode.value as WavelengthMode,
           },
         };
         socket.emit('host:rematch', request, (response: RoomStateResponse) => {
@@ -2581,6 +2616,10 @@ function renderPlayer(root: HTMLElement): void {
           suspect: 'Read your private prompt, answer honestly, then follow the accusation step.',
           'drawn-out':
             'Follow the private instruction: draw, describe, guess, or vote when prompted.',
+          'blank-line':
+            'Keep the topic private. On your turn, add one continuous line and watch every artist closely.',
+          wavelength:
+            'Read the spectrum, then use your private controls to tune the room toward the hidden signal.',
         };
         const tutorial = document.createElement('aside');
         tutorial.className = 'card first-round-tutorial';

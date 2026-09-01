@@ -57,6 +57,7 @@ export interface PlayerControllerDependencies {
   readonly createDrawingPad: (
     initial: DrawingData | null,
     onChange: (drawing: DrawingData) => void,
+    maxStrokes?: number,
   ) => DrawingPadController;
   readonly createDrawingPreview: (drawing: DrawingData, className?: string) => HTMLElement;
 }

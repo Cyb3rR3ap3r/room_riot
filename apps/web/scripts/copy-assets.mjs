@@ -31,6 +31,10 @@ const sourceAssetDirectory = resolve(webRoot, 'assets');
 const outputAssetDirectory = resolve(distDirectory, 'assets');
 const assetManifest = JSON.parse(await readFile(resolve(webRoot, 'asset-manifest.json'), 'utf8'));
 const productionAssets = assetManifest.productionAssets;
+const aggregateBudgetBytes = assetManifest.aggregateBudgetBytes;
+if (!Number.isInteger(aggregateBudgetBytes) || aggregateBudgetBytes < 1) {
+  throw new Error('The production asset manifest needs a positive aggregate byte budget.');
+}
 const optimizedAssets = productionAssets.map(({ output }) => output);
 if (
   optimizedAssets.length === 0 ||
@@ -66,8 +70,10 @@ if (oversizedAsset) {
   throw new Error(`${oversizedAsset.fileName} exceeds the 350 KiB production asset budget.`);
 }
 const totalAssetBytes = assetSizes.reduce((total, { bytes }) => total + bytes, 0);
-if (totalAssetBytes > 3 * 1024 * 1024) {
-  throw new Error('Optimized production assets exceed the 3 MiB aggregate budget.');
+if (totalAssetBytes > aggregateBudgetBytes) {
+  throw new Error(
+    `Optimized production assets exceed the ${Math.round(aggregateBudgetBytes / 1024 / 1024)} MiB aggregate budget.`,
+  );
 }
 await mkdir(outputAssetDirectory, { recursive: true });
 await Promise.all(

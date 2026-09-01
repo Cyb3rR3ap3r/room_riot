@@ -11,11 +11,13 @@
   },
   "dependencies": {
     "@room-riot/contracts": "workspace:*",
+    "@room-riot/blank-line": "workspace:*",
     "@room-riot/drawn-out": "workspace:*",
     "@room-riot/game-engine": "workspace:*",
     "@room-riot/groupthink": "workspace:*",
     "@room-riot/hot-take": "workspace:*",
     "@room-riot/suspect": "workspace:*",
+    "@room-riot/wavelength": "workspace:*",
     "qrcode": "^1.5.4",
     "socket.io": "^4.8.1"
   },

@@ -20,6 +20,8 @@ const styleSources = [
   'display.css',
   'tv-layout.css',
   'games/drawn-out.css',
+  'games/blank-line.css',
+  'games/wavelength.css',
   'showcase.css',
   'revamp.css',
   'motion.css',

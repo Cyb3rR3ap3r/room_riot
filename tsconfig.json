@@ -7,6 +7,9 @@
     { "path": "./games/hot-take" },
     { "path": "./games/suspect" },
     { "path": "./games/drawn-out" },
+    { "path": "./games/blank-line" },
+    { "path": "./games/wavelength" },
+    { "path": "./games/wavelength" },
     { "path": "./apps/server" },
     { "path": "./apps/web" }
   ]

@@ -27,17 +27,25 @@ import type {
   SessionToken,
 } from '@room-riot/contracts';
 import type { DrawnOutPlayerView, DrawnOutPublicView } from '@room-riot/drawn-out';
+import type { BlankLinePlayerView, BlankLinePublicView } from '@room-riot/blank-line';
 import type { PublicRoomState } from '@room-riot/game-engine';
 import type { GroupthinkPlayerView, GroupthinkPublicView } from '@room-riot/groupthink';
 import type { HotTakePlayerView, HotTakePublicView } from '@room-riot/hot-take';
 import type { SuspectPlayerView, SuspectPublicView } from '@room-riot/suspect';
+import type { WavelengthPlayerView, WavelengthPublicView } from '@room-riot/wavelength';
 
 export interface RoomSnapshot {
   readonly protocolVersion: typeof ROOM_RIOT_PROTOCOL_VERSION;
   readonly revision: number;
   readonly state: PublicRoomState;
   readonly game:
-    GroupthinkPublicView | HotTakePublicView | SuspectPublicView | DrawnOutPublicView | null;
+    | GroupthinkPublicView
+    | HotTakePublicView
+    | SuspectPublicView
+    | DrawnOutPublicView
+    | BlankLinePublicView
+    | WavelengthPublicView
+    | null;
   readonly roster: {
     readonly roundPlayerIds: readonly string[];
     readonly queuedPlayerIds: readonly string[];
@@ -45,7 +53,12 @@ export interface RoomSnapshot {
 }
 
 export type PlayerGameView =
-  GroupthinkPlayerView | HotTakePlayerView | SuspectPlayerView | DrawnOutPlayerView;
+  | GroupthinkPlayerView
+  | HotTakePlayerView
+  | SuspectPlayerView
+  | DrawnOutPlayerView
+  | BlankLinePlayerView
+  | WavelengthPlayerView;
 
 export interface PlayerStateUpdate {
   readonly protocolVersion: typeof ROOM_RIOT_PROTOCOL_VERSION;

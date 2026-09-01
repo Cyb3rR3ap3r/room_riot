@@ -1,0 +1,552 @@
+.wavelength-command {
+  --wave-cyan: #27f3ff;
+  --wave-magenta: #ff35c8;
+  --wave-yellow: #ffe15a;
+  --wave-ink: #050818;
+  --wave-panel: rgb(7 12 35 / 88%);
+  background:
+    linear-gradient(110deg, rgb(4 7 24 / 84%), rgb(18 5 36 / 76%)),
+    url('/assets/wavelength-bg-v1.webp') center / cover fixed;
+}
+
+.wavelength-stage {
+  --wave-cyan: #27f3ff;
+  --wave-magenta: #ff35c8;
+  --wave-yellow: #ffe15a;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(15rem, 25vw, 24rem);
+  gap: clamp(0.8rem, 1.8vw, 1.6rem);
+  inline-size: 100%;
+  block-size: 100%;
+  min-block-size: 0;
+  padding: clamp(0.7rem, 1.5vw, 1.35rem);
+  overflow: hidden;
+  color: white;
+  background:
+    linear-gradient(110deg, rgb(4 7 24 / 72%), rgb(18 5 36 / 58%)),
+    url('/assets/wavelength-bg-v1.webp') center / cover;
+}
+
+.wavelength-command-panel,
+.wavelength-telemetry {
+  min-block-size: 0;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: clamp(1.1rem, 2vw, 1.8rem);
+  background: linear-gradient(145deg, rgb(5 10 31 / 91%), rgb(12 8 37 / 84%));
+  box-shadow:
+    0 1.2rem 3.5rem rgb(0 0 0 / 36%),
+    inset 0 1px rgb(255 255 255 / 10%);
+  backdrop-filter: blur(16px);
+}
+
+.wavelength-command-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  padding: clamp(1rem, 2vw, 1.8rem);
+}
+
+.wavelength-stage-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.8rem;
+}
+
+.wavelength-stage-heading h2 {
+  margin: 0.18rem 0 0;
+  max-inline-size: 20ch;
+  font-size: clamp(1.45rem, 3vw, 3rem);
+  line-height: 0.95;
+  text-wrap: balance;
+}
+
+.wavelength-stage-heading .pill {
+  background: rgb(39 243 255 / 11%);
+  border-color: rgb(39 243 255 / 40%);
+}
+
+.wavelength-spectrum-shell {
+  display: grid;
+  grid-template-rows: auto minmax(7rem, 1fr) auto;
+  align-content: center;
+  min-block-size: 0;
+  padding-block-start: clamp(0.7rem, 2vh, 1.4rem);
+}
+
+.wavelength-clue {
+  justify-self: center;
+  display: grid;
+  gap: 0.15rem;
+  min-inline-size: min(32rem, 86%);
+  padding: 0.65rem 1.1rem;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 999px;
+  text-align: center;
+  background: rgb(1 5 21 / 72%);
+  transition:
+    transform 300ms ease,
+    border-color 300ms ease;
+}
+
+.wavelength-clue.is-live {
+  border-color: rgb(255 225 90 / 65%);
+  box-shadow: 0 0 2rem rgb(255 225 90 / 16%);
+  animation: wavelength-clue-arrive 520ms cubic-bezier(0.18, 0.9, 0.25, 1.3) both;
+}
+
+.wavelength-clue small {
+  color: rgb(255 255 255 / 58%);
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.wavelength-clue strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: clamp(1rem, 2.2vw, 1.75rem);
+  white-space: nowrap;
+}
+
+.wavelength-spectrum {
+  position: relative;
+  align-self: center;
+  block-size: clamp(7.5rem, 24vh, 14rem);
+  margin: clamp(0.8rem, 2vh, 1.8rem) clamp(1.1rem, 3vw, 3.5rem) 0;
+  overflow: hidden;
+  border: clamp(0.35rem, 0.7vw, 0.65rem) solid #050714;
+  border-radius: 999px 999px 1.25rem 1.25rem;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 9.7%, rgb(255 255 255 / 10%) 10%),
+    linear-gradient(90deg, #11647c, #24e4ed 25%, #f5d74d 50%, #ff6d84 72%, #a71775);
+  box-shadow:
+    0 0 0 2px rgb(255 255 255 / 18%),
+    0 1.2rem 2.5rem rgb(0 0 0 / 48%),
+    inset 0 -3rem 4rem rgb(0 0 0 / 42%);
+}
+
+.wavelength-spectrum::before {
+  content: '';
+  position: absolute;
+  inset: 8% 2% 15%;
+  border-radius: inherit;
+  background: radial-gradient(ellipse at 50% 100%, transparent 0 38%, rgb(3 5 18 / 68%) 72%);
+  pointer-events: none;
+}
+
+.wavelength-energy-field {
+  position: absolute;
+  z-index: 1;
+  inset: 18% 4% 14%;
+  opacity: 0.7;
+  background: repeating-radial-gradient(
+    ellipse at center,
+    rgb(255 255 255 / 0%) 0 7%,
+    rgb(255 255 255 / 24%) 8%,
+    rgb(255 255 255 / 0%) 11%
+  );
+  filter: blur(1px);
+  animation: wavelength-energy 1.8s ease-in-out infinite alternate;
+}
+
+.wavelength-target-window,
+.wavelength-consensus-lock,
+.wavelength-player-marker {
+  position: absolute;
+  z-index: 3;
+  inset-inline-start: var(--signal-position);
+  transform: translateX(-50%);
+}
+
+.wavelength-target-window {
+  inset-block: 8% 14%;
+  inline-size: clamp(2.2rem, 5.5vw, 5rem);
+  border: 2px solid var(--wave-yellow);
+  border-radius: 1rem;
+  background: linear-gradient(90deg, transparent, rgb(255 225 90 / 54%), transparent);
+  box-shadow: 0 0 2.5rem var(--wave-yellow);
+  animation: wavelength-target-reveal 700ms cubic-bezier(0.15, 0.9, 0.25, 1.15) both;
+}
+
+.wavelength-target-window span,
+.wavelength-consensus-lock span {
+  position: absolute;
+  inset-block-start: -1.4rem;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  font-size: clamp(0.55rem, 1vw, 0.75rem);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.wavelength-consensus-lock {
+  inset-block: 2% 5%;
+  inline-size: 0.45rem;
+  border-radius: 999px;
+  background: white;
+  box-shadow:
+    0 0 0 3px #080915,
+    0 0 1.3rem white;
+  animation: wavelength-lock-drop 650ms 180ms cubic-bezier(0.2, 1.2, 0.3, 1) both;
+}
+
+.wavelength-player-marker {
+  inset-block-end: calc(0.45rem + var(--marker-index) * 0.08rem);
+  display: grid;
+  place-items: center;
+  inline-size: clamp(1.2rem, 2.5vw, 2rem);
+  aspect-ratio: 1;
+  border: 2px solid #050714;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 45%);
+  animation: wavelength-marker-pop 420ms calc(320ms + var(--marker-index) * 65ms) both;
+}
+
+.wavelength-player-marker span {
+  font-size: clamp(0.65rem, 1.25vw, 1rem);
+}
+
+.wavelength-stage-poles {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem clamp(1rem, 3vw, 3.5rem) 0;
+  font-size: clamp(0.85rem, 1.8vw, 1.35rem);
+  text-transform: uppercase;
+}
+
+.wavelength-stage-poles strong:last-child {
+  text-align: end;
+}
+
+.wavelength-telemetry {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.65rem, 1.5vh, 1rem);
+  padding: clamp(0.85rem, 1.7vw, 1.35rem);
+  overflow: hidden auto;
+}
+
+.wavelength-mode-badge,
+.wavelength-broadcaster-card,
+.wavelength-room-score,
+.wavelength-winner {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.8rem 0.9rem;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 5%);
+}
+
+.wavelength-mode-badge span,
+.wavelength-broadcaster-card span,
+.wavelength-room-score span,
+.wavelength-winner span,
+.wavelength-team-card span,
+.wavelength-result-grid span {
+  color: rgb(255 255 255 / 56%);
+  font-size: 0.67rem;
+  font-weight: 900;
+  letter-spacing: 0.11em;
+}
+
+.wavelength-room-score strong {
+  color: var(--wave-yellow);
+  font-size: clamp(2.4rem, 6vw, 4.3rem);
+  line-height: 0.9;
+}
+
+.wavelength-team-scores {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+}
+
+.wavelength-team-card {
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.7rem;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 0.9rem;
+  background: rgb(255 255 255 / 4%);
+  opacity: 0.72;
+}
+
+.wavelength-team-card strong {
+  font-size: clamp(1.9rem, 4vw, 3rem);
+  line-height: 1;
+}
+
+.wavelength-team-card.team-cyan strong {
+  color: var(--wave-cyan);
+}
+.wavelength-team-card.team-magenta strong {
+  color: var(--wave-magenta);
+}
+
+.wavelength-team-card.is-active {
+  opacity: 1;
+  box-shadow: inset 0 0 1.2rem rgb(255 255 255 / 8%);
+}
+
+.wavelength-result-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+}
+
+.wavelength-result-grid article {
+  display: grid;
+  gap: 0.12rem;
+  min-block-size: 4.2rem;
+  padding: 0.65rem;
+  border-radius: 0.85rem;
+  background: rgb(255 255 255 / 6%);
+}
+
+.wavelength-result-grid strong {
+  font-size: clamp(1.05rem, 2vw, 1.5rem);
+}
+.wavelength-winner {
+  margin-block-start: auto;
+  border-color: rgb(255 225 90 / 45%);
+}
+.wavelength-winner h2 {
+  margin: 0;
+  color: var(--wave-yellow);
+  font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+}
+
+.wavelength-controller-body {
+  display: grid;
+  gap: 1rem;
+}
+
+.wavelength-private-card,
+.wavelength-tuner-form,
+.wavelength-clue-form,
+.wavelength-intercept-form,
+.wavelength-personal-result {
+  padding: 1rem;
+  border: 1px solid rgb(39 243 255 / 28%);
+  border-radius: 1.2rem;
+  background: linear-gradient(145deg, rgb(9 18 47 / 94%), rgb(23 8 42 / 92%));
+  box-shadow: inset 0 1px rgb(255 255 255 / 8%);
+}
+
+.wavelength-private-card > span {
+  color: var(--wave-cyan, #27f3ff);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.wavelength-mini-poles,
+.wavelength-dial-poles {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block: 0.5rem;
+}
+
+.wavelength-mini-poles strong:last-child,
+.wavelength-dial-poles span:last-child {
+  text-align: end;
+}
+
+.wavelength-private-target {
+  position: relative;
+  block-size: 3rem;
+  margin-block: 0.9rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #1bcbe2, #ffe15a, #ff35c8);
+  box-shadow: inset 0 0 1.2rem rgb(0 0 0 / 45%);
+}
+
+.wavelength-private-target i {
+  position: absolute;
+  inset-block: 0.25rem;
+  inset-inline-start: var(--target);
+  inline-size: 0.55rem;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: white;
+  box-shadow:
+    0 0 0 3px #090915,
+    0 0 1rem white;
+}
+
+.wavelength-private-target b {
+  position: absolute;
+  inset-block-end: -1.4rem;
+  inset-inline-start: var(--target);
+  transform: translateX(-50%);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.wavelength-tuner-form,
+.wavelength-clue-form,
+.wavelength-intercept-form {
+  display: grid;
+  gap: 0.85rem;
+}
+.wavelength-tuner-form h3,
+.wavelength-intercept-form h3 {
+  margin: 0;
+}
+.wavelength-tuner-form blockquote {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 800;
+  text-align: center;
+}
+.wavelength-tuner-form output {
+  font-size: 2.6rem;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+}
+
+.wavelength-private-dial {
+  inline-size: 100%;
+  min-block-size: 2.8rem;
+  accent-color: #ffe15a;
+}
+
+.wavelength-confidence,
+.wavelength-intercept-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.45rem;
+}
+
+.wavelength-confidence button,
+.wavelength-intercept-grid button {
+  min-block-size: 3.4rem;
+  padding: 0.45rem;
+  border-color: rgb(255 255 255 / 18%);
+  font-size: 0.78rem;
+}
+
+.wavelength-confidence button[aria-pressed='true'],
+.wavelength-intercept-grid button[aria-pressed='true'] {
+  color: #07111b;
+  border-color: #ffe15a;
+  background: #ffe15a;
+  box-shadow: 0 0 1.2rem rgb(255 225 90 / 32%);
+}
+
+@keyframes wavelength-energy {
+  from {
+    transform: translateX(-2%) scaleX(0.94);
+    opacity: 0.35;
+  }
+  to {
+    transform: translateX(2%) scaleX(1.04);
+    opacity: 0.82;
+  }
+}
+
+@keyframes wavelength-clue-arrive {
+  from {
+    transform: translateY(-0.7rem) scale(0.94);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes wavelength-target-reveal {
+  from {
+    transform: translateX(-50%) scaleX(0.05);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) scaleX(1);
+    opacity: 1;
+  }
+}
+
+@keyframes wavelength-lock-drop {
+  from {
+    transform: translate(-50%, -45%);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes wavelength-marker-pop {
+  from {
+    transform: translateX(-50%) scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 900px) {
+  .wavelength-stage {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .wavelength-telemetry {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-block-size: 31vh;
+  }
+
+  .wavelength-result-grid {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (max-width: 620px) {
+  .wavelength-stage {
+    padding: 0.45rem;
+    gap: 0.45rem;
+  }
+  .wavelength-command-panel {
+    padding: 0.75rem;
+  }
+  .wavelength-telemetry {
+    grid-template-columns: 1fr 1fr;
+  }
+  .wavelength-mode-badge {
+    display: none;
+  }
+  .wavelength-spectrum {
+    margin-inline: 0.25rem;
+  }
+  .wavelength-stage-poles {
+    padding-inline: 0.25rem;
+  }
+  .wavelength-confidence,
+  .wavelength-intercept-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wavelength-energy-field,
+  .wavelength-clue.is-live,
+  .wavelength-target-window,
+  .wavelength-consensus-lock,
+  .wavelength-player-marker {
+    animation: none;
+  }
+}

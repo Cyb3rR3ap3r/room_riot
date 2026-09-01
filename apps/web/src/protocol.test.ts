@@ -22,6 +22,7 @@ const lobbySnapshot = {
       contentMode: 'standard',
       promptMode: 'default',
       drawnOutMode: 'classic',
+      wavelengthMode: 'signal-clash',
     },
     players: [],
     readyPlayerIds: [],
@@ -39,7 +40,7 @@ test('accepts a compatible public snapshot and rejects unknown fields', () => {
 });
 
 test('returns a safe refresh message for an incompatible protocol version', () => {
-  const result = parseRoomSnapshot({ ...lobbySnapshot, protocolVersion: 3 });
+  const result = parseRoomSnapshot({ ...lobbySnapshot, protocolVersion: 2 });
   assert.equal(result.ok, false);
   if (!result.ok) {
     assert.equal(result.error, 'incompatible-version');

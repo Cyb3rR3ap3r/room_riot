@@ -87,6 +87,48 @@
       "answerShape": "visual-scene",
       "riskTags": ["adult-themes"],
       "curatedPromptCount": 25
+    },
+    "blank-line/family": {
+      "categories": ["creatures", "objects", "places", "actions", "wildcards"],
+      "audience": "general",
+      "answerShape": "visual-topic",
+      "riskTags": [],
+      "curatedPromptCount": 100
+    },
+    "blank-line/standard": {
+      "categories": ["creatures", "objects", "places", "actions", "wildcards"],
+      "audience": "general",
+      "answerShape": "visual-topic",
+      "riskTags": [],
+      "curatedPromptCount": 100
+    },
+    "blank-line/after-dark": {
+      "categories": ["creatures", "objects", "places", "actions", "wildcards"],
+      "audience": "adults",
+      "answerShape": "visual-topic",
+      "riskTags": ["adult-themes"],
+      "curatedPromptCount": 100
+    },
+    "wavelength/family": {
+      "categories": ["routines", "things", "culture", "social", "imagination"],
+      "audience": "general",
+      "answerShape": "spectrum-pair",
+      "riskTags": [],
+      "curatedPromptCount": 100
+    },
+    "wavelength/standard": {
+      "categories": ["routines", "things", "culture", "social", "imagination"],
+      "audience": "general",
+      "answerShape": "spectrum-pair",
+      "riskTags": [],
+      "curatedPromptCount": 100
+    },
+    "wavelength/after-dark": {
+      "categories": ["routines", "things", "culture", "social", "imagination"],
+      "audience": "adults",
+      "answerShape": "spectrum-pair",
+      "riskTags": ["adult-themes"],
+      "curatedPromptCount": 100
     }
   }
 }

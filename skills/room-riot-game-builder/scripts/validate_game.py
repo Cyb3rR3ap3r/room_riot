@@ -112,6 +112,11 @@ def validate_pack(
             continue
         prompt_id = prompt.get("id")
         text = prompt.get("text")
+        if text is None:
+            left = prompt.get("left")
+            right = prompt.get("right")
+            if isinstance(left, str) and left.strip() and isinstance(right, str) and right.strip():
+                text = f"{left} | {right}"
         if not isinstance(prompt_id, str) or not prompt_id.strip():
             failures.append(f"{label} has a missing/empty string id")
         else:

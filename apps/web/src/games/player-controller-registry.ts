@@ -1,10 +1,13 @@
 import type { SupportedGameId } from '@room-riot/contracts';
+import type { BlankLinePlayerView } from '@room-riot/blank-line';
 import type { DrawnOutPlayerView } from '@room-riot/drawn-out';
 import type { GroupthinkPlayerView } from '@room-riot/groupthink';
 import type { HotTakePlayerView } from '@room-riot/hot-take';
 import type { SuspectPlayerView } from '@room-riot/suspect';
+import type { WavelengthPlayerView } from '@room-riot/wavelength';
 
 import type { PlayerGameView, RoomSnapshot } from '../protocol.js';
+import { renderBlankLinePlayerController } from './blank-line/player-controller.js';
 import { renderDrawnOutPlayerController } from './drawn-out/player-controller.js';
 import { renderGroupthinkPlayerController } from './groupthink/player-controller.js';
 import { renderHotTakePlayerController } from './hot-take/player-controller.js';
@@ -15,12 +18,15 @@ import type {
 } from './player-controller.js';
 import type { PublicGameViewById } from './public-stage-registry.js';
 import { renderSuspectPlayerController } from './suspect/player-controller.js';
+import { renderWavelengthPlayerController } from './wavelength/player-controller.js';
 
 export interface PlayerGameViewById {
   readonly groupthink: GroupthinkPlayerView;
   readonly 'hot-take': HotTakePlayerView;
   readonly suspect: SuspectPlayerView;
   readonly 'drawn-out': DrawnOutPlayerView;
+  readonly 'blank-line': BlankLinePlayerView;
+  readonly wavelength: WavelengthPlayerView;
 }
 
 export interface PlayerControllerRenderer<K extends SupportedGameId> {
@@ -80,6 +86,14 @@ export const PLAYER_CONTROLLER_RENDERERS: PlayerControllerRendererRegistry = {
   'drawn-out': adaptPlayerControllerRenderer({
     gameId: 'drawn-out',
     render: renderDrawnOutPlayerController,
+  }),
+  'blank-line': adaptPlayerControllerRenderer({
+    gameId: 'blank-line',
+    render: renderBlankLinePlayerController,
+  }),
+  wavelength: adaptPlayerControllerRenderer({
+    gameId: 'wavelength',
+    render: renderWavelengthPlayerController,
   }),
 };
 

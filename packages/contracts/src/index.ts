@@ -31,11 +31,21 @@ export const GameIdSchema = z
   .regex(/^[a-z][a-z0-9-]{1,31}$/, 'Game IDs must be lowercase kebab-case.');
 export type GameId = z.infer<typeof GameIdSchema>;
 
-export const SupportedGameIdSchema = z.enum(['groupthink', 'hot-take', 'suspect', 'drawn-out']);
+export const SupportedGameIdSchema = z.enum([
+  'groupthink',
+  'hot-take',
+  'suspect',
+  'drawn-out',
+  'blank-line',
+  'wavelength',
+]);
 export type SupportedGameId = z.infer<typeof SupportedGameIdSchema>;
 
 export const DrawnOutModeSchema = z.enum(['classic', 'telephone', 'fake-artist']);
 export type DrawnOutMode = z.infer<typeof DrawnOutModeSchema>;
+
+export const WavelengthModeSchema = z.enum(['open-channel', 'signal-clash']);
+export type WavelengthMode = z.infer<typeof WavelengthModeSchema>;
 
 export interface GamePlayerLimits {
   readonly minimum: number;
@@ -56,6 +66,8 @@ export const GAME_PLAYER_LIMITS = {
     telephone: { minimum: 3, recommended: 4, maximum: 10 },
     'fake-artist': { minimum: 3, recommended: 5, maximum: 10 },
   },
+  'blank-line': { minimum: 3, recommended: 5, maximum: 10 },
+  wavelength: { minimum: 2, recommended: 6, maximum: 32 },
 } as const satisfies Record<
   SupportedGameId,
   GamePlayerLimits | Record<DrawnOutMode, GamePlayerLimits>
@@ -99,6 +111,7 @@ export const RoomSettingsSchema = z
     contentMode: ContentModeSchema.default('standard'),
     promptMode: PromptModeSchema.default('default'),
     drawnOutMode: DrawnOutModeSchema.default('classic'),
+    wavelengthMode: WavelengthModeSchema.default('signal-clash'),
   })
   .strict();
 
@@ -354,7 +367,7 @@ export type EventResponse<T extends object> = ({ readonly ok: true } & T) | Even
 export const DEFAULT_ROOM_SETTINGS: RoomSettings = RoomSettingsSchema.parse({});
 
 /** Increment when a deployed client and server can no longer safely exchange snapshots. */
-export const ROOM_RIOT_PROTOCOL_VERSION = 2 as const;
+export const ROOM_RIOT_PROTOCOL_VERSION = 3 as const;
 export const ProtocolVersionSchema = z.literal(ROOM_RIOT_PROTOCOL_VERSION);
 export type ProtocolVersion = z.infer<typeof ProtocolVersionSchema>;
 
@@ -607,11 +620,169 @@ export const DrawnOutPlayerViewSchema = z
   })
   .strict();
 
+export const BlankLineStatusSchema = z.enum(['drawing', 'voting', 'results', 'complete']);
+
+const BlankLineStrokeEntrySchema = z
+  .object({
+    playerId: PlayerIdSchema,
+    turnIndex: z.number().int().nonnegative(),
+    circuit: z.number().int().min(1).max(2),
+    stroke: DrawingStrokeSchema,
+  })
+  .strict();
+
+const BlankLineVoteSummarySchema = z
+  .object({
+    playerId: PlayerIdSchema,
+    count: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export const BlankLinePublicViewSchema = z
+  .object({
+    id: z.literal('blank-line'),
+    status: BlankLineStatusSchema,
+    ...RoundFieldsSchema,
+    prompt: z.string().min(1).max(180).nullable(),
+    promptId: z.string().min(1).nullable(),
+    deadlineAt: DeadlineSchema,
+    activePlayerId: PlayerIdSchema.nullable(),
+    nextPlayerIds: z.array(PlayerIdSchema).max(2),
+    playerOrder: z.array(PlayerIdSchema),
+    circuit: z.number().int().min(1).max(2),
+    totalCircuits: z.literal(2),
+    turnIndex: z.number().int().nonnegative(),
+    totalTurns: z.number().int().nonnegative(),
+    drawing: DrawingDataSchema,
+    strokeTimeline: z.array(BlankLineStrokeEntrySchema),
+    submittedCount: z.number().int().nonnegative(),
+    totalPlayers: z.number().int().nonnegative(),
+    blankPlayerId: PlayerIdSchema.nullable(),
+    blankCaught: z.boolean().nullable(),
+    voteSummary: z.array(BlankLineVoteSummarySchema),
+    roundScores: z.array(RoundScoreSchema),
+  })
+  .strict();
+
+export const BlankLinePlayerViewSchema = z
+  .object({
+    id: z.literal('blank-line'),
+    status: BlankLineStatusSchema,
+    ...RoundFieldsSchema,
+    deadlineAt: DeadlineSchema,
+    task: z.enum(['draw', 'vote', 'wait']),
+    instruction: z.string().min(1),
+    privatePrompt: z.string().min(1).max(180).nullable(),
+    isBlank: z.boolean(),
+    isActive: z.boolean(),
+    hasSubmitted: z.boolean(),
+    drawing: DrawingDataSchema,
+    candidatePlayerIds: z.array(PlayerIdSchema),
+    ownVotePlayerId: PlayerIdSchema.nullable(),
+  })
+  .strict();
+
+export const WavelengthStatusSchema = z.enum([
+  'clue',
+  'tuning',
+  'intercept',
+  'results',
+  'complete',
+]);
+export const WavelengthTeamIdSchema = z.enum(['cyan', 'magenta']);
+export const WavelengthInterceptSchema = z.enum(['low', 'locked', 'high']);
+
+const WavelengthMarkerSchema = z
+  .object({
+    playerId: PlayerIdSchema,
+    position: z.number().int().min(0).max(100),
+    confidence: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  })
+  .strict();
+
+const WavelengthResultSchema = z
+  .object({
+    target: z.number().int().min(0).max(100),
+    consensus: z.number().int().min(0).max(100),
+    distance: z.number().int().min(0).max(100),
+    spread: z.number().int().min(0).max(100).nullable(),
+    accuracyPoints: z.number().int().min(0).max(5),
+    syncBonus: z.number().int().min(0).max(1),
+    activeTeamPoints: z.number().int().min(0).max(6),
+    interceptPrediction: WavelengthInterceptSchema.nullable(),
+    interceptOutcome: WavelengthInterceptSchema,
+    interceptCorrect: z.boolean(),
+    interceptPoints: z.number().int().min(0).max(2),
+  })
+  .strict();
+
+const WavelengthTeamsSchema = z
+  .object({ cyan: z.array(PlayerIdSchema), magenta: z.array(PlayerIdSchema) })
+  .strict();
+
+const WavelengthTeamScoresSchema = z
+  .object({ cyan: z.number().int().nonnegative(), magenta: z.number().int().nonnegative() })
+  .strict();
+
+export const WavelengthPublicViewSchema = z
+  .object({
+    id: z.literal('wavelength'),
+    mode: WavelengthModeSchema,
+    status: WavelengthStatusSchema,
+    ...RoundFieldsSchema,
+    totalPlayers: z.number().int().min(0).max(32),
+    promptId: z.string().min(1).max(80),
+    leftPole: z.string().min(1).max(80),
+    rightPole: z.string().min(1).max(80),
+    clue: z.string().min(1).max(80).nullable(),
+    deadlineAt: DeadlineSchema,
+    teams: WavelengthTeamsSchema,
+    activeTeamId: WavelengthTeamIdSchema.nullable(),
+    broadcasterId: PlayerIdSchema,
+    receiverIds: z.array(PlayerIdSchema),
+    interceptorIds: z.array(PlayerIdSchema),
+    submittedCount: z.number().int().nonnegative(),
+    expectedCount: z.number().int().nonnegative(),
+    target: z.number().int().min(0).max(100).nullable(),
+    consensus: z.number().int().min(0).max(100).nullable(),
+    markers: z.array(WavelengthMarkerSchema),
+    result: WavelengthResultSchema.nullable(),
+    roomScore: z.number().int().nonnegative(),
+    teamScores: WavelengthTeamScoresSchema,
+    roundScores: z.array(RoundScoreSchema),
+  })
+  .strict();
+
+export const WavelengthPlayerViewSchema = z
+  .object({
+    id: z.literal('wavelength'),
+    mode: WavelengthModeSchema,
+    status: WavelengthStatusSchema,
+    ...RoundFieldsSchema,
+    leftPole: z.string().min(1).max(80),
+    rightPole: z.string().min(1).max(80),
+    clue: z.string().min(1).max(80).nullable(),
+    deadlineAt: DeadlineSchema,
+    teamId: WavelengthTeamIdSchema.nullable(),
+    activeTeamId: WavelengthTeamIdSchema.nullable(),
+    broadcasterId: PlayerIdSchema,
+    task: z.enum(['clue', 'tune', 'intercept', 'wait']),
+    instruction: z.string().min(1),
+    privateTarget: z.number().int().min(0).max(100).nullable(),
+    ownMarker: WavelengthMarkerSchema.nullable(),
+    ownIntercept: WavelengthInterceptSchema.nullable(),
+    isGuestReceiver: z.boolean(),
+    hasSubmitted: z.boolean(),
+  })
+  .strict();
+
 const PublicGameViewBaseSchema = z.discriminatedUnion('id', [
   GroupthinkPublicViewSchema,
   HotTakePublicViewSchema,
   SuspectPublicViewSchema,
   DrawnOutPublicViewSchema,
+  BlankLinePublicViewSchema,
+  WavelengthPublicViewSchema,
 ]);
 
 export const PublicGameViewSchema = PublicGameViewBaseSchema.superRefine((view, context) => {
@@ -634,6 +805,19 @@ export const PublicGameViewSchema = PublicGameViewBaseSchema.superRefine((view, 
     if (view.fakeArtistPlayerId !== null) addPrivacyIssue(context, 'fakeArtistPlayerId');
     requireEmptyPublicFields(view, ['chain', 'guesses', 'votes', 'roundScores'], context);
   }
+  if (view.id === 'blank-line' && view.status !== 'results' && view.status !== 'complete') {
+    if (view.prompt !== null) addPrivacyIssue(context, 'prompt');
+    if (view.promptId !== null) addPrivacyIssue(context, 'promptId');
+    if (view.blankPlayerId !== null) addPrivacyIssue(context, 'blankPlayerId');
+    if (view.blankCaught !== null) addPrivacyIssue(context, 'blankCaught');
+    requireEmptyPublicFields(view, ['voteSummary', 'roundScores'], context);
+  }
+  if (view.id === 'wavelength' && view.status !== 'results' && view.status !== 'complete') {
+    if (view.target !== null) addPrivacyIssue(context, 'target');
+    if (view.consensus !== null) addPrivacyIssue(context, 'consensus');
+    if (view.result !== null) addPrivacyIssue(context, 'result');
+    requireEmptyPublicFields(view, ['markers', 'roundScores'], context);
+  }
 });
 export type PublicGameView = z.infer<typeof PublicGameViewSchema>;
 
@@ -642,6 +826,8 @@ export const PlayerGameViewSchema = z.discriminatedUnion('id', [
   HotTakePlayerViewSchema,
   SuspectPlayerViewSchema,
   DrawnOutPlayerViewSchema,
+  BlankLinePlayerViewSchema,
+  WavelengthPlayerViewSchema,
 ]);
 export type PlayerGameView = z.infer<typeof PlayerGameViewSchema>;
 

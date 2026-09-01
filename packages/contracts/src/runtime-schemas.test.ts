@@ -78,6 +78,29 @@ const publicViews = [
     totalPlayers: 4,
     roundScores: [],
   },
+  {
+    id: 'blank-line',
+    status: 'drawing',
+    ...round,
+    prompt: null,
+    promptId: null,
+    deadlineAt: 10,
+    activePlayerId: playerId,
+    nextPlayerIds: ['player-2'],
+    playerOrder: [playerId, 'player-2', 'player-3'],
+    circuit: 1,
+    totalCircuits: 2,
+    turnIndex: 0,
+    totalTurns: 6,
+    drawing: { strokes: [] },
+    strokeTimeline: [],
+    submittedCount: 0,
+    totalPlayers: 3,
+    blankPlayerId: null,
+    blankCaught: null,
+    voteSummary: [],
+    roundScores: [],
+  },
 ] as const;
 
 const privateViews = [
@@ -138,6 +161,21 @@ const privateViews = [
     ownGuess: null,
     ownVotePlayerId: null,
   },
+  {
+    id: 'blank-line',
+    status: 'drawing',
+    ...round,
+    deadlineAt: 10,
+    task: 'draw',
+    instruction: 'Add one useful stroke.',
+    privatePrompt: null,
+    isBlank: true,
+    isActive: true,
+    hasSubmitted: false,
+    drawing: { strokes: [] },
+    candidatePlayerIds: [],
+    ownVotePlayerId: null,
+  },
 ] as const;
 
 test('parses every discriminated public and private game view', () => {
@@ -158,7 +196,7 @@ test('requires room identity, protocol version, and revision on private state en
     false,
   );
   assert.equal(
-    PlayerStateEnvelopeSchema.safeParse({ ...envelope, protocolVersion: 3 }).success,
+    PlayerStateEnvelopeSchema.safeParse({ ...envelope, protocolVersion: 2 }).success,
     false,
   );
 });
@@ -187,7 +225,7 @@ test('rejects incompatible and malformed room snapshots', () => {
     roster: { roundPlayerIds: [], queuedPlayerIds: [] },
   };
   assert.equal(RoomSnapshotSchema.parse(snapshot).protocolVersion, ROOM_RIOT_PROTOCOL_VERSION);
-  assert.equal(RoomSnapshotSchema.safeParse({ ...snapshot, protocolVersion: 3 }).success, false);
+  assert.equal(RoomSnapshotSchema.safeParse({ ...snapshot, protocolVersion: 2 }).success, false);
   assert.equal(RoomSnapshotSchema.safeParse({ ...snapshot, revision: 0 }).success, false);
   assert.equal(
     RoomSnapshotSchema.safeParse({

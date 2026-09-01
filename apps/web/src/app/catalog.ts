@@ -113,6 +113,52 @@ export const GAME_CATALOG: readonly GameDefinition[] = [
     controlRoom: 'Sketch Disaster Control',
     audience: 'the art critics',
   },
+  {
+    id: 'blank-line',
+    label: 'Blank Line',
+    kicker: 'Draw like you know',
+    description:
+      'Build one shared drawing, one stroke at a time, while one player draws completely blind.',
+    example: 'Everyone sees “a lighthouse” except the Blank. Watch every line and find the bluff.',
+    players: getGamePlayerRangeLabel('blank-line'),
+    rounds: '5 rounds',
+    pace: 'Drawing · deduction',
+    duration: '15–25 min',
+    contentRating: 'Host-curated intensity',
+    controller: 'One-stroke drawing + voting',
+    mechanics: ['Draw one line', 'Read the room', 'Expose the Blank'],
+    icon: '/assets/blank-line-icon-v1.webp',
+    iconSrcSet: '/assets/blank-line-icon-v1-256.webp 256w, /assets/blank-line-icon-v1.webp 512w',
+    background: '/assets/blank-line-bg-v1.webp',
+    stageArt: '/assets/blank-line-stage-v1.webp',
+    stageArtSrcSet:
+      '/assets/blank-line-stage-v1-480.webp 480w, /assets/blank-line-stage-v1.webp 1024w',
+    controlRoom: 'Blank Line Studio',
+    audience: 'the suspicious artists',
+  },
+  {
+    id: 'wavelength',
+    label: 'WaveLength',
+    kicker: 'Tune into the room',
+    description:
+      'Decode one clue, lock private signal markers, and see whether the room lands in sync.',
+    example: 'Between “barely awake” and “ready for anything,” where does “Sunday sunrise” land?',
+    players: getGamePlayerRangeLabel('wavelength'),
+    rounds: '7 rounds',
+    pace: 'Debate · calibration',
+    duration: '15–25 min',
+    contentRating: 'Host-curated intensity',
+    controller: 'Private signal dial + confidence',
+    mechanics: ['Broadcast a clue', 'Tune privately', 'Intercept the drift'],
+    icon: '/assets/wavelength-icon-v1.webp',
+    iconSrcSet: '/assets/wavelength-icon-v1-256.webp 256w, /assets/wavelength-icon-v1.webp 512w',
+    background: '/assets/wavelength-bg-v1.webp',
+    stageArt: '/assets/wavelength-stage-v1.webp',
+    stageArtSrcSet:
+      '/assets/wavelength-stage-v1-480.webp 480w, /assets/wavelength-stage-v1.webp 1024w',
+    controlRoom: 'Signal Command',
+    audience: 'the live receivers',
+  },
 ];
 
 export function getGamePlayerRangeLabel(

@@ -4,7 +4,7 @@ import { URL, fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const manifest = JSON.parse(readFileSync(join(root, 'games', 'content-manifest.json'), 'utf8'));
-const games = ['groupthink', 'hot-take', 'suspect', 'drawn-out'];
+const games = ['groupthink', 'hot-take', 'suspect', 'drawn-out', 'blank-line', 'wavelength'];
 const modes = ['family', 'standard', 'after-dark'];
 const supportedRoundTypes = new Set([
   'standard',
@@ -52,13 +52,29 @@ for (const game of games) {
     const texts = new Set();
     for (const prompt of prompts) {
       total += 1;
-      const normalized = prompt.text.trim().replace(/\s+/g, ' ').toLowerCase();
+      const promptText =
+        metadata.answerShape === 'spectrum-pair'
+          ? `${prompt.left ?? ''} | ${prompt.right ?? ''}`
+          : (prompt.text ?? '');
+      const normalized = promptText.trim().replace(/\s+/g, ' ').toLowerCase();
       if (!prompt.id || ids.has(prompt.id)) failures.push(`${key}: duplicate/missing id`);
       if (!normalized || texts.has(normalized)) failures.push(`${key}: duplicate/empty text`);
       if (normalized.length < 8 || normalized.length > 240) {
         failures.push(`${key}/${prompt.id}: prompt length must be between 8 and 240 characters`);
       }
-      if (forbidden.test(prompt.text)) failures.push(`${key}/${prompt.id}: prohibited safety term`);
+      if (metadata.answerShape === 'spectrum-pair') {
+        if (
+          !prompt.left?.trim() ||
+          !prompt.right?.trim() ||
+          prompt.left.trim() === prompt.right.trim()
+        ) {
+          failures.push(`${key}/${prompt.id}: spectrum poles must be non-empty and distinct`);
+        }
+        if (!metadata.categories.includes(prompt.category)) {
+          failures.push(`${key}/${prompt.id}: unsupported spectrum category`);
+        }
+      }
+      if (forbidden.test(promptText)) failures.push(`${key}/${prompt.id}: prohibited safety term`);
       if (prompt.kind && !['open', 'player-targeted'].includes(prompt.kind)) {
         failures.push(`${key}/${prompt.id}: unsupported prompt kind`);
       }

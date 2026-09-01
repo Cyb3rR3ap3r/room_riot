@@ -1,22 +1,28 @@
 import type { SupportedGameId } from '@room-riot/contracts';
+import type { BlankLinePublicView } from '@room-riot/blank-line';
 import type { DrawnOutPublicView } from '@room-riot/drawn-out';
 import type { PublicRoomState } from '@room-riot/game-engine';
 import type { GroupthinkPublicView } from '@room-riot/groupthink';
 import type { HotTakePublicView } from '@room-riot/hot-take';
 import type { SuspectPublicView } from '@room-riot/suspect';
+import type { WavelengthPublicView } from '@room-riot/wavelength';
 
 import type { RoomSnapshot } from '../protocol.js';
+import { renderBlankLinePublicStage } from './blank-line/public-stage.js';
 import { renderDrawnOutPublicStage } from './drawn-out/public-stage.js';
 import { renderGroupthinkPublicStage } from './groupthink/public-stage.js';
 import { renderHotTakePublicStage } from './hot-take/public-stage.js';
 import type { PublicStageDependencies } from './public-stage.js';
 import { renderSuspectPublicStage } from './suspect/public-stage.js';
+import { renderWavelengthPublicStage } from './wavelength/public-stage.js';
 
 export interface PublicGameViewById {
   readonly groupthink: GroupthinkPublicView;
   readonly 'hot-take': HotTakePublicView;
   readonly suspect: SuspectPublicView;
   readonly 'drawn-out': DrawnOutPublicView;
+  readonly 'blank-line': BlankLinePublicView;
+  readonly wavelength: WavelengthPublicView;
 }
 
 export interface PublicStageRenderer<K extends SupportedGameId> {
@@ -61,6 +67,14 @@ export const PUBLIC_STAGE_RENDERERS: PublicStageRendererRegistry = {
   'hot-take': adaptPublicStageRenderer({ gameId: 'hot-take', render: renderHotTakePublicStage }),
   suspect: adaptPublicStageRenderer({ gameId: 'suspect', render: renderSuspectPublicStage }),
   'drawn-out': adaptPublicStageRenderer({ gameId: 'drawn-out', render: renderDrawnOutPublicStage }),
+  'blank-line': adaptPublicStageRenderer({
+    gameId: 'blank-line',
+    render: renderBlankLinePublicStage,
+  }),
+  wavelength: adaptPublicStageRenderer({
+    gameId: 'wavelength',
+    render: renderWavelengthPublicStage,
+  }),
 };
 
 export function renderPublicGameStage(

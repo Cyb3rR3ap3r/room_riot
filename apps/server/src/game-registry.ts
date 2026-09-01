@@ -16,6 +16,26 @@ import {
   getGamePlayerLimits,
 } from '@room-riot/contracts';
 import {
+  BLANK_LINE_DRAW_DURATION_MS,
+  BLANK_LINE_GAME_ID,
+  BLANK_LINE_VOTING_DURATION_MS,
+  advanceBlankLineRound,
+  createBlankLineSession,
+  expireBlankLineStep,
+  getBlankLinePlayerView,
+  getBlankLinePublicView,
+  loadBlankLinePrompts,
+  revealBlankLineStep,
+  submitBlankLineStroke,
+  submitBlankLineVote,
+} from '@room-riot/blank-line';
+import type {
+  BlankLinePlayerView,
+  BlankLinePrompt,
+  BlankLinePublicView,
+  BlankLineSessionState,
+} from '@room-riot/blank-line';
+import {
   DRAWN_OUT_GAME_ID,
   DRAWN_OUT_GUESS_DURATION_MS,
   DRAWN_OUT_TURN_DURATION_MS,
@@ -95,6 +115,27 @@ import {
   submitSuspectAnswer,
   submitSuspectVote,
 } from '@room-riot/suspect';
+import {
+  WAVELENGTH_CLUE_DURATION_MS,
+  WAVELENGTH_GAME_ID,
+  WAVELENGTH_INTERCEPT_DURATION_MS,
+  WAVELENGTH_TUNING_DURATION_MS,
+  advanceWavelengthRound,
+  createWavelengthSession,
+  expireWavelengthStep,
+  getWavelengthPlayerView,
+  getWavelengthPublicView,
+  loadWavelengthPrompts,
+  revealWavelengthStep,
+  submitWavelengthChoice,
+  submitWavelengthClue,
+} from '@room-riot/wavelength';
+import type {
+  WavelengthPlayerView,
+  WavelengthPrompt,
+  WavelengthPublicView,
+  WavelengthSessionState,
+} from '@room-riot/wavelength';
 import type {
   SuspectPlayerView,
   SuspectPrompt,
@@ -103,26 +144,42 @@ import type {
 } from '@room-riot/suspect';
 
 import {
+  generateBlankLinePrompts,
   generateDrawnOutPrompts,
   generateGroupthinkPrompts,
   generateHotTakePrompts,
   generateSuspectPrompts,
+  generateWavelengthPrompts,
 } from './prompt-generator.js';
 
 export type PublicGameView =
-  GroupthinkPublicView | HotTakePublicView | SuspectPublicView | DrawnOutPublicView;
+  | GroupthinkPublicView
+  | HotTakePublicView
+  | SuspectPublicView
+  | DrawnOutPublicView
+  | BlankLinePublicView
+  | WavelengthPublicView;
 export type PlayerGameView =
-  GroupthinkPlayerView | HotTakePlayerView | SuspectPlayerView | DrawnOutPlayerView;
+  | GroupthinkPlayerView
+  | HotTakePlayerView
+  | SuspectPlayerView
+  | DrawnOutPlayerView
+  | BlankLinePlayerView
+  | WavelengthPlayerView;
 
 export interface GameRuntimeSlots {
   groupthink?: GroupthinkSessionState;
   hotTake?: HotTakeSessionState;
   suspect?: SuspectSessionState;
   drawnOut?: DrawnOutSessionState;
+  blankLine?: BlankLineSessionState;
+  wavelength?: WavelengthSessionState;
   groupthinkPrompts?: readonly GroupthinkPrompt[];
   hotTakePrompts?: readonly HotTakePrompt[];
   suspectPrompts?: readonly SuspectPrompt[];
   drawnOutPrompts?: readonly DrawnOutPrompt[];
+  blankLinePrompts?: readonly BlankLinePrompt[];
+  wavelengthPrompts?: readonly WavelengthPrompt[];
 }
 
 export type GameDurationKey = 'input' | 'voting' | 'alibi' | 'turn' | 'guess';
@@ -264,6 +321,59 @@ export const GAME_REGISTRY_METADATA = {
     integration: {
       workspacePath: 'games/drawn-out',
       clientCatalogId: DRAWN_OUT_GAME_ID,
+    },
+  },
+  'blank-line': {
+    id: BLANK_LINE_GAME_ID,
+    title: 'Blank Line',
+    packageName: '@room-riot/blank-line',
+    playerLimits: GAME_PLAYER_LIMITS['blank-line'],
+    modes: [],
+    contentModes: CONTENT_MODES,
+    promptModes: PROMPT_MODES,
+    durationsMs: {
+      turn: BLANK_LINE_DRAW_DURATION_MS,
+      voting: BLANK_LINE_VOTING_DURATION_MS,
+    },
+    routes: routesFor(BLANK_LINE_GAME_ID),
+    capabilities: {
+      textAnswer: false,
+      targetedAnswer: false,
+      drawing: true,
+      voting: true,
+      alibi: false,
+      aiPromptMode: true,
+    },
+    integration: {
+      workspacePath: 'games/blank-line',
+      clientCatalogId: BLANK_LINE_GAME_ID,
+    },
+  },
+  wavelength: {
+    id: WAVELENGTH_GAME_ID,
+    title: 'WaveLength',
+    packageName: '@room-riot/wavelength',
+    playerLimits: GAME_PLAYER_LIMITS.wavelength,
+    modes: ['open-channel', 'signal-clash'],
+    contentModes: CONTENT_MODES,
+    promptModes: PROMPT_MODES,
+    durationsMs: {
+      input: WAVELENGTH_CLUE_DURATION_MS,
+      turn: WAVELENGTH_TUNING_DURATION_MS,
+      voting: WAVELENGTH_INTERCEPT_DURATION_MS,
+    },
+    routes: routesFor(WAVELENGTH_GAME_ID),
+    capabilities: {
+      textAnswer: true,
+      targetedAnswer: false,
+      drawing: false,
+      voting: true,
+      alibi: false,
+      aiPromptMode: true,
+    },
+    integration: {
+      workspacePath: 'games/wavelength',
+      clientCatalogId: WAVELENGTH_GAME_ID,
     },
   },
 } as const satisfies Record<SupportedGameId, GameRegistryMetadata>;
@@ -746,6 +856,184 @@ const GAME_ADAPTERS = {
       return drawnOutTransition(context.slots.drawnOut);
     },
   },
+  'blank-line': {
+    metadata: GAME_REGISTRY_METADATA['blank-line'],
+    start(context, registry) {
+      const prompts = registry.getBlankLinePrompts(
+        context.settings.contentMode,
+        context.settings.promptMode,
+      );
+      context.slots.blankLinePrompts = prompts;
+      context.slots.blankLine = createBlankLineSession(
+        prompts,
+        context.playerIds,
+        context.settings.roundCount,
+        context.now,
+        registry.duration('blank-line', 'turn'),
+        context.randomizePrompts,
+        registry.previousPromptId('blank-line', context.settings.contentMode),
+      );
+      registry.rememberPrompt(
+        'blank-line',
+        context.settings.contentMode,
+        context.slots.blankLine.prompt.id,
+      );
+      return blankLineRoomPhase(context.slots.blankLine.status);
+    },
+    publicView({ slots }) {
+      return slots.blankLine ? getBlankLinePublicView(slots.blankLine) : null;
+    },
+    playerView({ slots }, playerId) {
+      return slots.blankLine ? getBlankLinePlayerView(slots.blankLine, playerId) : null;
+    },
+    submitAnswer: unsupportedAnswer,
+    submitDrawing(context, registry, playerId, drawing) {
+      context.slots.blankLine = submitBlankLineStroke(
+        requireSlot(context.slots.blankLine, 'Blank Line'),
+        playerId,
+        drawing,
+        context.now,
+        registry.duration('blank-line', 'turn'),
+        registry.duration('blank-line', 'voting'),
+      );
+      return blankLineTransition(context.slots.blankLine);
+    },
+    submitAlibi: unsupportedAlibi,
+    castVote(context, _registry, playerId, choice) {
+      context.slots.blankLine = submitBlankLineVote(
+        requireSlot(context.slots.blankLine, 'Blank Line'),
+        playerId,
+        parsePlayerId(choice),
+        context.now,
+      );
+      return blankLineTransition(context.slots.blankLine);
+    },
+    reveal(context, registry) {
+      context.slots.blankLine = revealBlankLineStep(
+        requireSlot(context.slots.blankLine, 'Blank Line'),
+        context.now,
+        registry.duration('blank-line', 'turn'),
+        registry.duration('blank-line', 'voting'),
+      );
+      return blankLineTransition(context.slots.blankLine);
+    },
+    advance(context, registry, prepare) {
+      const game = requireSlot(context.slots.blankLine, 'Blank Line');
+      const playerIds = prepare(game.roundScores, game.roundNumber < game.totalRounds);
+      context.slots.blankLine = advanceBlankLineRound(
+        game,
+        context.slots.blankLinePrompts ??
+          registry.getBlankLinePrompts(context.settings.contentMode, context.settings.promptMode),
+        playerIds,
+        context.now,
+        registry.duration('blank-line', 'turn'),
+      );
+      return blankLineTransition(context.slots.blankLine);
+    },
+    deadlineAt(slots) {
+      const game = slots.blankLine;
+      return game && !['results', 'complete'].includes(game.status) ? game.deadlineAt : null;
+    },
+    expire(context, registry) {
+      context.slots.blankLine = expireBlankLineStep(
+        requireSlot(context.slots.blankLine, 'Blank Line'),
+        context.now,
+        registry.duration('blank-line', 'turn'),
+        registry.duration('blank-line', 'voting'),
+      );
+      return blankLineTransition(context.slots.blankLine);
+    },
+  },
+  wavelength: {
+    metadata: GAME_REGISTRY_METADATA.wavelength,
+    start(context, registry) {
+      const prompts = registry.getWavelengthPrompts(
+        context.settings.contentMode,
+        context.settings.promptMode,
+      );
+      context.slots.wavelengthPrompts = prompts;
+      context.slots.wavelength = createWavelengthSession(
+        prompts,
+        context.playerIds,
+        context.settings.roundCount,
+        context.settings.wavelengthMode,
+        context.now,
+        registry.duration('wavelength', 'input'),
+        context.randomizePrompts,
+        registry.previousPromptId('wavelength', context.settings.contentMode),
+      );
+      registry.rememberPrompt(
+        'wavelength',
+        context.settings.contentMode,
+        context.slots.wavelength.prompt.id,
+      );
+      return wavelengthRoomPhase(context.slots.wavelength.status);
+    },
+    publicView({ slots }) {
+      return slots.wavelength ? getWavelengthPublicView(slots.wavelength) : null;
+    },
+    playerView({ slots }, playerId) {
+      return slots.wavelength ? getWavelengthPlayerView(slots.wavelength, playerId) : null;
+    },
+    submitAnswer(context, registry, playerId, answer, targetPlayerId) {
+      if (targetPlayerId) throw new Error('WaveLength clues do not accept player targets.');
+      context.slots.wavelength = submitWavelengthClue(
+        requireSlot(context.slots.wavelength, 'WaveLength'),
+        playerId,
+        answer,
+        context.now,
+        registry.duration('wavelength', 'turn'),
+      );
+      return wavelengthTransition(context.slots.wavelength);
+    },
+    submitDrawing: unsupportedDrawing,
+    submitAlibi: unsupportedAlibi,
+    castVote(context, registry, playerId, choice) {
+      context.slots.wavelength = submitWavelengthChoice(
+        requireSlot(context.slots.wavelength, 'WaveLength'),
+        playerId,
+        choice,
+        context.now,
+        registry.duration('wavelength', 'voting'),
+      );
+      return wavelengthTransition(context.slots.wavelength);
+    },
+    reveal(context, registry) {
+      context.slots.wavelength = revealWavelengthStep(
+        requireSlot(context.slots.wavelength, 'WaveLength'),
+        context.now,
+        registry.duration('wavelength', 'turn'),
+        registry.duration('wavelength', 'voting'),
+      );
+      return wavelengthTransition(context.slots.wavelength);
+    },
+    advance(context, registry, prepare) {
+      const game = requireSlot(context.slots.wavelength, 'WaveLength');
+      const playerIds = prepare(game.roundScores, game.roundNumber < game.totalRounds);
+      context.slots.wavelength = advanceWavelengthRound(
+        game,
+        context.slots.wavelengthPrompts ??
+          registry.getWavelengthPrompts(context.settings.contentMode, context.settings.promptMode),
+        playerIds,
+        context.now,
+        registry.duration('wavelength', 'input'),
+      );
+      return wavelengthTransition(context.slots.wavelength);
+    },
+    deadlineAt(slots) {
+      const game = slots.wavelength;
+      return game && !['results', 'complete'].includes(game.status) ? game.deadlineAt : null;
+    },
+    expire(context, registry) {
+      context.slots.wavelength = expireWavelengthStep(
+        requireSlot(context.slots.wavelength, 'WaveLength'),
+        context.now,
+        registry.duration('wavelength', 'turn'),
+        registry.duration('wavelength', 'voting'),
+      );
+      return wavelengthTransition(context.slots.wavelength);
+    },
+  },
 } as const satisfies Record<SupportedGameId, GameAdapter>;
 
 export interface ServerGameRegistryOptions {
@@ -757,6 +1045,11 @@ export interface ServerGameRegistryOptions {
   readonly suspectVotingDurationMs?: number;
   readonly drawnOutTurnDurationMs?: number;
   readonly drawnOutGuessDurationMs?: number;
+  readonly blankLineDrawDurationMs?: number;
+  readonly blankLineVotingDurationMs?: number;
+  readonly wavelengthClueDurationMs?: number;
+  readonly wavelengthTuningDurationMs?: number;
+  readonly wavelengthInterceptDurationMs?: number;
 }
 
 export class ServerGameRegistry {
@@ -782,6 +1075,15 @@ export class ServerGameRegistry {
       'drawn-out': {
         turn: options.drawnOutTurnDurationMs ?? DRAWN_OUT_TURN_DURATION_MS,
         guess: options.drawnOutGuessDurationMs ?? DRAWN_OUT_GUESS_DURATION_MS,
+      },
+      'blank-line': {
+        turn: options.blankLineDrawDurationMs ?? BLANK_LINE_DRAW_DURATION_MS,
+        voting: options.blankLineVotingDurationMs ?? BLANK_LINE_VOTING_DURATION_MS,
+      },
+      wavelength: {
+        input: options.wavelengthClueDurationMs ?? WAVELENGTH_CLUE_DURATION_MS,
+        turn: options.wavelengthTuningDurationMs ?? WAVELENGTH_TUNING_DURATION_MS,
+        voting: options.wavelengthInterceptDurationMs ?? WAVELENGTH_INTERCEPT_DURATION_MS,
       },
     };
     Object.values(this.configuredDurations).forEach((durations) =>
@@ -934,6 +1236,22 @@ export class ServerGameRegistry {
     return this.cachedPrompts('drawn-out', contentMode, loadDrawnOutPrompts);
   }
 
+  getBlankLinePrompts(
+    contentMode: ContentMode,
+    promptMode: PromptMode,
+  ): readonly BlankLinePrompt[] {
+    if (promptMode === 'ai') return generateBlankLinePrompts(contentMode);
+    return this.cachedPrompts('blank-line', contentMode, loadBlankLinePrompts);
+  }
+
+  getWavelengthPrompts(
+    contentMode: ContentMode,
+    promptMode: PromptMode,
+  ): readonly WavelengthPrompt[] {
+    if (promptMode === 'ai') return generateWavelengthPrompts(contentMode);
+    return this.cachedPrompts('wavelength', contentMode, loadWavelengthPrompts);
+  }
+
   private cachedPrompts<T>(
     gameId: SupportedGameId,
     contentMode: ContentMode,
@@ -1001,10 +1319,28 @@ function clearRuntimeSlots(slots: GameRuntimeSlots): void {
   delete slots.suspectPrompts;
   delete slots.drawnOut;
   delete slots.drawnOutPrompts;
+  delete slots.blankLine;
+  delete slots.blankLinePrompts;
+  delete slots.wavelength;
+  delete slots.wavelengthPrompts;
 }
 
 function drawnOutRoomPhase(status: DrawnOutSessionState['status']): RoomPhase {
   if (status === 'guessing' || status === 'fake-voting') return 'voting';
+  if (status === 'results') return 'results';
+  if (status === 'complete') return 'winner';
+  return 'input';
+}
+
+function blankLineRoomPhase(status: BlankLineSessionState['status']): RoomPhase {
+  if (status === 'voting') return 'voting';
+  if (status === 'results') return 'results';
+  if (status === 'complete') return 'winner';
+  return 'input';
+}
+
+function wavelengthRoomPhase(status: WavelengthSessionState['status']): RoomPhase {
+  if (status === 'intercept') return 'voting';
   if (status === 'results') return 'results';
   if (status === 'complete') return 'winner';
   return 'input';
@@ -1054,9 +1390,27 @@ function drawnOutTransition(game: DrawnOutSessionState): GameTransition {
   };
 }
 
+function blankLineTransition(game: BlankLineSessionState): GameTransition {
+  return {
+    phase: blankLineRoomPhase(game.status),
+    scheduleDeadline: game.status === 'drawing' || game.status === 'voting',
+  };
+}
+
+function wavelengthTransition(game: WavelengthSessionState): GameTransition {
+  return {
+    phase: wavelengthRoomPhase(game.status),
+    scheduleDeadline: !['results', 'complete'].includes(game.status),
+  };
+}
+
 function requireSlot<T>(slot: T | undefined, title: string): T {
   if (!slot) throw new Error(`This room is not running ${title}.`);
   return slot;
+}
+
+function unsupportedAnswer(..._args: Parameters<GameAdapter['submitAnswer']>): GameTransition {
+  throw new Error('This game does not accept text answers.');
 }
 
 function unsupportedDrawing(..._args: Parameters<GameAdapter['submitDrawing']>): GameTransition {

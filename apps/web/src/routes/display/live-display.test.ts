@@ -7,7 +7,7 @@ import { createLiveDisplayDensityViewModel } from './live-display.js';
 const VIEWPORT = { width: 1920, height: 1080 } as const;
 
 test('maps every production game result to deterministic stage density items', () => {
-  const games = ['groupthink', 'hot-take', 'suspect', 'drawn-out'] as const;
+  const games = ['groupthink', 'hot-take', 'suspect', 'drawn-out', 'blank-line'] as const;
   for (const gameId of games) {
     const fixture = createGamePhaseFixture(gameId, 'results', 'maximum');
     const first = createLiveDisplayDensityViewModel(fixture.snapshot, VIEWPORT);

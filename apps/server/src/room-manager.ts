@@ -19,6 +19,10 @@ import type {
   SessionToken,
   SupportedGameId,
 } from '@room-riot/contracts';
+import { revealBlankLineStep } from '@room-riot/blank-line';
+import type { BlankLineSessionState } from '@room-riot/blank-line';
+import { revealWavelengthStep } from '@room-riot/wavelength';
+import type { WavelengthSessionState } from '@room-riot/wavelength';
 import { DRAWN_OUT_GAME_ID, revealDrawnOutStep } from '@room-riot/drawn-out';
 import type { DrawnOutSessionState } from '@room-riot/drawn-out';
 import {
@@ -176,6 +180,11 @@ export interface RoomManagerOptions {
   readonly suspectVotingDurationMs?: number;
   readonly drawnOutTurnDurationMs?: number;
   readonly drawnOutGuessDurationMs?: number;
+  readonly blankLineDrawDurationMs?: number;
+  readonly blankLineVotingDurationMs?: number;
+  readonly wavelengthClueDurationMs?: number;
+  readonly wavelengthTuningDurationMs?: number;
+  readonly wavelengthInterceptDurationMs?: number;
   readonly maxRooms?: number;
   readonly roomIdleTtlMs?: number;
   readonly cleanupIntervalMs?: number;
@@ -577,10 +586,14 @@ export class RoomManager {
     delete session.hotTake;
     delete session.suspect;
     delete session.drawnOut;
+    delete session.blankLine;
+    delete session.wavelength;
     delete session.groupthinkPrompts;
     delete session.hotTakePrompts;
     delete session.suspectPrompts;
     delete session.drawnOutPrompts;
+    delete session.blankLinePrompts;
+    delete session.wavelengthPrompts;
     return this.getSnapshot(session);
   }
 
@@ -1121,7 +1134,14 @@ export class RoomManager {
   }
 
   private shiftGameDeadlines(session: RoomSession, elapsedMs: number): void {
-    const keys = ['groupthink', 'hotTake', 'suspect', 'drawnOut'] as const;
+    const keys = [
+      'groupthink',
+      'hotTake',
+      'suspect',
+      'drawnOut',
+      'blankLine',
+      'wavelength',
+    ] as const;
     keys.forEach((key) => {
       const game = session[key];
       if (!game) return;
@@ -1382,6 +1402,8 @@ export class RoomManager {
     }
 
     if (session.drawnOut) this.reconcileRemovedDrawnOutPlayer(session, playerId, now);
+    if (session.blankLine) this.reconcileRemovedBlankLinePlayer(session, playerId, now);
+    if (session.wavelength) this.reconcileRemovedWavelengthPlayer(session, playerId, now);
   }
 
   private reconcileRemovedDrawnOutPlayer(
@@ -1442,6 +1464,85 @@ export class RoomManager {
 
     session.drawnOut = game;
     session.state = setPhase(session.state, drawnOutRoomPhase(game.status), now);
+    if (game.status === 'results') this.clearGameDeadline(session.state.roomCode);
+    else this.scheduleCurrentGameDeadline(session.state.roomCode, session);
+  }
+
+  private reconcileRemovedBlankLinePlayer(
+    session: RoomSession,
+    playerId: PlayerId,
+    now: number,
+  ): void {
+    let game = session.blankLine;
+    if (!game) return;
+    const activePlayers = this.getRoundPlayerIds(session);
+    if (activePlayers.length < 3) return;
+
+    for (let skipped = 0; skipped < game.playerOrder.length * 2; skipped += 1) {
+      const activePlayerId =
+        game.status === 'drawing'
+          ? game.playerOrder[game.turnIndex % game.playerOrder.length]
+          : undefined;
+      if (
+        !activePlayerId ||
+        (activePlayerId !== playerId && activePlayers.includes(activePlayerId))
+      ) {
+        break;
+      }
+      game = revealBlankLineStep(
+        game,
+        now,
+        this.gameRegistry.duration('blank-line', 'turn'),
+        this.gameRegistry.duration('blank-line', 'voting'),
+      );
+    }
+    const currentVotes = game.votes;
+    if (
+      game.status === 'voting' &&
+      activePlayers.every((activePlayerId) => currentVotes[activePlayerId] !== undefined)
+    ) {
+      game = revealBlankLineStep(
+        game,
+        now,
+        this.gameRegistry.duration('blank-line', 'turn'),
+        this.gameRegistry.duration('blank-line', 'voting'),
+      );
+    }
+    session.blankLine = game;
+    session.state = setPhase(session.state, blankLineRoomPhase(game.status), now);
+    if (game.status === 'results') this.clearGameDeadline(session.state.roomCode);
+    else this.scheduleCurrentGameDeadline(session.state.roomCode, session);
+  }
+
+  private reconcileRemovedWavelengthPlayer(
+    session: RoomSession,
+    playerId: PlayerId,
+    now: number,
+  ): void {
+    let game = session.wavelength;
+    if (!game || game.status === 'results' || game.status === 'complete') return;
+    const activePlayers = this.getRoundPlayerIds(session);
+    const broadcasterGone = game.status === 'clue' && game.broadcasterId === playerId;
+    const remainingReceiversDone =
+      game.status === 'tuning' &&
+      game.receiverIds
+        .filter((id) => activePlayers.includes(id))
+        .every((id) => game?.markers[id] !== undefined);
+    const remainingInterceptorsDone =
+      game.status === 'intercept' &&
+      game.interceptorIds
+        .filter((id) => activePlayers.includes(id))
+        .every((id) => game?.intercepts[id] !== undefined);
+    if (broadcasterGone || remainingReceiversDone || remainingInterceptorsDone) {
+      game = revealWavelengthStep(
+        game,
+        now,
+        this.gameRegistry.duration('wavelength', 'turn'),
+        this.gameRegistry.duration('wavelength', 'voting'),
+      );
+    }
+    session.wavelength = game;
+    session.state = setPhase(session.state, wavelengthRoomPhase(game.status), now);
     if (game.status === 'results') this.clearGameDeadline(session.state.roomCode);
     else this.scheduleCurrentGameDeadline(session.state.roomCode, session);
   }
@@ -1519,10 +1620,14 @@ export class RoomManager {
     if (session.hotTake) slots.hotTake = session.hotTake;
     if (session.suspect) slots.suspect = session.suspect;
     if (session.drawnOut) slots.drawnOut = session.drawnOut;
+    if (session.blankLine) slots.blankLine = session.blankLine;
+    if (session.wavelength) slots.wavelength = session.wavelength;
     if (session.groupthinkPrompts) slots.groupthinkPrompts = session.groupthinkPrompts;
     if (session.hotTakePrompts) slots.hotTakePrompts = session.hotTakePrompts;
     if (session.suspectPrompts) slots.suspectPrompts = session.suspectPrompts;
     if (session.drawnOutPrompts) slots.drawnOutPrompts = session.drawnOutPrompts;
+    if (session.blankLinePrompts) slots.blankLinePrompts = session.blankLinePrompts;
+    if (session.wavelengthPrompts) slots.wavelengthPrompts = session.wavelengthPrompts;
     const payload: PersistedRoomSession = {
       state: session.state,
       roundPlayerIds: session.roundPlayerIds,
@@ -1784,6 +1889,7 @@ function normalizeSettings(
   if (settings.contentMode !== undefined) normalized.contentMode = settings.contentMode;
   if (settings.promptMode !== undefined) normalized.promptMode = settings.promptMode;
   if (settings.drawnOutMode !== undefined) normalized.drawnOutMode = settings.drawnOutMode;
+  if (settings.wavelengthMode !== undefined) normalized.wavelengthMode = settings.wavelengthMode;
   return normalized;
 }
 
@@ -1791,6 +1897,24 @@ function drawnOutRoomPhase(
   status: DrawnOutSessionState['status'],
 ): 'input' | 'voting' | 'results' | 'winner' {
   if (status === 'guessing' || status === 'fake-voting') return 'voting';
+  if (status === 'results') return 'results';
+  if (status === 'complete') return 'winner';
+  return 'input';
+}
+
+function blankLineRoomPhase(
+  status: BlankLineSessionState['status'],
+): 'input' | 'voting' | 'results' | 'winner' {
+  if (status === 'voting') return 'voting';
+  if (status === 'results') return 'results';
+  if (status === 'complete') return 'winner';
+  return 'input';
+}
+
+function wavelengthRoomPhase(
+  status: WavelengthSessionState['status'],
+): 'input' | 'voting' | 'results' | 'winner' {
+  if (status === 'intercept') return 'voting';
   if (status === 'results') return 'results';
   if (status === 'complete') return 'winner';
   return 'input';

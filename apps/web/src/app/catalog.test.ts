@@ -14,7 +14,7 @@ import {
 test('catalog exposes one complete, uniquely identified definition per supported game', () => {
   assert.deepEqual(
     GAME_CATALOG.map((game) => game.id),
-    ['groupthink', 'hot-take', 'suspect', 'drawn-out'],
+    ['groupthink', 'hot-take', 'suspect', 'drawn-out', 'blank-line', 'wavelength'],
   );
   assert.equal(new Set(GAME_CATALOG.map((game) => game.id)).size, GAME_CATALOG.length);
   for (const game of GAME_CATALOG) {

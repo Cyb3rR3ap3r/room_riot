@@ -102,10 +102,12 @@ function render(
 
 test('typed player-controller registry is exhaustive and identity-safe', () => {
   assert.deepEqual(Object.keys(PLAYER_CONTROLLER_RENDERERS).sort(), [
+    'blank-line',
     'drawn-out',
     'groupthink',
     'hot-take',
     'suspect',
+    'wavelength',
   ]);
   for (const [gameId, renderer] of Object.entries(PLAYER_CONTROLLER_RENDERERS)) {
     assert.equal(renderer.gameId, gameId);

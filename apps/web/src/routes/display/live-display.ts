@@ -143,6 +143,19 @@ function createResultItems(snapshot: RoomSnapshot): ResultItems | null {
       contentSelector: '.drawn-out-guesses li',
     };
   }
+  if (game.id === 'blank-line' && (game.status === 'results' || game.status === 'complete')) {
+    return {
+      kind: 'results',
+      prompt: game.prompt ?? 'Blank Line results',
+      items: game.voteSummary.map((vote) => ({
+        id: `vote:${vote.playerId}`,
+        primary: playerName(snapshot, vote.playerId),
+        secondary: `${vote.count} accusation${vote.count === 1 ? '' : 's'} → ${playerPoints(game.roundScores, vote.playerId)} points`,
+        score: playerPoints(game.roundScores, vote.playerId),
+      })),
+      contentSelector: '.blank-line-vote-reveal li',
+    };
+  }
   return null;
 }
 

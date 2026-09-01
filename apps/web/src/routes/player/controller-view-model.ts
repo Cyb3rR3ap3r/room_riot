@@ -1,8 +1,10 @@
 import type { RoomPhase } from '@room-riot/contracts';
+import type { BlankLinePlayerView } from '@room-riot/blank-line';
 import type { DrawnOutPlayerView } from '@room-riot/drawn-out';
 import type { GroupthinkPlayerView } from '@room-riot/groupthink';
 import type { HotTakePlayerView } from '@room-riot/hot-take';
 import type { SuspectPlayerView } from '@room-riot/suspect';
+import type { WavelengthPlayerView } from '@room-riot/wavelength';
 
 import type { SupportedGameId } from '../../app/catalog.js';
 import type { PlayerGameView } from '../../protocol.js';
@@ -230,7 +232,122 @@ function createGameState(
       return createSuspectState(state as SuspectPlayerView, draft, playerId, playerLabels);
     case 'drawn-out':
       return createDrawnOutState(state as DrawnOutPlayerView, draft, playerLabels);
+    case 'blank-line':
+      return createBlankLineState(state as BlankLinePlayerView, draft, playerLabels);
+    case 'wavelength':
+      return createWavelengthState(state as WavelengthPlayerView);
   }
+}
+
+function createWavelengthState(state: WavelengthPlayerView): GameStateModel {
+  const prompt = `${state.leftPole} ↔ ${state.rightPole}${state.clue ? ` · “${state.clue}”` : ''}`;
+  if (state.task === 'clue') {
+    return actionState(
+      state.instruction,
+      prompt,
+      state.deadlineAt,
+      textControl(
+        'answer',
+        'Broadcast clue',
+        'Transmit clue',
+        'A clue that fits the hidden signal',
+        80,
+        null,
+      ),
+    );
+  }
+  if (state.task === 'tune') {
+    return actionState(
+      state.instruction,
+      prompt,
+      state.deadlineAt,
+      choiceControl(
+        'vote',
+        'Tune your private receiver',
+        'Lock signal',
+        [{ id: 'marker-console', label: 'Use the signal dial below' }],
+        null,
+      ),
+    );
+  }
+  if (state.task === 'intercept') {
+    return actionState(
+      state.instruction,
+      prompt,
+      state.deadlineAt,
+      choiceControl(
+        'vote',
+        'Predict the opposing lock',
+        'Lock intercept',
+        [
+          { id: 'low', label: 'Low' },
+          { id: 'locked', label: 'On target' },
+          { id: 'high', label: 'High' },
+        ],
+        null,
+      ),
+    );
+  }
+  return waitingState(
+    state.instruction,
+    prompt,
+    state.deadlineAt,
+    'Stay on channel and watch the shared display.',
+  );
+}
+
+function createBlankLineState(
+  state: BlankLinePlayerView,
+  draft: PlayerDraft | null,
+  playerLabels: Readonly<Record<string, string>>,
+): GameStateModel {
+  if (state.task === 'draw') {
+    return actionState(state.instruction, state.privatePrompt, state.deadlineAt, {
+      kind: 'drawing',
+      action: 'draw',
+      label: 'One-stroke canvas',
+      accessibleLabel: 'Canvas for your single Blank Line stroke',
+      submitLabel: 'Commit This Line',
+      hasRecoveredDraft: Boolean(draft?.drawing?.strokes.length),
+      disabled: false,
+    });
+  }
+  if (state.task === 'vote' && !state.hasSubmitted) {
+    return actionState(
+      state.instruction,
+      state.privatePrompt,
+      state.deadlineAt,
+      choiceControl(
+        'vote',
+        'Suspected Blank',
+        'Seal My Accusation',
+        state.candidatePlayerIds.map((id) => ({ id, label: playerLabel(id, playerLabels) })),
+        draft,
+      ),
+    );
+  }
+  if (state.task === 'vote' && state.hasSubmitted) {
+    return receiptState(
+      state.instruction,
+      state.privatePrompt,
+      state.deadlineAt,
+      receipt(
+        'vote',
+        'Accusation sealed',
+        'Suspected Blank',
+        state.ownVotePlayerId ? playerLabel(state.ownVotePlayerId, playerLabels) : null,
+        'Keep discussing while the other ballots come in.',
+      ),
+    );
+  }
+  return waitingState(
+    state.instruction,
+    state.privatePrompt,
+    state.deadlineAt,
+    state.status === 'results' || state.status === 'complete'
+      ? 'The Blank and topic are revealed on the big screen.'
+      : 'Watch the shared canvas and plan your next line.',
+  );
 }
 
 function createGroupthinkState(

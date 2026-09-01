@@ -11,6 +11,8 @@ COPY games/groupthink/package.json games/groupthink/package.json
 COPY games/hot-take/package.json games/hot-take/package.json
 COPY games/suspect/package.json games/suspect/package.json
 COPY games/drawn-out/package.json games/drawn-out/package.json
+COPY games/blank-line/package.json games/blank-line/package.json
+COPY games/wavelength/package.json games/wavelength/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/game-engine/package.json packages/game-engine/package.json
 
@@ -32,6 +34,8 @@ COPY games/groupthink/package.json games/groupthink/package.json
 COPY games/hot-take/package.json games/hot-take/package.json
 COPY games/suspect/package.json games/suspect/package.json
 COPY games/drawn-out/package.json games/drawn-out/package.json
+COPY games/blank-line/package.json games/blank-line/package.json
+COPY games/wavelength/package.json games/wavelength/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/game-engine/package.json packages/game-engine/package.json
 
@@ -67,6 +71,14 @@ COPY --from=build /app/games/drawn-out/package.json ./games/drawn-out/package.js
 COPY --from=production-deps /app/games/drawn-out/node_modules ./games/drawn-out/node_modules
 COPY --from=build /app/games/drawn-out/dist ./games/drawn-out/dist
 COPY --from=build /app/games/drawn-out/content ./games/drawn-out/content
+COPY --from=build /app/games/blank-line/package.json ./games/blank-line/package.json
+COPY --from=production-deps /app/games/blank-line/node_modules ./games/blank-line/node_modules
+COPY --from=build /app/games/blank-line/dist ./games/blank-line/dist
+COPY --from=build /app/games/blank-line/content ./games/blank-line/content
+COPY --from=build /app/games/wavelength/package.json ./games/wavelength/package.json
+COPY --from=production-deps /app/games/wavelength/node_modules ./games/wavelength/node_modules
+COPY --from=build /app/games/wavelength/dist ./games/wavelength/dist
+COPY --from=build /app/games/wavelength/content ./games/wavelength/content
 COPY --from=build /app/packages/contracts/package.json ./packages/contracts/package.json
 COPY --from=production-deps /app/packages/contracts/node_modules ./packages/contracts/node_modules
 COPY --from=build /app/packages/contracts/dist ./packages/contracts/dist

@@ -121,7 +121,13 @@ test('produces a complete waiting model for every route phase and game', () => {
     'scoring',
     'winner',
   ];
-  const games: readonly SupportedGameId[] = ['groupthink', 'hot-take', 'suspect', 'drawn-out'];
+  const games: readonly SupportedGameId[] = [
+    'groupthink',
+    'hot-take',
+    'suspect',
+    'drawn-out',
+    'blank-line',
+  ];
 
   for (const gameId of games) {
     for (const phase of phases) {

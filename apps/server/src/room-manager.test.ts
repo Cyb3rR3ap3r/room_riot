@@ -219,7 +219,13 @@ test('publishes the selected game while the room is in the lobby', () => {
 });
 
 test('projects schema-valid public and private snapshots for every game', () => {
-  const gameIds: readonly SupportedGameId[] = ['groupthink', 'hot-take', 'suspect', 'drawn-out'];
+  const gameIds: readonly SupportedGameId[] = [
+    'groupthink',
+    'hot-take',
+    'suspect',
+    'drawn-out',
+    'blank-line',
+  ];
   for (const gameId of gameIds) {
     const manager = new RoomManager({ randomizePrompts: false });
     const room = manager.createRoom({ gameId });
@@ -247,6 +253,7 @@ test('uses shared per-game limits for selected-room defaults and capacity valida
     { gameId: 'drawn-out', drawnOutMode: 'classic' },
     { gameId: 'drawn-out', drawnOutMode: 'telephone' },
     { gameId: 'drawn-out', drawnOutMode: 'fake-artist' },
+    { gameId: 'blank-line' },
   ];
 
   for (const { gameId, drawnOutMode } of cases) {
@@ -1006,6 +1013,76 @@ test('runs Drawn Out Classic through drawing, guesses, and winner scoring', () =
   players.forEach((player) => manager.setPlayerReady(room.roomCode, player.playerToken, true));
   const restarted = manager.startGame(room.roomCode, room.hostToken, 'drawn-out');
   assert.equal(restarted.state.phase, 'input');
+  manager.close();
+});
+
+test('runs Blank Line through two live circuits, private roles, voting, and reveal', () => {
+  const manager = new RoomManager({ randomizePrompts: false });
+  const room = manager.createRoom({
+    gameId: 'blank-line',
+    settings: { roundCount: 1, contentMode: 'family' },
+  });
+  const players = ['Alex', 'Blair', 'Casey'].map((name) =>
+    manager.joinRoom({ roomCode: room.roomCode, name, avatar: '🎨' }),
+  );
+  let snapshot = manager.startGame(room.roomCode, room.hostToken, 'blank-line');
+  assert.equal(snapshot.game?.id, 'blank-line');
+  if (snapshot.game?.id !== 'blank-line') throw new Error('Expected Blank Line state.');
+  assert.equal(snapshot.game.prompt, null);
+  assert.equal(snapshot.game.blankPlayerId, null);
+
+  const privateStates = players.map((player) => ({
+    player,
+    state: manager.getPlayerState(room.roomCode, player.playerId),
+  }));
+  const blank = privateStates.find(
+    (entry) => entry.state?.id === 'blank-line' && entry.state.isBlank,
+  );
+  assert.ok(blank);
+  assert.equal(blank.state?.id === 'blank-line' ? blank.state.privatePrompt : 'unexpected', null);
+  assert.equal(
+    privateStates.filter(
+      (entry) => entry.state?.id === 'blank-line' && entry.state.privatePrompt !== null,
+    ).length,
+    2,
+  );
+
+  const stroke = {
+    strokes: [
+      {
+        color: '#ffffff',
+        width: 0.012,
+        points: [
+          { x: 0.1, y: 0.2 },
+          { x: 0.7, y: 0.8 },
+        ],
+      },
+    ],
+  };
+  for (let turn = 0; turn < 6; turn += 1) {
+    if (snapshot.game?.id !== 'blank-line') throw new Error('Expected Blank Line drawing.');
+    const activePlayerId = snapshot.game.activePlayerId;
+    assert.ok(activePlayerId);
+    snapshot = manager.submitDrawing(room.roomCode, activePlayerId, stroke).snapshot;
+    assert.equal(
+      snapshot.game?.id === 'blank-line' ? snapshot.game.drawing.strokes.length : -1,
+      turn + 1,
+    );
+  }
+  assert.equal(snapshot.state.phase, 'voting');
+
+  const blankId = blank.player.playerId;
+  const informedPlayers = players.filter((player) => player.playerId !== blankId);
+  manager.castVote(room.roomCode, informedPlayers[0]!.playerId, blankId);
+  manager.castVote(room.roomCode, blankId, informedPlayers[0]!.playerId);
+  const results = manager.castVote(room.roomCode, informedPlayers[1]!.playerId, blankId);
+  assert.equal(results.snapshot.state.phase, 'results');
+  assert.equal(results.snapshot.game?.id, 'blank-line');
+  if (results.snapshot.game?.id !== 'blank-line') throw new Error('Expected Blank Line reveal.');
+  assert.equal(results.snapshot.game.blankCaught, true);
+  assert.equal(results.snapshot.game.blankPlayerId, blankId);
+  assert.ok(results.snapshot.game.prompt);
+  assert.equal(manager.advanceRound(room.roomCode, room.hostToken).state.phase, 'winner');
   manager.close();
 });
 

@@ -9,6 +9,7 @@ test('host lobby models preserve player gates and game-specific launch copy', ()
     ['hot-take', 3, 'Start Hot Take'],
     ['suspect', 4, 'Start Suspect'],
     ['drawn-out', 3, 'Start Drawn Out'],
+    ['blank-line', 3, 'Start Blank Line'],
   ] as const;
   for (const [gameId, minimum, label] of fixtures) {
     assert.equal(getHostRouteViewModel(gameId, 'lobby', minimum - 1).primaryAction?.disabled, true);

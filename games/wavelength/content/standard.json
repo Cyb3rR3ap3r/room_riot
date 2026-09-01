@@ -1,0 +1,608 @@
+{
+  "prompts": [
+    {
+      "id": "standard-routine-01",
+      "left": "Productive procrastination",
+      "right": "Actually productive",
+      "category": "routines"
+    },
+    {
+      "id": "standard-routine-02",
+      "left": "Acceptable coffee",
+      "right": "Life-changing coffee",
+      "category": "routines"
+    },
+    {
+      "id": "standard-routine-03",
+      "left": "Quick errand",
+      "right": "Entire afternoon gone",
+      "category": "routines"
+    },
+    {
+      "id": "standard-routine-04",
+      "left": "Reasonable bedtime",
+      "right": "Sunrise is approaching",
+      "category": "routines"
+    },
+    {
+      "id": "standard-routine-05",
+      "left": "Slight inconvenience",
+      "right": "Day completely ruined",
+      "category": "routines"
+    },
+    {
+      "id": "standard-routine-06",
+      "left": "Casual lunch",
+      "right": "Three-hour lunch",
+      "category": "routines"
+    },
+    {
+      "id": "standard-routine-07",
+      "left": "Mostly on time",
+      "right": "Suspiciously early",
+      "category": "routines"
+    },
+    {
+      "id": "standard-routine-08",
+      "left": "A little clutter",
+      "right": "Archaeological dig",
+      "category": "routines"
+    },
+    {
+      "id": "standard-routine-09",
+      "left": "Enough sleep",
+      "right": "Fully recharged",
+      "category": "routines"
+    },
+    {
+      "id": "standard-routine-10",
+      "left": "Budget meal",
+      "right": "Special-occasion meal",
+      "category": "routines"
+    },
+    {
+      "id": "standard-routine-11",
+      "left": "Small splurge",
+      "right": "Financial plot twist",
+      "category": "routines"
+    },
+    {
+      "id": "standard-routine-12",
+      "left": "Normal commute",
+      "right": "Hero's journey commute",
+      "category": "routines"
+    },
+    {
+      "id": "standard-routine-13",
+      "left": "Low-effort dinner",
+      "right": "Culinary production",
+      "category": "routines"
+    },
+    {
+      "id": "standard-routine-14",
+      "left": "A few notifications",
+      "right": "Phone under siege",
+      "category": "routines"
+    },
+    {
+      "id": "standard-routine-15",
+      "left": "Casual exercise",
+      "right": "Training montage",
+      "category": "routines"
+    },
+    {
+      "id": "standard-routine-16",
+      "left": "Mild weather",
+      "right": "Cancel all plans weather",
+      "category": "routines"
+    },
+    {
+      "id": "standard-routine-17",
+      "left": "Just browsing",
+      "right": "Cart full",
+      "category": "routines"
+    },
+    {
+      "id": "standard-routine-18",
+      "left": "Small reset",
+      "right": "New life era",
+      "category": "routines"
+    },
+    {
+      "id": "standard-routine-19",
+      "left": "Background task",
+      "right": "Consumes the whole day",
+      "category": "routines"
+    },
+    {
+      "id": "standard-routine-20",
+      "left": "Barely organized",
+      "right": "Color-coded existence",
+      "category": "routines"
+    },
+
+    {
+      "id": "standard-things-01",
+      "left": "Cheap but cheerful",
+      "right": "Luxury for no reason",
+      "category": "things"
+    },
+    {
+      "id": "standard-things-02",
+      "left": "Useful app",
+      "right": "Cannot live without it",
+      "category": "things"
+    },
+    {
+      "id": "standard-things-03",
+      "left": "Normal chair",
+      "right": "Throne energy",
+      "category": "things"
+    },
+    {
+      "id": "standard-things-04",
+      "left": "Tiny apartment",
+      "right": "Suspiciously huge apartment",
+      "category": "things"
+    },
+    {
+      "id": "standard-things-05",
+      "left": "Respectable snack",
+      "right": "Elite snack",
+      "category": "things"
+    },
+    {
+      "id": "standard-things-06",
+      "left": "Questionable purchase",
+      "right": "Best purchase ever",
+      "category": "things"
+    },
+    {
+      "id": "standard-things-07",
+      "left": "Slightly outdated",
+      "right": "Museum piece",
+      "category": "things"
+    },
+    {
+      "id": "standard-things-08",
+      "left": "Minimalist decor",
+      "right": "Maximum personality",
+      "category": "things"
+    },
+    {
+      "id": "standard-things-09",
+      "left": "Almost comfortable",
+      "right": "Never leaving this couch",
+      "category": "things"
+    },
+    {
+      "id": "standard-things-10",
+      "left": "Forgettable restaurant",
+      "right": "Plan a trip around it",
+      "category": "things"
+    },
+    {
+      "id": "standard-things-11",
+      "left": "Mild hot sauce",
+      "right": "Instant regret sauce",
+      "category": "things"
+    },
+    {
+      "id": "standard-things-12",
+      "left": "Basic hotel",
+      "right": "Main-character hotel",
+      "category": "things"
+    },
+    {
+      "id": "standard-things-13",
+      "left": "Clean design",
+      "right": "Overdesigned masterpiece",
+      "category": "things"
+    },
+    {
+      "id": "standard-things-14",
+      "left": "Functional outfit",
+      "right": "Fashion event",
+      "category": "things"
+    },
+    {
+      "id": "standard-things-15",
+      "left": "Tiny kitchen gadget",
+      "right": "Countertop takeover",
+      "category": "things"
+    },
+    {
+      "id": "standard-things-16",
+      "left": "Ordinary neighborhood",
+      "right": "Dream neighborhood",
+      "category": "things"
+    },
+    {
+      "id": "standard-things-17",
+      "left": "Low-maintenance plant",
+      "right": "Botanical responsibility",
+      "category": "things"
+    },
+    {
+      "id": "standard-things-18",
+      "left": "Almost useless souvenir",
+      "right": "Perfect souvenir",
+      "category": "things"
+    },
+    {
+      "id": "standard-things-19",
+      "left": "Tiny screen",
+      "right": "Personal cinema",
+      "category": "things"
+    },
+    {
+      "id": "standard-things-20",
+      "left": "Background lighting",
+      "right": "Nightclub lighting",
+      "category": "things"
+    },
+
+    {
+      "id": "standard-culture-01",
+      "left": "Guilty pleasure",
+      "right": "Defend it publicly",
+      "category": "culture"
+    },
+    {
+      "id": "standard-culture-02",
+      "left": "One good episode",
+      "right": "Cancel tomorrow's plans",
+      "category": "culture"
+    },
+    {
+      "id": "standard-culture-03",
+      "left": "Background playlist",
+      "right": "Perfect soundtrack",
+      "category": "culture"
+    },
+    {
+      "id": "standard-culture-04",
+      "left": "Cult favorite",
+      "right": "Everyone knows it",
+      "category": "culture"
+    },
+    {
+      "id": "standard-culture-05",
+      "left": "Predictable plot",
+      "right": "Needs a diagram",
+      "category": "culture"
+    },
+    {
+      "id": "standard-culture-06",
+      "left": "Mild nostalgia",
+      "right": "Emotional time machine",
+      "category": "culture"
+    },
+    {
+      "id": "standard-culture-07",
+      "left": "Good background show",
+      "right": "No distractions allowed",
+      "category": "culture"
+    },
+    {
+      "id": "standard-culture-08",
+      "left": "Tiny fandom",
+      "right": "Entire personality",
+      "category": "culture"
+    },
+    {
+      "id": "standard-culture-09",
+      "left": "Decent sequel",
+      "right": "Better than the original",
+      "category": "culture"
+    },
+    {
+      "id": "standard-culture-10",
+      "left": "Awkward dance song",
+      "right": "Floor instantly packed",
+      "category": "culture"
+    },
+    {
+      "id": "standard-culture-11",
+      "left": "Forgettable podcast",
+      "right": "Recommend to everyone",
+      "category": "culture"
+    },
+    {
+      "id": "standard-culture-12",
+      "left": "Internet moment",
+      "right": "Cultural landmark",
+      "category": "culture"
+    },
+    {
+      "id": "standard-culture-13",
+      "left": "Okay remake",
+      "right": "Definitive version",
+      "category": "culture"
+    },
+    {
+      "id": "standard-culture-14",
+      "left": "Small plot hole",
+      "right": "Story collapses",
+      "category": "culture"
+    },
+    {
+      "id": "standard-culture-15",
+      "left": "Good opening",
+      "right": "Instantly iconic opening",
+      "category": "culture"
+    },
+    {
+      "id": "standard-culture-16",
+      "left": "Niche reference",
+      "right": "Everyone gets it",
+      "category": "culture"
+    },
+    {
+      "id": "standard-culture-17",
+      "left": "Decent live show",
+      "right": "Core memory live show",
+      "category": "culture"
+    },
+    {
+      "id": "standard-culture-18",
+      "left": "Subtle special effects",
+      "right": "Visual overload",
+      "category": "culture"
+    },
+    {
+      "id": "standard-culture-19",
+      "left": "One clever joke",
+      "right": "Quote it forever",
+      "category": "culture"
+    },
+    {
+      "id": "standard-culture-20",
+      "left": "Fine finale",
+      "right": "Perfect finale",
+      "category": "culture"
+    },
+
+    {
+      "id": "standard-social-01",
+      "left": "Pleasant small talk",
+      "right": "Instant deep conversation",
+      "category": "social"
+    },
+    {
+      "id": "standard-social-02",
+      "left": "Mild overshare",
+      "right": "Unexpected autobiography",
+      "category": "social"
+    },
+    {
+      "id": "standard-social-03",
+      "left": "Low-key charisma",
+      "right": "Owns the entire room",
+      "category": "social"
+    },
+    {
+      "id": "standard-social-04",
+      "left": "Friendly acquaintance",
+      "right": "Emergency-contact friend",
+      "category": "social"
+    },
+    {
+      "id": "standard-social-05",
+      "left": "Reasonable confidence",
+      "right": "Auditioning for legend status",
+      "category": "social"
+    },
+    {
+      "id": "standard-social-06",
+      "left": "Tiny social battery",
+      "right": "Hosts the after-party",
+      "category": "social"
+    },
+    {
+      "id": "standard-social-07",
+      "left": "Polite disagreement",
+      "right": "Presentation with slides",
+      "category": "social"
+    },
+    {
+      "id": "standard-social-08",
+      "left": "Useful advice",
+      "right": "Changes your whole plan",
+      "category": "social"
+    },
+    {
+      "id": "standard-social-09",
+      "left": "Mildly competitive",
+      "right": "Keeps lifetime standings",
+      "category": "social"
+    },
+    {
+      "id": "standard-social-10",
+      "left": "Easygoing host",
+      "right": "Event-planning mastermind",
+      "category": "social"
+    },
+    {
+      "id": "standard-social-11",
+      "left": "A little mysterious",
+      "right": "Impossible to read",
+      "category": "social"
+    },
+    {
+      "id": "standard-social-12",
+      "left": "Good storyteller",
+      "right": "Room goes silent to listen",
+      "category": "social"
+    },
+    {
+      "id": "standard-social-13",
+      "left": "Slightly stubborn",
+      "right": "Would debate gravity",
+      "category": "social"
+    },
+    {
+      "id": "standard-social-14",
+      "left": "Casual compliment",
+      "right": "Remember it for years",
+      "category": "social"
+    },
+    {
+      "id": "standard-social-15",
+      "left": "Reads the room",
+      "right": "Controls the room",
+      "category": "social"
+    },
+    {
+      "id": "standard-social-16",
+      "left": "Mild awkward silence",
+      "right": "Time has stopped",
+      "category": "social"
+    },
+    {
+      "id": "standard-social-17",
+      "left": "Flexible planner",
+      "right": "Spreadsheet commander",
+      "category": "social"
+    },
+    {
+      "id": "standard-social-18",
+      "left": "Average apology",
+      "right": "Perfect apology",
+      "category": "social"
+    },
+    {
+      "id": "standard-social-19",
+      "left": "Sensible risk",
+      "right": "Story for the rest of your life",
+      "category": "social"
+    },
+    {
+      "id": "standard-social-20",
+      "left": "Good first impression",
+      "right": "Instantly unforgettable",
+      "category": "social"
+    },
+
+    {
+      "id": "standard-imagine-01",
+      "left": "Near-future technology",
+      "right": "Feels like magic",
+      "category": "imagination"
+    },
+    {
+      "id": "standard-imagine-02",
+      "left": "Tiny conspiracy",
+      "right": "Everything is connected",
+      "category": "imagination"
+    },
+    {
+      "id": "standard-imagine-03",
+      "left": "Survivable apocalypse",
+      "right": "Absolutely no chance",
+      "category": "imagination"
+    },
+    {
+      "id": "standard-imagine-04",
+      "left": "Questionable superpower",
+      "right": "Unfair superpower",
+      "category": "imagination"
+    },
+    {
+      "id": "standard-imagine-05",
+      "left": "Weekend adventure",
+      "right": "Permanent life change",
+      "category": "imagination"
+    },
+    {
+      "id": "standard-imagine-06",
+      "left": "Tiny secret society",
+      "right": "Runs the world",
+      "category": "imagination"
+    },
+    {
+      "id": "standard-imagine-07",
+      "left": "Almost believable alien",
+      "right": "Completely incomprehensible alien",
+      "category": "imagination"
+    },
+    {
+      "id": "standard-imagine-08",
+      "left": "Small plot twist in life",
+      "right": "New season of life",
+      "category": "imagination"
+    },
+    {
+      "id": "standard-imagine-09",
+      "left": "Manageable haunted house",
+      "right": "Leave the continent",
+      "category": "imagination"
+    },
+    {
+      "id": "standard-imagine-10",
+      "left": "Ordinary secret identity",
+      "right": "Nobody would believe it",
+      "category": "imagination"
+    },
+    {
+      "id": "standard-imagine-11",
+      "left": "Useful time machine",
+      "right": "Catastrophic time machine",
+      "category": "imagination"
+    },
+    {
+      "id": "standard-imagine-12",
+      "left": "Acceptable robot boss",
+      "right": "Robot overlord",
+      "category": "imagination"
+    },
+    {
+      "id": "standard-imagine-13",
+      "left": "Short trip to space",
+      "right": "Never coming back",
+      "category": "imagination"
+    },
+    {
+      "id": "standard-imagine-14",
+      "left": "One weird coincidence",
+      "right": "The universe sent a message",
+      "category": "imagination"
+    },
+    {
+      "id": "standard-imagine-15",
+      "left": "Slightly cursed object",
+      "right": "Destroy it immediately",
+      "category": "imagination"
+    },
+    {
+      "id": "standard-imagine-16",
+      "left": "Cozy fantasy world",
+      "right": "Epic fantasy world",
+      "category": "imagination"
+    },
+    {
+      "id": "standard-imagine-17",
+      "left": "Low-stakes heist",
+      "right": "Impossible heist",
+      "category": "imagination"
+    },
+    {
+      "id": "standard-imagine-18",
+      "left": "Tiny alternate universe",
+      "right": "Nothing works the same",
+      "category": "imagination"
+    },
+    {
+      "id": "standard-imagine-19",
+      "left": "Helpful artificial intelligence",
+      "right": "Suspiciously helpful intelligence",
+      "category": "imagination"
+    },
+    {
+      "id": "standard-imagine-20",
+      "left": "Faint destiny",
+      "right": "Chosen-one destiny",
+      "category": "imagination"
+    }
+  ]
+}

@@ -1,0 +1,608 @@
+{
+  "prompts": [
+    {
+      "id": "dark-routine-01",
+      "left": "One quiet drink",
+      "right": "Legendary night out",
+      "category": "routines"
+    },
+    {
+      "id": "dark-routine-02",
+      "left": "Casual happy hour",
+      "right": "Last call energy",
+      "category": "routines"
+    },
+    {
+      "id": "dark-routine-03",
+      "left": "Mild morning regret",
+      "right": "Delete the group chat",
+      "category": "routines"
+    },
+    {
+      "id": "dark-routine-04",
+      "left": "Quick nightcap",
+      "right": "Sunrise conversation",
+      "category": "routines"
+    },
+    {
+      "id": "dark-routine-05",
+      "left": "Low-key weekend",
+      "right": "Needs a recovery day",
+      "category": "routines"
+    },
+    {
+      "id": "dark-routine-06",
+      "left": "Getting ready",
+      "right": "Full transformation",
+      "category": "routines"
+    },
+    {
+      "id": "dark-routine-07",
+      "left": "One bold text",
+      "right": "Phone taken away by friends",
+      "category": "routines"
+    },
+    {
+      "id": "dark-routine-08",
+      "left": "A little indulgent",
+      "right": "No restraint tonight",
+      "category": "routines"
+    },
+    {
+      "id": "dark-routine-09",
+      "left": "Normal brunch",
+      "right": "Brunch becomes an event",
+      "category": "routines"
+    },
+    {
+      "id": "dark-routine-10",
+      "left": "Subtle outfit effort",
+      "right": "Entrance planned in advance",
+      "category": "routines"
+    },
+    {
+      "id": "dark-routine-11",
+      "left": "A little buzzed",
+      "right": "Giving heartfelt speeches",
+      "category": "routines"
+    },
+    {
+      "id": "dark-routine-12",
+      "left": "Early exit",
+      "right": "Closes the place",
+      "category": "routines"
+    },
+    {
+      "id": "dark-routine-13",
+      "left": "Casual self-care",
+      "right": "Luxury reset ritual",
+      "category": "routines"
+    },
+    {
+      "id": "dark-routine-14",
+      "left": "Tiny secret purchase",
+      "right": "Statement purchase",
+      "category": "routines"
+    },
+    {
+      "id": "dark-routine-15",
+      "left": "Mildly irresponsible",
+      "right": "Tomorrow's problem",
+      "category": "routines"
+    },
+    {
+      "id": "dark-routine-16",
+      "left": "A short debrief",
+      "right": "Full forensic recap",
+      "category": "routines"
+    },
+    {
+      "id": "dark-routine-17",
+      "left": "Slow dance warm-up",
+      "right": "Owns the dance floor",
+      "category": "routines"
+    },
+    {
+      "id": "dark-routine-18",
+      "left": "Casual late night food",
+      "right": "Best meal of your life",
+      "category": "routines"
+    },
+    {
+      "id": "dark-routine-19",
+      "left": "One harmless lie-in",
+      "right": "Day starts at dinner",
+      "category": "routines"
+    },
+    {
+      "id": "dark-routine-20",
+      "left": "Slight overspending",
+      "right": "Avoid the bank app",
+      "category": "routines"
+    },
+
+    {
+      "id": "dark-things-01",
+      "left": "Dive bar charm",
+      "right": "Velvet-rope glamour",
+      "category": "things"
+    },
+    {
+      "id": "dark-things-02",
+      "left": "Subtle fragrance",
+      "right": "Leaves a trail",
+      "category": "things"
+    },
+    {
+      "id": "dark-things-03",
+      "left": "Comfortable outfit",
+      "right": "Dangerously good outfit",
+      "category": "things"
+    },
+    {
+      "id": "dark-things-04",
+      "left": "Cheap sparkling drink",
+      "right": "Celebration bottle",
+      "category": "things"
+    },
+    {
+      "id": "dark-things-05",
+      "left": "Cozy lighting",
+      "right": "Instant atmosphere",
+      "category": "things"
+    },
+    {
+      "id": "dark-things-06",
+      "left": "Normal hotel room",
+      "right": "Movie-scene suite",
+      "category": "things"
+    },
+    {
+      "id": "dark-things-07",
+      "left": "Practical underwear",
+      "right": "Confidence armor",
+      "category": "things"
+    },
+    {
+      "id": "dark-things-08",
+      "left": "Basic cocktail",
+      "right": "Comes with a performance",
+      "category": "things"
+    },
+    {
+      "id": "dark-things-09",
+      "left": "Small hot tub",
+      "right": "Entire party fits",
+      "category": "things"
+    },
+    {
+      "id": "dark-things-10",
+      "left": "Quiet booth",
+      "right": "Center-stage table",
+      "category": "things"
+    },
+    {
+      "id": "dark-things-11",
+      "left": "Mildly suggestive gift",
+      "right": "Open it in private",
+      "category": "things"
+    },
+    {
+      "id": "dark-things-12",
+      "left": "Ordinary bedroom",
+      "right": "Boutique-hotel bedroom",
+      "category": "things"
+    },
+    {
+      "id": "dark-things-13",
+      "left": "Tiny speaker",
+      "right": "Neighbors know the playlist",
+      "category": "things"
+    },
+    {
+      "id": "dark-things-14",
+      "left": "Simple dessert",
+      "right": "Decadent dessert",
+      "category": "things"
+    },
+    {
+      "id": "dark-things-15",
+      "left": "Understated jewelry",
+      "right": "Conversation-starting jewelry",
+      "category": "things"
+    },
+    {
+      "id": "dark-things-16",
+      "left": "Normal mirror",
+      "right": "Confidence-boosting mirror",
+      "category": "things"
+    },
+    {
+      "id": "dark-things-17",
+      "left": "Casual invitation",
+      "right": "Impossible to decline",
+      "category": "things"
+    },
+    {
+      "id": "dark-things-18",
+      "left": "Tiny dance floor",
+      "right": "Warehouse dance floor",
+      "category": "things"
+    },
+    {
+      "id": "dark-things-19",
+      "left": "Secret snack drawer",
+      "right": "Full indulgence cabinet",
+      "category": "things"
+    },
+    {
+      "id": "dark-things-20",
+      "left": "Low-key rooftop",
+      "right": "Main-character rooftop",
+      "category": "things"
+    },
+
+    {
+      "id": "dark-culture-01",
+      "left": "Mildly steamy scene",
+      "right": "Watch alone scene",
+      "category": "culture"
+    },
+    {
+      "id": "dark-culture-02",
+      "left": "Subtle breakup song",
+      "right": "Scream-sing breakup anthem",
+      "category": "culture"
+    },
+    {
+      "id": "dark-culture-03",
+      "left": "Charming villain",
+      "right": "Would ignore every warning",
+      "category": "culture"
+    },
+    {
+      "id": "dark-culture-04",
+      "left": "Casual reality show",
+      "right": "Group chat required",
+      "category": "culture"
+    },
+    {
+      "id": "dark-culture-05",
+      "left": "Mild celebrity crush",
+      "right": "Never miss an interview",
+      "category": "culture"
+    },
+    {
+      "id": "dark-culture-06",
+      "left": "Tasteful drama",
+      "right": "Glorious mess",
+      "category": "culture"
+    },
+    {
+      "id": "dark-culture-07",
+      "left": "Good karaoke pick",
+      "right": "Room-stopping karaoke pick",
+      "category": "culture"
+    },
+    {
+      "id": "dark-culture-08",
+      "left": "Flirty playlist",
+      "right": "Intentions are obvious",
+      "category": "culture"
+    },
+    {
+      "id": "dark-culture-09",
+      "left": "Tiny scandal",
+      "right": "Documentary-series scandal",
+      "category": "culture"
+    },
+    {
+      "id": "dark-culture-10",
+      "left": "A little campy",
+      "right": "Magnificently over-the-top",
+      "category": "culture"
+    },
+    {
+      "id": "dark-culture-11",
+      "left": "Forgettable heartthrob",
+      "right": "Generational heartthrob",
+      "category": "culture"
+    },
+    {
+      "id": "dark-culture-12",
+      "left": "Soft launch romance",
+      "right": "Full red-carpet reveal",
+      "category": "culture"
+    },
+    {
+      "id": "dark-culture-13",
+      "left": "Cheesy love story",
+      "right": "Actually moving love story",
+      "category": "culture"
+    },
+    {
+      "id": "dark-culture-14",
+      "left": "Mild revenge plot",
+      "right": "Applaud the revenge",
+      "category": "culture"
+    },
+    {
+      "id": "dark-culture-15",
+      "left": "Background club song",
+      "right": "Instant dance-floor emergency",
+      "category": "culture"
+    },
+    {
+      "id": "dark-culture-16",
+      "left": "Tiny red flag",
+      "right": "Theme music is ominous",
+      "category": "culture"
+    },
+    {
+      "id": "dark-culture-17",
+      "left": "Questionable dating show",
+      "right": "Cannot look away",
+      "category": "culture"
+    },
+    {
+      "id": "dark-culture-18",
+      "left": "One dramatic speech",
+      "right": "Award-reel speech",
+      "category": "culture"
+    },
+    {
+      "id": "dark-culture-19",
+      "left": "Subtle makeover",
+      "right": "Revenge-era makeover",
+      "category": "culture"
+    },
+    {
+      "id": "dark-culture-20",
+      "left": "Fun party movie",
+      "right": "Defines the whole night",
+      "category": "culture"
+    },
+
+    {
+      "id": "dark-social-01",
+      "left": "Friendly chemistry",
+      "right": "Everyone notices",
+      "category": "social"
+    },
+    {
+      "id": "dark-social-02",
+      "left": "Subtle flirting",
+      "right": "Zero plausible deniability",
+      "category": "social"
+    },
+    {
+      "id": "dark-social-03",
+      "left": "Harmless secret",
+      "right": "Changes the group chat",
+      "category": "social"
+    },
+    {
+      "id": "dark-social-04",
+      "left": "Polite date",
+      "right": "Cancel tomorrow's plans",
+      "category": "social"
+    },
+    {
+      "id": "dark-social-05",
+      "left": "Slightly jealous",
+      "right": "Needs a reality check",
+      "category": "social"
+    },
+    {
+      "id": "dark-social-06",
+      "left": "Casual confidence",
+      "right": "Dangerous confidence",
+      "category": "social"
+    },
+    {
+      "id": "dark-social-07",
+      "left": "A little mysterious",
+      "right": "Human cliffhanger",
+      "category": "social"
+    },
+    {
+      "id": "dark-social-08",
+      "left": "Fun first date",
+      "right": "Tell the friends immediately",
+      "category": "social"
+    },
+    {
+      "id": "dark-social-09",
+      "left": "Tiny mixed signal",
+      "right": "Full detective board",
+      "category": "social"
+    },
+    {
+      "id": "dark-social-10",
+      "left": "Playful rivalry",
+      "right": "Chemistry disguised as competition",
+      "category": "social"
+    },
+    {
+      "id": "dark-social-11",
+      "left": "Casual plus-one",
+      "right": "Steals the whole event",
+      "category": "social"
+    },
+    {
+      "id": "dark-social-12",
+      "left": "Mildly charming",
+      "right": "Gets away with everything",
+      "category": "social"
+    },
+    {
+      "id": "dark-social-13",
+      "left": "A little possessive",
+      "right": "Absolutely not okay",
+      "category": "social"
+    },
+    {
+      "id": "dark-social-14",
+      "left": "Respectful boundary",
+      "right": "Crystal-clear boundary",
+      "category": "social"
+    },
+    {
+      "id": "dark-social-15",
+      "left": "Quiet attraction",
+      "right": "Cannot focus",
+      "category": "social"
+    },
+    {
+      "id": "dark-social-16",
+      "left": "Decent wingperson",
+      "right": "Elite wingperson",
+      "category": "social"
+    },
+    {
+      "id": "dark-social-17",
+      "left": "Small romantic gesture",
+      "right": "Movie-finale gesture",
+      "category": "social"
+    },
+    {
+      "id": "dark-social-18",
+      "left": "One date story",
+      "right": "Story told for years",
+      "category": "social"
+    },
+    {
+      "id": "dark-social-19",
+      "left": "Tiny age gap",
+      "right": "Different cultural references",
+      "category": "social"
+    },
+    {
+      "id": "dark-social-20",
+      "left": "Easy to read",
+      "right": "Impossible poker face",
+      "category": "social"
+    },
+
+    {
+      "id": "dark-imagine-01",
+      "left": "Secret admirer",
+      "right": "Grand mystery romance",
+      "category": "imagination"
+    },
+    {
+      "id": "dark-imagine-02",
+      "left": "Weekend in Vegas",
+      "right": "Movie-worthy Vegas weekend",
+      "category": "imagination"
+    },
+    {
+      "id": "dark-imagine-03",
+      "left": "Fleeting forbidden romance",
+      "right": "Kingdoms are at stake",
+      "category": "imagination"
+    },
+    {
+      "id": "dark-imagine-04",
+      "left": "Cozy private island",
+      "right": "Villain-lair island",
+      "category": "imagination"
+    },
+    {
+      "id": "dark-imagine-05",
+      "left": "Mildly glamorous life",
+      "right": "Paparazzi outside",
+      "category": "imagination"
+    },
+    {
+      "id": "dark-imagine-06",
+      "left": "One-night adventure",
+      "right": "New identity tomorrow",
+      "category": "imagination"
+    },
+    {
+      "id": "dark-imagine-07",
+      "left": "Tiny masquerade",
+      "right": "Palace masquerade",
+      "category": "imagination"
+    },
+    {
+      "id": "dark-imagine-08",
+      "left": "Harmless double life",
+      "right": "Thriller-level double life",
+      "category": "imagination"
+    },
+    {
+      "id": "dark-imagine-09",
+      "left": "Low-stakes temptation",
+      "right": "Tests every principle",
+      "category": "imagination"
+    },
+    {
+      "id": "dark-imagine-10",
+      "left": "Ordinary penthouse",
+      "right": "Party-legend penthouse",
+      "category": "imagination"
+    },
+    {
+      "id": "dark-imagine-11",
+      "left": "Casual secret mission",
+      "right": "Seductive spy mission",
+      "category": "imagination"
+    },
+    {
+      "id": "dark-imagine-12",
+      "left": "Small social gamble",
+      "right": "Changes every relationship",
+      "category": "imagination"
+    },
+    {
+      "id": "dark-imagine-13",
+      "left": "One magical cocktail",
+      "right": "Night becomes a fantasy",
+      "category": "imagination"
+    },
+    {
+      "id": "dark-imagine-14",
+      "left": "Cozy hidden club",
+      "right": "Impossible-to-enter club",
+      "category": "imagination"
+    },
+    {
+      "id": "dark-imagine-15",
+      "left": "Tiny romantic curse",
+      "right": "Epic romantic curse",
+      "category": "imagination"
+    },
+    {
+      "id": "dark-imagine-16",
+      "left": "Anonymous invitation",
+      "right": "Cannot resist the mystery",
+      "category": "imagination"
+    },
+    {
+      "id": "dark-imagine-17",
+      "left": "Low-key fantasy date",
+      "right": "Once-in-a-lifetime date",
+      "category": "imagination"
+    },
+    {
+      "id": "dark-imagine-18",
+      "left": "Tiny secret passage",
+      "right": "Leads to an underground party",
+      "category": "imagination"
+    },
+    {
+      "id": "dark-imagine-19",
+      "left": "One bold alter ego",
+      "right": "Alter ego takes over",
+      "category": "imagination"
+    },
+    {
+      "id": "dark-imagine-20",
+      "left": "Small midnight decision",
+      "right": "Everything changes by dawn",
+      "category": "imagination"
+    }
+  ]
+}

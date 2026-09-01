@@ -1,5 +1,18 @@
 {
+  "aggregateBudgetBytes": 4194304,
   "productionAssets": [
+    {
+      "source": "blank-line-bg-v1.png",
+      "output": "blank-line-bg-v1.webp",
+      "maxEdge": null,
+      "quality": 84
+    },
+    {
+      "source": "wavelength-bg-v1.png",
+      "output": "wavelength-bg-v1.webp",
+      "maxEdge": 1400,
+      "quality": 68
+    },
     {
       "source": "drawn-out-bg-v2.png",
       "output": "drawn-out-bg-v2.webp",
@@ -35,6 +48,30 @@
       "output": "drawn-out-icon-v2.webp",
       "maxEdge": 512,
       "quality": 90
+    },
+    {
+      "source": "blank-line-icon-v1.png",
+      "output": "blank-line-icon-v1.webp",
+      "maxEdge": 512,
+      "quality": 90
+    },
+    {
+      "source": "wavelength-icon-v1.png",
+      "output": "wavelength-icon-v1.webp",
+      "maxEdge": 512,
+      "quality": 76
+    },
+    {
+      "source": "wavelength-icon-v1.png",
+      "output": "wavelength-icon-v1-256.webp",
+      "maxEdge": 256,
+      "quality": 56
+    },
+    {
+      "source": "blank-line-icon-v1.png",
+      "output": "blank-line-icon-v1-256.webp",
+      "maxEdge": 256,
+      "quality": 56
     },
     {
       "source": "drawn-out-icon-v2.png",
@@ -83,6 +120,30 @@
       "output": "drawn-out-stage-v2.webp",
       "maxEdge": 1024,
       "quality": 90
+    },
+    {
+      "source": "blank-line-stage-v1.png",
+      "output": "blank-line-stage-v1.webp",
+      "maxEdge": 1024,
+      "quality": 90
+    },
+    {
+      "source": "wavelength-stage-v1.png",
+      "output": "wavelength-stage-v1.webp",
+      "maxEdge": 900,
+      "quality": 74
+    },
+    {
+      "source": "wavelength-stage-v1.png",
+      "output": "wavelength-stage-v1-480.webp",
+      "maxEdge": 480,
+      "quality": 50
+    },
+    {
+      "source": "blank-line-stage-v1.png",
+      "output": "blank-line-stage-v1-480.webp",
+      "maxEdge": 480,
+      "quality": 50
     },
     {
       "source": "drawn-out-stage-v2.png",

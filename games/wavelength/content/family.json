@@ -1,0 +1,603 @@
+{
+  "prompts": [
+    {
+      "id": "family-routine-01",
+      "left": "Barely awake",
+      "right": "Ready for anything",
+      "category": "routines"
+    },
+    {
+      "id": "family-routine-02",
+      "left": "Tiny snack",
+      "right": "Full feast",
+      "category": "routines"
+    },
+    {
+      "id": "family-routine-03",
+      "left": "Quick tidy",
+      "right": "Total makeover",
+      "category": "routines"
+    },
+    {
+      "id": "family-routine-04",
+      "left": "Whisper quiet",
+      "right": "Parade loud",
+      "category": "routines"
+    },
+    {
+      "id": "family-routine-05",
+      "left": "Slow morning",
+      "right": "Action-packed morning",
+      "category": "routines"
+    },
+    {
+      "id": "family-routine-06",
+      "left": "Easy chore",
+      "right": "Epic quest",
+      "category": "routines"
+    },
+    {
+      "id": "family-routine-07",
+      "left": "Slightly chilly",
+      "right": "Freezing cold",
+      "category": "routines"
+    },
+    {
+      "id": "family-routine-08",
+      "left": "A little sleepy",
+      "right": "Cannot stay awake",
+      "category": "routines"
+    },
+    {
+      "id": "family-routine-09",
+      "left": "Short wait",
+      "right": "Feels like forever",
+      "category": "routines"
+    },
+    {
+      "id": "family-routine-10",
+      "left": "Almost clean",
+      "right": "Sparkling clean",
+      "category": "routines"
+    },
+    {
+      "id": "family-routine-11",
+      "left": "Ordinary lunch",
+      "right": "Best lunch ever",
+      "category": "routines"
+    },
+    {
+      "id": "family-routine-12",
+      "left": "Gentle breeze",
+      "right": "Wild wind",
+      "category": "routines"
+    },
+    {
+      "id": "family-routine-13",
+      "left": "One small favor",
+      "right": "Huge act of kindness",
+      "category": "routines"
+    },
+    {
+      "id": "family-routine-14",
+      "left": "Simple plan",
+      "right": "Master plan",
+      "category": "routines"
+    },
+    {
+      "id": "family-routine-15",
+      "left": "Small mistake",
+      "right": "Spectacular mix-up",
+      "category": "routines"
+    },
+    {
+      "id": "family-routine-16",
+      "left": "A little messy",
+      "right": "Total chaos",
+      "category": "routines"
+    },
+    {
+      "id": "family-routine-17",
+      "left": "Quick hello",
+      "right": "All-day hangout",
+      "category": "routines"
+    },
+    {
+      "id": "family-routine-18",
+      "left": "Normal bedtime",
+      "right": "Way past bedtime",
+      "category": "routines"
+    },
+    {
+      "id": "family-routine-19",
+      "left": "Tiny surprise",
+      "right": "Jaw-dropping surprise",
+      "category": "routines"
+    },
+    {
+      "id": "family-routine-20",
+      "left": "Mostly prepared",
+      "right": "Prepared for everything",
+      "category": "routines"
+    },
+
+    {
+      "id": "family-things-01",
+      "left": "Plain food",
+      "right": "Flavor explosion",
+      "category": "things"
+    },
+    {
+      "id": "family-things-02",
+      "left": "Soft seat",
+      "right": "Cloud-like seat",
+      "category": "things"
+    },
+    { "id": "family-things-03", "left": "Tiny pet", "right": "Enormous pet", "category": "things" },
+    {
+      "id": "family-things-04",
+      "left": "Practical shoes",
+      "right": "Show-stopping shoes",
+      "category": "things"
+    },
+    {
+      "id": "family-things-05",
+      "left": "Basic sandwich",
+      "right": "Legendary sandwich",
+      "category": "things"
+    },
+    {
+      "id": "family-things-06",
+      "left": "Dim room",
+      "right": "Blindingly bright room",
+      "category": "things"
+    },
+    {
+      "id": "family-things-07",
+      "left": "Pocket-sized",
+      "right": "Needs a forklift",
+      "category": "things"
+    },
+    {
+      "id": "family-things-08",
+      "left": "Easy to lose",
+      "right": "Impossible to misplace",
+      "category": "things"
+    },
+    {
+      "id": "family-things-09",
+      "left": "Old-fashioned gadget",
+      "right": "Future gadget",
+      "category": "things"
+    },
+    {
+      "id": "family-things-10",
+      "left": "Boring room",
+      "right": "Dream room",
+      "category": "things"
+    },
+    {
+      "id": "family-things-11",
+      "left": "Mildly spicy",
+      "right": "Dragon-fire spicy",
+      "category": "things"
+    },
+    {
+      "id": "family-things-12",
+      "left": "Fragile object",
+      "right": "Nearly indestructible",
+      "category": "things"
+    },
+    {
+      "id": "family-things-13",
+      "left": "Useless invention",
+      "right": "Brilliant invention",
+      "category": "things"
+    },
+    {
+      "id": "family-things-14",
+      "left": "Plain outfit",
+      "right": "Costume-level outfit",
+      "category": "things"
+    },
+    {
+      "id": "family-things-15",
+      "left": "Forgettable dessert",
+      "right": "Unforgettable dessert",
+      "category": "things"
+    },
+    {
+      "id": "family-things-16",
+      "left": "Quiet place",
+      "right": "Noisy place",
+      "category": "things"
+    },
+    {
+      "id": "family-things-17",
+      "left": "Easy to carry",
+      "right": "Impossible to carry",
+      "category": "things"
+    },
+    {
+      "id": "family-things-18",
+      "left": "Looks cheap",
+      "right": "Looks priceless",
+      "category": "things"
+    },
+    {
+      "id": "family-things-19",
+      "left": "Slightly sticky",
+      "right": "Superglue sticky",
+      "category": "things"
+    },
+    {
+      "id": "family-things-20",
+      "left": "Ordinary playground",
+      "right": "Ultimate playground",
+      "category": "things"
+    },
+
+    {
+      "id": "family-culture-01",
+      "left": "Calm story",
+      "right": "Nonstop adventure",
+      "category": "culture"
+    },
+    {
+      "id": "family-culture-02",
+      "left": "Tiny laugh",
+      "right": "Cannot stop laughing",
+      "category": "culture"
+    },
+    {
+      "id": "family-culture-03",
+      "left": "Background music",
+      "right": "Sing-along anthem",
+      "category": "culture"
+    },
+    {
+      "id": "family-culture-04",
+      "left": "Predictable ending",
+      "right": "Wild twist ending",
+      "category": "culture"
+    },
+    {
+      "id": "family-culture-05",
+      "left": "Friendly character",
+      "right": "Instant best friend",
+      "category": "culture"
+    },
+    {
+      "id": "family-culture-06",
+      "left": "Silly villain",
+      "right": "Terrifying villain",
+      "category": "culture"
+    },
+    {
+      "id": "family-culture-07",
+      "left": "One-time watch",
+      "right": "Watch it every year",
+      "category": "culture"
+    },
+    {
+      "id": "family-culture-08",
+      "left": "Easy game",
+      "right": "Expert-only game",
+      "category": "culture"
+    },
+    {
+      "id": "family-culture-09",
+      "left": "Slow song",
+      "right": "Dance-floor song",
+      "category": "culture"
+    },
+    {
+      "id": "family-culture-10",
+      "left": "Tiny doodle",
+      "right": "Museum masterpiece",
+      "category": "culture"
+    },
+    {
+      "id": "family-culture-11",
+      "left": "Weak superpower",
+      "right": "World-saving superpower",
+      "category": "culture"
+    },
+    {
+      "id": "family-culture-12",
+      "left": "Side character",
+      "right": "Main hero",
+      "category": "culture"
+    },
+    {
+      "id": "family-culture-13",
+      "left": "Calm scene",
+      "right": "Edge-of-seat scene",
+      "category": "culture"
+    },
+    {
+      "id": "family-culture-14",
+      "left": "Simple costume",
+      "right": "Award-winning costume",
+      "category": "culture"
+    },
+    {
+      "id": "family-culture-15",
+      "left": "Small celebration",
+      "right": "Citywide celebration",
+      "category": "culture"
+    },
+    {
+      "id": "family-culture-16",
+      "left": "Easy dance move",
+      "right": "Impossible dance move",
+      "category": "culture"
+    },
+    {
+      "id": "family-culture-17",
+      "left": "Gentle mystery",
+      "right": "Mind-bending mystery",
+      "category": "culture"
+    },
+    {
+      "id": "family-culture-18",
+      "left": "Okay mascot",
+      "right": "Perfect mascot",
+      "category": "culture"
+    },
+    {
+      "id": "family-culture-19",
+      "left": "Normal race",
+      "right": "Legendary race",
+      "category": "culture"
+    },
+    {
+      "id": "family-culture-20",
+      "left": "Forgettable title",
+      "right": "Best title imaginable",
+      "category": "culture"
+    },
+
+    {
+      "id": "family-social-01",
+      "left": "A little shy",
+      "right": "Center of attention",
+      "category": "social"
+    },
+    {
+      "id": "family-social-02",
+      "left": "Polite greeting",
+      "right": "Hero's welcome",
+      "category": "social"
+    },
+    {
+      "id": "family-social-03",
+      "left": "Weak joke",
+      "right": "Perfect joke",
+      "category": "social"
+    },
+    {
+      "id": "family-social-04",
+      "left": "Easy teammate",
+      "right": "Dream teammate",
+      "category": "social"
+    },
+    {
+      "id": "family-social-05",
+      "left": "Tiny brag",
+      "right": "Victory speech",
+      "category": "social"
+    },
+    {
+      "id": "family-social-06",
+      "left": "Mildly awkward",
+      "right": "Hide-under-the-table awkward",
+      "category": "social"
+    },
+    {
+      "id": "family-social-07",
+      "left": "Fairly patient",
+      "right": "Endlessly patient",
+      "category": "social"
+    },
+    {
+      "id": "family-social-08",
+      "left": "Casual friend",
+      "right": "Best friend forever",
+      "category": "social"
+    },
+    {
+      "id": "family-social-09",
+      "left": "Small disagreement",
+      "right": "Great debate",
+      "category": "social"
+    },
+    {
+      "id": "family-social-10",
+      "left": "A little competitive",
+      "right": "Must win everything",
+      "category": "social"
+    },
+    {
+      "id": "family-social-11",
+      "left": "Quiet confidence",
+      "right": "Superhero confidence",
+      "category": "social"
+    },
+    {
+      "id": "family-social-12",
+      "left": "Hard to impress",
+      "right": "Amazed by everything",
+      "category": "social"
+    },
+    {
+      "id": "family-social-13",
+      "left": "Barely helpful",
+      "right": "Saves the whole day",
+      "category": "social"
+    },
+    {
+      "id": "family-social-14",
+      "left": "Okay listener",
+      "right": "Amazing listener",
+      "category": "social"
+    },
+    {
+      "id": "family-social-15",
+      "left": "Tiny compliment",
+      "right": "Day-making compliment",
+      "category": "social"
+    },
+    {
+      "id": "family-social-16",
+      "left": "Follows the plan",
+      "right": "Makes the plan",
+      "category": "social"
+    },
+    {
+      "id": "family-social-17",
+      "left": "Keeps a secret",
+      "right": "Vault-level secret keeper",
+      "category": "social"
+    },
+    {
+      "id": "family-social-18",
+      "left": "Slightly curious",
+      "right": "Needs every answer",
+      "category": "social"
+    },
+    {
+      "id": "family-social-19",
+      "left": "Go-with-the-flow",
+      "right": "Plans every detail",
+      "category": "social"
+    },
+    {
+      "id": "family-social-20",
+      "left": "Normal goodbye",
+      "right": "Movie-ending goodbye",
+      "category": "social"
+    },
+
+    {
+      "id": "family-imagine-01",
+      "left": "Friendly alien",
+      "right": "Scariest alien",
+      "category": "imagination"
+    },
+    {
+      "id": "family-imagine-02",
+      "left": "Tiny castle",
+      "right": "Kingdom-sized castle",
+      "category": "imagination"
+    },
+    {
+      "id": "family-imagine-03",
+      "left": "Weak magic spell",
+      "right": "Reality-changing spell",
+      "category": "imagination"
+    },
+    {
+      "id": "family-imagine-04",
+      "left": "Boring planet",
+      "right": "Perfect adventure planet",
+      "category": "imagination"
+    },
+    {
+      "id": "family-imagine-05",
+      "left": "Slow robot",
+      "right": "Lightning-fast robot",
+      "category": "imagination"
+    },
+    {
+      "id": "family-imagine-06",
+      "left": "Tiny treasure",
+      "right": "Dragon's treasure",
+      "category": "imagination"
+    },
+    {
+      "id": "family-imagine-07",
+      "left": "Ordinary vehicle",
+      "right": "Dream vehicle",
+      "category": "imagination"
+    },
+    {
+      "id": "family-imagine-08",
+      "left": "Safe quest",
+      "right": "Impossible quest",
+      "category": "imagination"
+    },
+    {
+      "id": "family-imagine-09",
+      "left": "Silly monster",
+      "right": "Nightmare monster",
+      "category": "imagination"
+    },
+    {
+      "id": "family-imagine-10",
+      "left": "Small secret base",
+      "right": "Ultimate secret base",
+      "category": "imagination"
+    },
+    {
+      "id": "family-imagine-11",
+      "left": "Nearly normal weather",
+      "right": "Magical weather",
+      "category": "imagination"
+    },
+    {
+      "id": "family-imagine-12",
+      "left": "Useless sidekick",
+      "right": "Heroic sidekick",
+      "category": "imagination"
+    },
+    {
+      "id": "family-imagine-13",
+      "left": "Brief time travel",
+      "right": "History-changing time travel",
+      "category": "imagination"
+    },
+    {
+      "id": "family-imagine-14",
+      "left": "Hidden doorway",
+      "right": "Portal to anywhere",
+      "category": "imagination"
+    },
+    {
+      "id": "family-imagine-15",
+      "left": "Tiny storm",
+      "right": "End-of-the-world storm",
+      "category": "imagination"
+    },
+    {
+      "id": "family-imagine-16",
+      "left": "Average wizard",
+      "right": "Greatest wizard",
+      "category": "imagination"
+    },
+    {
+      "id": "family-imagine-17",
+      "left": "Unusual animal",
+      "right": "Mythical creature",
+      "category": "imagination"
+    },
+    {
+      "id": "family-imagine-18",
+      "left": "Secret message",
+      "right": "World-changing message",
+      "category": "imagination"
+    },
+    {
+      "id": "family-imagine-19",
+      "left": "Small island",
+      "right": "Lost world",
+      "category": "imagination"
+    },
+    {
+      "id": "family-imagine-20",
+      "left": "Lucky escape",
+      "right": "Miraculous escape",
+      "category": "imagination"
+    }
+  ]
+}
