@@ -331,7 +331,9 @@
   }
 
   .game-detail-copy > p:not(.game-format) {
-    display: none;
+    display: block;
+    font-size: 0.85rem;
+    line-height: 1.35;
   }
 
   .game-mechanics,

@@ -1211,6 +1211,8 @@ function renderHost(root: HTMLElement): void {
       );
     }
     setGameTheme(root, session?.gameId ?? snapshot?.state.gameId ?? routeGameId);
+    root.classList.toggle('host-launcher', !session);
+    root.classList.toggle('host-live', Boolean(session));
     if (snapshot) sound.phaseChanged(snapshot.state.phase);
 
     const currentRoomInUrl = getRoomCodeFromSearch(window.location.search);
