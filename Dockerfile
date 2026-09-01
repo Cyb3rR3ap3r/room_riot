@@ -1,4 +1,9 @@
-FROM node:22-alpine AS build
+# syntax=docker/dockerfile:1.7
+
+# TypeScript and web assets are architecture-neutral. Build them once on the
+# native BuildKit worker instead of repeating the full toolchain under QEMU for
+# every target architecture.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 
 WORKDIR /app
 
@@ -16,7 +21,9 @@ COPY games/wavelength/package.json games/wavelength/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/game-engine/package.json packages/game-engine/package.json
 
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm-build-store,target=/pnpm/store \
+    pnpm config set store-dir /pnpm/store && \
+    pnpm install --frozen-lockfile --prefer-offline
 
 COPY . .
 RUN pnpm build
@@ -41,7 +48,9 @@ COPY packages/game-engine/package.json packages/game-engine/package.json
 
 # Install production dependencies in a clean stage so build-only tooling cannot
 # leak into the runtime image and trigger the vulnerability gate.
-RUN CI=true pnpm install --prod --frozen-lockfile
+RUN --mount=type=cache,id=pnpm-production-store,target=/pnpm/store \
+    pnpm config set store-dir /pnpm/store && \
+    CI=true pnpm install --prod --frozen-lockfile --prefer-offline
 
 FROM node:22-alpine AS runtime
 

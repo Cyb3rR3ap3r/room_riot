@@ -46,7 +46,7 @@ jobs:
       - name: Validate game content and integration
         shell: bash
         run: |
-          for game_id in groupthink hot-take suspect drawn-out; do
+          for game_id in groupthink hot-take suspect drawn-out blank-line wavelength; do
             python skills/room-riot-game-builder/scripts/validate_game.py \
               --repo-root . \
               --game-id "$game_id" \
@@ -112,7 +112,7 @@ jobs:
     needs: validate
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     permissions:
       contents: read
       packages: write
