@@ -30,6 +30,7 @@ export function createPhaseAwareJoinComponent(
               : model.title,
         roomCode: model.roomCode,
         manualUrl: model.manualUrl,
+        manualUrlLabel: model.manualUrlLabel,
         qr: model.qr,
       });
     },

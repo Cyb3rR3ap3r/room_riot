@@ -78,13 +78,9 @@
     width: min(13rem, 70vw);
   }
 
-  .game-options,
+  /* The picker keeps two columns on phones; only the detail panel stacks. */
   .game-detail {
     grid-template-columns: 1fr;
-  }
-
-  .game-option {
-    min-height: 7.5rem;
   }
 
   .game-art-large {

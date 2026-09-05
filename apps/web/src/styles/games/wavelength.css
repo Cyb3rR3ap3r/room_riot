@@ -96,7 +96,7 @@
 
 .wavelength-clue small {
   color: rgb(255 255 255 / 58%);
-  font-size: 0.7rem;
+  font-size: var(--type-eyebrow);
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -175,7 +175,7 @@
   inset-block-start: -1.4rem;
   inset-inline-start: 50%;
   transform: translateX(-50%);
-  font-size: clamp(0.55rem, 1vw, 0.75rem);
+  font-size: clamp(var(--type-eyebrow), 1vw, 0.8rem);
   font-weight: 900;
   letter-spacing: 0.08em;
   white-space: nowrap;
@@ -206,7 +206,7 @@
 }
 
 .wavelength-player-marker span {
-  font-size: clamp(0.65rem, 1.25vw, 1rem);
+  font-size: clamp(var(--type-eyebrow), 1.25vw, 1rem);
 }
 
 .wavelength-stage-poles {
@@ -249,7 +249,7 @@
 .wavelength-team-card span,
 .wavelength-result-grid span {
   color: rgb(255 255 255 / 56%);
-  font-size: 0.67rem;
+  font-size: var(--type-eyebrow);
   font-weight: 900;
   letter-spacing: 0.11em;
 }

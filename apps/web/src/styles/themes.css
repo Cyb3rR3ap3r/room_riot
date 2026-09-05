@@ -1,4 +1,16 @@
+/*
+ * Every game in the catalogue defines the same five custom properties. A game
+ * that only declares some of them inherits whatever the previous route left
+ * behind, and any rule reading a missing one is discarded outright — which is
+ * how WaveLength ended up with uncoloured accents and default-coloured buttons.
+ *
+ * --game-primary  the hue that carries the game: primary buttons, focus, rules
+ * --game-accent   the highlight used for numbers, codes and emphasis
+ * --game-cta      background for the main call to action (primary by default)
+ * --game-on-cta   text drawn on top of --game-cta
+ */
 .game-groupthink {
+  --game-primary: #29e9f4;
   --game-accent: #29e9f4;
   --game-accent-strong: #2374ff;
   --game-glow: rgba(41, 233, 244, 0.2);
@@ -6,6 +18,7 @@
 }
 
 .game-hot-take {
+  --game-primary: #ff3ea9;
   --game-accent: #ff3ea9;
   --game-accent-strong: #9d46ff;
   --game-glow: rgba(255, 62, 169, 0.2);
@@ -13,10 +26,35 @@
 }
 
 .game-suspect {
+  --game-primary: #ffb31a;
   --game-accent: #ffb31a;
   --game-accent-strong: #ff3d7f;
   --game-glow: rgba(255, 61, 127, 0.2);
   --game-surface: rgba(46, 19, 48, 0.72);
+}
+
+.game-drawn-out {
+  --game-primary: #9cf000;
+  --game-accent: #9cf000;
+  --game-accent-strong: #ff2ea6;
+  --game-glow: rgba(156, 240, 0, 0.2);
+  --game-surface: rgba(30, 12, 53, 0.74);
+}
+
+.game-blank-line {
+  --game-primary: #b9ff36;
+  --game-accent: #b9ff36;
+  --game-accent-strong: #ff3ea5;
+  --game-glow: rgba(185, 255, 54, 0.2);
+  --game-surface: rgba(33, 15, 60, 0.7);
+}
+
+.game-wavelength {
+  --game-primary: #27f3ff;
+  --game-accent: #27f3ff;
+  --game-accent-strong: #ff35c8;
+  --game-glow: rgba(39, 243, 255, 0.2);
+  --game-surface: rgba(10, 20, 58, 0.7);
 }
 
 .page.game-groupthink,

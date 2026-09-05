@@ -330,11 +330,17 @@
   border-radius: 0.35rem;
 }
 
+/*
+ * The lower half carries the round's real content — prompt, meter and every
+ * answer — so it gets the larger share. At an even split the answer grid ran
+ * past the bottom of the panel, and a display screen cannot be scrolled.
+ */
 .consensus-stage,
 .heat-stage,
 .suspect-stage {
   display: grid;
-  grid-template-rows: minmax(10rem, 0.85fr) minmax(12rem, 1.15fr);
+  grid-template-rows: minmax(6rem, 0.44fr) minmax(15rem, 1.56fr);
+  min-height: 0;
 }
 
 .stage-art-wrap {
@@ -380,22 +386,39 @@
   animation: case-breathe var(--motion-float) var(--ease-loop) infinite;
 }
 
+/*
+ * The panel behind the copy is opaque from the first pixel. The old gradient
+ * stayed transparent through its top 18%, which is exactly where the prompt
+ * headline sits, so the stage artwork showed through the largest text on screen.
+ */
 .stage-copy {
   position: relative;
   z-index: 2;
   display: flex;
+  min-height: 0;
   align-items: stretch;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 0.8rem;
   padding: clamp(1rem, 2.2vw, 2.1rem);
-  background: linear-gradient(180deg, transparent, rgba(2, 7, 20, 0.88) 18%);
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(2, 7, 20, 0.94), rgba(2, 7, 20, 0.99) 12%);
+}
+
+/* The panel meets the artwork with a soft edge rather than a hard seam. */
+.stage-copy::before {
+  position: absolute;
+  inset: -2.5rem 0 auto;
+  height: 2.5rem;
+  content: '';
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(2, 7, 20, 0.94));
 }
 
 .stage-copy h2 {
   margin: 0;
   font:
-    900 clamp(1.5rem, 2.7vw, 3rem) / 1.08 'Arial Black',
+    900 clamp(1.4rem, 2.2vw, 2.5rem) / 1.06 'Arial Black',
     'Trebuchet MS',
     sans-serif;
   letter-spacing: -0.035em;
@@ -462,6 +485,18 @@
   transition: width var(--motion-progress) var(--ease-standard);
 }
 
+/* Shared roster panel chrome, so every game's roster is a real panel rather
+   than unstyled text floating in the grid. */
+.roster-panel {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  padding: 1rem;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-md);
+  background-color: #0d1019;
+}
+
 .mind-roster,
 .audience-roster,
 .jury-roster {
@@ -488,6 +523,12 @@
   font-weight: 900;
 }
 
+/*
+ * Shared roster layout. Keyed off .roster-grid, which the roster component adds
+ * to every game, so a new game gets the correct two-line row without having to
+ * be listed here.
+ */
+.roster-grid,
 .mind-grid,
 .audience-grid,
 .jury-grid {
@@ -498,6 +539,7 @@
   list-style: none;
 }
 
+.roster-grid li,
 .mind-grid li,
 .audience-grid li,
 .jury-grid li {
@@ -506,6 +548,24 @@
   align-items: center;
   gap: 0.65rem;
   padding: 0.58rem;
+}
+
+/* Name over detail, never name and detail jammed onto one line. */
+.roster-grid li > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 0.1rem;
+}
+
+.roster-grid strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roster-grid small {
+  color: var(--color-muted);
+  font-size: var(--type-eyebrow);
 }
 
 .mind-grid li {
@@ -562,6 +622,52 @@
 .take-wall .answer-list,
 .suspect-results .answer-list {
   grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  align-content: start;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* These sections are the flexible part of the stage: they take the space that
+   is left after the prompt and meter, and stop cleanly at a card boundary. */
+.thought-clusters,
+.take-wall,
+.suspect-results {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+/*
+ * Answer, then tally. In a narrow results column there is not enough room for
+ * both on one line, so the tally drops beneath the answer rather than squeezing
+ * it into a channel a few characters wide.
+ */
+.answer-list li {
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+}
+
+/* Compact enough that a full room's answers fit inside the stage panel. */
+.thought-clusters .answer-list li,
+.take-wall .answer-list li,
+.suspect-results .answer-list li {
+  min-height: 0;
+  padding: 0.5rem 0.7rem;
+  font-size: var(--type-controller-sm);
+  line-height: 1.25;
+}
+
+.answer-list li > span:first-child {
+  min-width: 0;
+  flex: 1 1 8rem;
+  overflow-wrap: break-word;
+}
+
+.answer-list li > span + span {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .thought-clusters .answer-list li {
@@ -608,19 +714,23 @@
   text-transform: uppercase;
 }
 
+/*
+ * The dock sticks to the bottom of the viewport but stays in the document flow.
+ * As a fixed element it floated over the stage and covered the answer cards and
+ * the QR panel behind it, with no way to move it out of the way.
+ */
 .experience-controls {
-  position: fixed;
+  position: sticky;
   z-index: 20;
-  right: 50%;
   bottom: max(1rem, env(safe-area-inset-bottom));
-  width: min(72rem, calc(100% - 2rem));
+  width: min(72rem, 100%);
+  margin: 1rem auto 0;
   justify-content: center;
   border: 1px solid color-mix(in srgb, var(--game-primary) 35%, transparent);
   border-radius: 999px;
   padding: 0.6rem;
   background: rgba(3, 7, 19, 0.92);
   box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.55);
-  transform: translateX(50%);
   backdrop-filter: blur(18px);
 }
 
@@ -648,8 +758,9 @@
   margin-top: 0.35rem;
 }
 
+/* Stays at the 44px comfort floor; it was 40px and failed a touch target. */
 .display-audio-control button {
-  min-height: 2.5rem;
-  padding: 0.55rem 0.75rem;
-  font-size: 0.72rem;
+  min-height: var(--target-min);
+  padding: 0.55rem 0.85rem;
+  font-size: var(--type-eyebrow);
 }

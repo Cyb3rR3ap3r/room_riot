@@ -9,9 +9,11 @@
   --color-ink: #070912;
   --color-surface: rgba(17, 20, 31, 0.94);
   --color-surface-solid: #11141f;
+  --color-surface-raised: #161a26;
   --color-line: rgba(235, 240, 255, 0.14);
+  --color-line-strong: rgba(235, 240, 255, 0.28);
   --color-text: #f7f4ed;
-  --color-muted: #a6a8b2;
+  --color-muted: #b6bdcc;
   --color-accent: #3ce6e0;
   --color-accent-hot: #ff4c9b;
   --color-focus: #ffe066;
@@ -19,6 +21,17 @@
   --color-warning: #ffc761;
   --color-error: #ff8eac;
   --color-on-accent: #071313;
+  --color-white: #ffffff;
+
+  /*
+   * Aliases kept because component sheets reference these names. Without them
+   * the whole declaration is invalid at computed-value time and the property
+   * silently falls back to its initial value (a missing border, no background).
+   */
+  --color-border-strong: var(--color-line-strong);
+  --color-text-muted: var(--color-muted);
+  --accent: var(--color-accent);
+  --white: var(--color-white);
 
   /* Spatial rhythm: 4 px base, composed for controller and TV density. */
   --space-1: 0.25rem;
@@ -39,6 +52,7 @@
   --radius-sm: 0.5rem;
   --radius-md: 0.8rem;
   --radius-lg: 1.1rem;
+  --radius-xl: 1.5rem;
   --radius-pill: 999px;
   --outline-width: 3px;
   --outline-offset: 3px;
@@ -48,6 +62,13 @@
   --halftone-size: 4rem;
   --halftone-opacity: 0.16;
 
+  /*
+   * Type scale. --type-eyebrow is the floor for any real text in the product:
+   * uppercase micro-labels used to sit at 10px, which is below the point where
+   * they stay legible on a phone held at arm's length.
+   */
+  --type-eyebrow: 0.75rem;
+  --type-label: 0.8125rem;
   --type-controller-sm: 0.875rem;
   --type-controller-md: 1rem;
   --type-controller-lg: clamp(1.35rem, 5vw, 2rem);
@@ -56,6 +77,10 @@
   --type-display-lg: clamp(2.2rem, 5vw, 5rem);
   --leading-tight: 0.98;
   --leading-body: 1.5;
+
+  /* Tracking pairs with the eyebrow sizes so uppercase runs stay scannable. */
+  --tracking-eyebrow: 0.1em;
+  --tracking-label: 0.06em;
 
   --motion-instant: 100ms;
   --motion-fast: 160ms;
@@ -143,6 +168,15 @@ button,
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   padding: 0.8rem var(--space-5);
+  /*
+   * Labels wrap rather than clip. Buttons hide their overflow so the hover
+   * sheen stays inside the shape, which meant a shrunken flex item silently cut
+   * off long labels such as "Turn Up the Next Round".
+   */
+  white-space: normal;
+  line-height: 1.2;
+  text-align: center;
+  text-wrap: balance;
   background: linear-gradient(135deg, #57f5ff, var(--cyan));
   color: var(--color-on-accent);
   cursor: pointer;

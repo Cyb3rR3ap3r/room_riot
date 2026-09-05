@@ -4,6 +4,14 @@
   gap: var(--space-5);
 }
 
+/* Room settings stack in their own column and size to their own content. */
+.launcher-rail {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
 @media (min-width: 900px) {
   .form.game-launcher {
     grid-template-columns: minmax(0, 1.55fr) minmax(19rem, 0.7fr);
@@ -16,7 +24,8 @@
   }
 
   .game-launcher > .game-picker > .game-picker-heading,
-  .game-launcher > .game-picker > .game-options {
+  .game-launcher > .game-picker > .game-options,
+  .game-launcher > .game-picker > .game-detail {
     grid-column: 1;
   }
 
@@ -25,17 +34,21 @@
   }
 
   .game-launcher > .game-picker > .game-options {
-    grid-row: 2 / span 4;
+    grid-row: 2;
   }
 
   .game-launcher > .game-picker > .game-detail {
-    grid-column: 1 / -1;
-    grid-row: 6;
+    grid-row: 3;
   }
 
-  .game-launcher > .field,
-  .game-launcher > .game-launcher-actions {
+  /* Spans all three rows of the picker so the settings stay in view while the
+     host reads through the game detail below. */
+  .game-launcher > .launcher-rail {
     grid-column: 2;
+    grid-row: 1 / span 3;
+    position: sticky;
+    top: var(--space-4);
+    align-self: start;
   }
 }
 
@@ -58,19 +71,24 @@
   gap: 0.8rem;
 }
 
+/*
+ * Every tile is the same portrait card at every width: artwork, then title,
+ * then kicker. A single shape means the row never has to scroll sideways, so no
+ * tile is ever sliced in half at the edge of a phone.
+ */
 .game-option {
   display: grid;
   min-height: 10rem;
-  grid-template-columns: 5.8rem minmax(0, 1fr);
-  align-items: center;
-  justify-content: start;
-  gap: 0.8rem;
+  grid-template-rows: auto auto;
+  align-content: start;
+  justify-items: center;
+  gap: 0.55rem;
   border: 1px solid rgba(152, 177, 220, 0.24);
   border-radius: 1.25rem;
-  padding: 0.75rem;
+  padding: 0.85rem 0.6rem;
   background: rgba(5, 10, 23, 0.6);
   color: var(--text);
-  text-align: left;
+  text-align: center;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035);
 }
 
@@ -91,19 +109,31 @@
 .game-option-copy {
   display: grid;
   gap: 0.2rem;
+  align-content: start;
   min-width: 0;
+  width: 100%;
 }
 
 .game-option-copy strong {
-  font-size: 1.15rem;
+  font-size: 1.05rem;
+  line-height: 1.15;
 }
 
+/*
+ * Kickers vary from "Match minds" to "Everybody looks guilty", so some wrap to
+ * two lines and some do not. Reserving both lines keeps the baselines of every
+ * tile in the row aligned instead of leaving a ragged edge.
+ */
 .game-option-copy span {
+  display: block;
+  min-height: 2.3em;
   color: var(--game-accent);
-  font-size: 0.78rem;
+  font-size: var(--type-eyebrow);
   font-weight: 900;
-  letter-spacing: 0.06em;
+  line-height: 1.15;
+  letter-spacing: var(--tracking-label);
   text-transform: uppercase;
+  text-wrap: balance;
 }
 
 .game-detail {
@@ -279,28 +309,19 @@
 }
 
 @media (max-width: 600px) {
+  /*
+   * Two columns that wrap, rather than a sideways scroller. The old carousel
+   * left a half-visible tile against the right edge on every phone, which read
+   * as a broken layout rather than as an invitation to swipe.
+   */
   .game-options {
-    display: flex;
-    overflow-x: auto;
-    padding: var(--space-1) var(--space-1) var(--space-3);
-    scroll-padding-inline: var(--space-1);
-    scrollbar-width: none;
-    scroll-snap-type: x mandatory;
-  }
-
-  .game-options::-webkit-scrollbar {
-    display: none;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
   }
 
   .game-option {
-    width: 9rem;
-    min-width: 9rem;
-    min-height: 7.5rem;
-    grid-template-columns: 1fr;
-    justify-items: center;
-    padding: var(--space-2);
-    text-align: center;
-    scroll-snap-align: start;
+    min-height: 8.75rem;
+    padding: 0.7rem 0.5rem;
   }
 
   .game-art-option {
@@ -308,11 +329,7 @@
   }
 
   .game-option-copy strong {
-    font-size: 1rem;
-  }
-
-  .game-option-copy span {
-    display: none;
+    font-size: 0.95rem;
   }
 
   .game-launcher .game-detail {
@@ -401,7 +418,7 @@
 
 .game-kicker {
   color: var(--game-accent);
-  font-size: 0.7rem;
+  font-size: var(--type-eyebrow);
   font-weight: 950;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -439,6 +456,21 @@
   text-transform: uppercase;
 }
 
+/*
+ * Helper copy that explains a control. It is a sibling of the label so it keeps
+ * sentence-case body type instead of inheriting the label's uppercase micro
+ * styling, which rendered it at roughly nine pixels.
+ */
+.field-hint {
+  margin: calc(var(--space-2) * -1) 0 0;
+  color: var(--color-muted);
+  font-size: var(--type-label);
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.45;
+  text-transform: none;
+}
+
 input,
 select {
   width: 100%;
@@ -453,6 +485,31 @@ select {
     border-color var(--motion-fast) var(--ease-standard),
     box-shadow var(--motion-fast) var(--ease-standard),
     background var(--motion-fast) var(--ease-standard);
+}
+
+/*
+ * Selects carry the platform's own control chrome, which looks nothing like the
+ * rest of the form. Draw the chevron so every field on the page matches.
+ */
+select {
+  appearance: none;
+  padding-right: 2.6rem;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--game-primary, var(--color-accent)) 50%),
+    linear-gradient(135deg, var(--game-primary, var(--color-accent)) 50%, transparent 50%);
+  background-position:
+    right 1.25rem top 55%,
+    right 0.95rem top 55%;
+  background-size:
+    0.36rem 0.36rem,
+    0.36rem 0.36rem;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+select option {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
 }
 
 input:hover,

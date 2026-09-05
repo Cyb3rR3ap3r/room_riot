@@ -103,7 +103,7 @@ body::after {
   background: none;
   box-shadow: none;
   color: var(--game-accent, var(--color-accent));
-  font-size: 0.66rem;
+  font-size: var(--type-eyebrow);
   font-weight: 900;
   letter-spacing: 0.15em;
   text-transform: uppercase;
@@ -141,12 +141,18 @@ body::after {
   display: none;
 }
 
+/*
+ * Primary actions take the game's primary hue, not its highlight accent. The
+ * accent is a yellow on several themes, and a full-width saturated yellow slab
+ * fought every other colour on the screen instead of reading as one system.
+ */
 button,
 .button {
   position: relative;
   overflow: hidden;
   border-radius: var(--radius-sm);
-  background: var(--game-accent, var(--color-accent));
+  background: var(--game-cta, var(--game-primary, var(--color-accent)));
+  color: var(--game-on-cta, var(--color-on-accent));
   letter-spacing: 0.015em;
   box-shadow: none;
 }
@@ -179,9 +185,17 @@ button:hover,
   box-shadow: 0 0.75rem 2rem var(--game-glow, rgba(60, 230, 224, 0.18));
 }
 
+/*
+ * Secondary buttons state their own text colour. The base rule above sets the
+ * dark on-CTA ink, and for `<a class="button secondary">` that rule and this one
+ * have equal specificity, so links rendered as secondary buttons came out as
+ * near-black text on a near-black surface while `<button class="secondary">`
+ * looked fine.
+ */
 .secondary {
   border-color: var(--color-line);
   background: rgba(255, 255, 255, 0.035);
+  color: var(--color-text);
   box-shadow: none;
 }
 
@@ -194,12 +208,14 @@ button:hover,
   );
 }
 
+/* background-color, not the background shorthand: the shorthand would reset the
+   drawn chevron that components.css gives every select. */
 input,
 select,
 textarea {
   border-color: var(--color-line);
   border-radius: var(--radius-sm);
-  background: #090b13;
+  background-color: #090b13;
 }
 
 input:hover,
@@ -208,15 +224,16 @@ textarea:hover,
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: var(--game-accent, var(--color-accent));
-  background: #0b0e18;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--game-accent, var(--color-accent)) 12%, transparent);
+  border-color: var(--game-primary, var(--color-accent));
+  background-color: #0b0e18;
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--game-primary, var(--color-accent)) 14%, transparent);
 }
 
 .field {
   color: var(--color-muted);
-  font-size: 0.72rem;
-  letter-spacing: 0.1em;
+  font-size: var(--type-eyebrow);
+  letter-spacing: var(--tracking-eyebrow);
 }
 
 /* Host launcher: games form a scanable broadcast rundown, settings stay in one rail. */
@@ -273,8 +290,8 @@ textarea:focus {
   font-size: 1.05rem;
 }
 .game-option-copy span {
-  font-size: 0.64rem;
-  letter-spacing: 0.12em;
+  font-size: var(--type-eyebrow);
+  letter-spacing: var(--tracking-label);
 }
 .game-art {
   filter: drop-shadow(0 0.6rem 1rem rgba(0, 0, 0, 0.4));
@@ -307,13 +324,13 @@ textarea:focus {
 }
 
 .create-game-button {
-  color: #10100b;
-  background: #ffe066;
+  background: var(--game-cta, var(--game-primary, var(--color-accent)));
+  color: var(--game-on-cta, var(--color-on-accent));
   box-shadow: none;
 }
 
 .create-game-button:hover {
-  box-shadow: 0 0.75rem 2rem rgba(255, 224, 102, 0.18);
+  box-shadow: 0 0.75rem 2rem var(--game-glow, rgba(60, 230, 224, 0.22));
 }
 
 /* Shared live-room surfaces. */
@@ -421,12 +438,12 @@ textarea:focus {
   gap: 0.38rem;
   border: 1px solid color-mix(in srgb, var(--game-accent) 35%, var(--color-line));
   border-radius: 999px;
-  padding: 0.28rem 0.52rem;
+  padding: 0.34rem 0.6rem;
   color: var(--color-text);
   background: color-mix(in srgb, var(--game-accent) 8%, #090b13);
-  font-size: 0.66rem;
+  font-size: var(--type-eyebrow);
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--tracking-label);
   line-height: 1;
   text-transform: uppercase;
 }
@@ -479,10 +496,10 @@ textarea:focus {
 .join-command__address-label,
 .join-command__scan figcaption {
   color: var(--color-muted);
-  font-size: 0.65rem;
+  font-size: var(--type-eyebrow);
   font-weight: 800;
-  letter-spacing: 0.11em;
-  line-height: 1.1;
+  letter-spacing: var(--tracking-eyebrow);
+  line-height: 1.2;
   text-transform: uppercase;
 }
 
@@ -506,13 +523,21 @@ textarea:focus {
   transform: none;
 }
 
+/*
+ * A join URL people are meant to type on a phone: readable, and tall enough to
+ * be a comfortable target rather than a sliver of underlined text. It stays a
+ * block so that text-overflow: ellipsis still applies — a flex box would
+ * truncate the address with no ellipsis to show it had been cut.
+ */
 .join-command__address {
   display: block;
+  min-height: var(--target-min);
   max-width: 100%;
   margin-top: 0.16rem;
+  padding-block: 0.7rem;
   overflow: hidden;
   color: var(--color-text);
-  font-size: clamp(0.68rem, 1vw, 0.82rem);
+  font-size: clamp(var(--type-label), 1vw, 0.95rem);
   font-weight: 700;
   line-height: 1.3;
   text-decoration-color: color-mix(in srgb, var(--game-accent) 62%, transparent);
@@ -636,6 +661,11 @@ textarea:focus {
   font-size: 1rem;
 }
 
+/*
+ * Kept quiet with opacity and compact padding rather than a scale transform.
+ * Scaling shrank the rendered hit area to about 36px, under the touch floor,
+ * because a transform scales the box the browser actually hit-tests.
+ */
 .join-command > .display-audio-control {
   position: absolute;
   z-index: 3;
@@ -645,9 +675,13 @@ textarea:focus {
   max-width: calc(100% - 1.3rem);
   margin: 0;
   opacity: 0.78;
-  transform: scale(0.82);
-  transform-origin: right bottom;
   transition: opacity 160ms var(--ease-standard);
+}
+
+.join-command > .display-audio-control button {
+  min-height: var(--target-min);
+  padding: 0.5rem 0.8rem;
+  font-size: var(--type-eyebrow);
 }
 
 .join-command > .display-audio-control .sound-controls > :not(:first-child) {
@@ -659,27 +693,28 @@ textarea:focus {
   opacity: 1;
 }
 
-/* Host controls occupy a reserved dock instead of covering the lobby content. */
+/*
+ * Host controls occupy a reserved dock instead of covering the lobby content.
+ *
+ * The console fills the first screen but must not trap content past it: player
+ * moderation is appended below the experience shell, and a hard 100dvh with
+ * overflow:hidden made "Room controls" permanently unreachable, so a host could
+ * never remove a disruptive player. Height is now a floor, and the page scrolls.
+ */
 .host-page.host-live[data-game-id] {
-  height: 100dvh;
-  overflow: hidden;
+  min-height: 100dvh;
 }
 
 .host-page.host-live[data-game-id] > .content {
-  height: 100%;
   min-height: 0;
 }
 
 .host-page.host-live[data-game-id] .host-experience {
-  height: calc(100dvh - var(--space-safe-top) - var(--space-safe-bottom));
-  min-height: 0;
+  min-height: calc(100dvh - var(--space-safe-top) - var(--space-safe-bottom));
 }
 
 .host-experience .experience-grid {
-  height: calc(100% - 5.5rem);
-  min-height: 0;
-  padding-bottom: 6.25rem;
-  overflow: hidden;
+  min-height: calc(100% - 5.5rem);
 }
 
 .host-experience .join-command,
@@ -702,14 +737,14 @@ textarea:focus {
 
 @media (max-width: 720px) {
   .host-page.host-live[data-game-id] {
-    height: auto;
-    overflow: visible;
+    min-height: 0;
   }
 
   .host-page.host-live[data-game-id] > .content,
   .host-page.host-live[data-game-id] .host-experience,
   .host-experience .experience-grid {
     height: auto;
+    min-height: 0;
     overflow: visible;
   }
 
@@ -854,6 +889,28 @@ textarea:focus {
   background: rgba(255, 255, 255, 0.028);
 }
 
+/*
+ * Angular clip-paths are dropped everywhere on the controller. The skewed
+ * button edges sat proud of the card they lived in and the notched shell corner
+ * read as a rendering fault rather than as styling; each game keeps its identity
+ * through colour and artwork instead.
+ */
+.action-first-controller,
+.action-first-controller button,
+.controller-shell button,
+.heat-controls button,
+.vote-card {
+  clip-path: none;
+}
+
+.live-heat-controller button:not(.secondary),
+.heat-controls button:not(.secondary),
+.suspect-controller button:not(.secondary) {
+  background: var(--game-cta, var(--game-primary, var(--color-accent)));
+  color: var(--game-on-cta, var(--color-on-accent));
+  border-radius: var(--radius-sm);
+}
+
 /* Controller screens feel like one focused remote, not a floating poster. */
 .themed-join-card,
 .controller-shell {
@@ -921,6 +978,11 @@ textarea:focus {
   .content > * {
     animation: rr-enter 520ms 80ms var(--ease-emphasized);
   }
+  /*
+   * The stagger has to cover every tile in the catalogue. Naming only the first
+   * four left the last two with a zero delay, so they appeared before the ones
+   * above them and the row assembled out of order.
+   */
   .game-option {
     animation: rr-option 420ms var(--ease-emphasized) both;
   }
@@ -935,6 +997,15 @@ textarea:focus {
   }
   .game-option:nth-child(4) {
     animation-delay: 255ms;
+  }
+  .game-option:nth-child(5) {
+    animation-delay: 300ms;
+  }
+  .game-option:nth-child(6) {
+    animation-delay: 345ms;
+  }
+  .game-option:nth-child(n + 7) {
+    animation-delay: 390ms;
   }
   .brand-logo {
     animation: rr-mark-in 620ms 60ms var(--ease-emphasized) both;
@@ -983,24 +1054,6 @@ textarea:focus {
 
   .game-launcher > .game-picker > .game-options {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-row: 2;
-  }
-
-  .game-launcher > .game-picker > .game-detail {
-    grid-column: 1;
-    grid-row: 3 / span 6;
-  }
-
-  .game-launcher > .field:first-of-type {
-    grid-row: 2;
-  }
-  .game-launcher > .advanced-settings {
-    grid-column: 2;
-    grid-row: 3;
-  }
-  .game-launcher > .game-launcher-actions {
-    grid-column: 2;
-    grid-row: 4;
   }
 
   .game-option {
@@ -1015,9 +1068,14 @@ textarea:focus {
   }
 }
 
+/*
+ * Three across, two rows. Six across squeezed each tile to ~135px, which forced
+ * the longer kickers onto a second line and left the row visibly ragged.
+ */
 @media (min-width: 1100px) {
   .game-launcher > .game-picker > .game-options {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
   }
 }
 
@@ -1051,8 +1109,6 @@ textarea:focus {
   }
 
   .game-option {
-    width: 8.25rem;
-    min-width: 8.25rem;
     border-radius: var(--radius-md);
   }
 
@@ -1096,7 +1152,14 @@ textarea:focus {
   padding-top: clamp(0.75rem, 1.8vh, 1.25rem);
 }
 
+/*
+ * The launcher keeps its header. Live room pages hide it because the experience
+ * shell carries its own topbar, but that rule is keyed on the game theme, so
+ * /host/<game> lost its logo and heading before a room even existed — while
+ * plain /host kept them.
+ */
 .host-page.host-launcher .page-header {
+  display: grid;
   margin-bottom: clamp(0.7rem, 1.6vh, 1.15rem);
   padding-bottom: clamp(0.65rem, 1.4vh, 0.9rem);
 }

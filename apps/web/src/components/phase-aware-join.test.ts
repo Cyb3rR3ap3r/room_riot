@@ -5,7 +5,7 @@ import { createPhaseAwareJoinViewModel } from '../routes/display/join-presentati
 import { asFake, fakeDocument } from './test-dom.js';
 import { createPhaseAwareJoinComponent } from './phase-aware-join.js';
 
-test('renders a complete lobby join panel with a wrapped manual URL and descriptive QR', () => {
+test('shows a short typable join address while linking the full URL, plus a descriptive QR', () => {
   const component = createPhaseAwareJoinComponent(fakeDocument);
   component.update(
     createPhaseAwareJoinViewModel({
@@ -20,11 +20,17 @@ test('renders a complete lobby join panel with a wrapped manual URL and descript
   const credentials = root.children[2]!;
   const scan = root.children[3]!;
   const qr = scan.children[0]?.children[0];
+  const address = credentials.children[3];
   assert.ok(root.classList.contains('join-mode-full'));
-  assert.match(credentials.children[3]?.textContent ?? '', /^https:\/\//);
+  // The room reads this off a screen and types it, so it drops the scheme and
+  // the room query. The anchor still points at the complete join URL.
   assert.equal(
-    credentials.children[3]?.attributes.get('href'),
-    credentials.children[3]?.textContent,
+    address?.textContent,
+    'an-intentionally-long-room-riot-hostname.example.test/play/drawn-out',
+  );
+  assert.equal(
+    address?.attributes.get('href'),
+    'https://an-intentionally-long-room-riot-hostname.example.test/play/drawn-out?room=DRAW',
   );
   assert.match(qr?.attributes.get('alt') ?? '', /room DRAW/i);
   assert.equal(scan.children[1]?.textContent, 'Scan to join instantly');

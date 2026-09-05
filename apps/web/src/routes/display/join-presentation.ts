@@ -23,6 +23,8 @@ export interface PhaseAwareJoinViewModel {
   readonly instruction: string;
   readonly roomCode: string | null;
   readonly manualUrl: string | null;
+  /** Short, typable form of {@link manualUrl} shown to the room. */
+  readonly manualUrlLabel: string | null;
   readonly qr: Readonly<{ src: string; alt: string }> | null;
   readonly advertisesJoin: boolean;
   readonly accessibleLabel: string;
@@ -65,6 +67,7 @@ export function createPhaseAwareJoinViewModel(input: PhaseAwareJoinInput): Phase
       instruction: 'This room is not accepting new players. Watch the game on this screen.',
       roomCode: null,
       manualUrl: null,
+      manualUrlLabel: null,
       qr: null,
       advertisesJoin: false,
       accessibleLabel: `${title}. New players cannot join.`,
@@ -79,6 +82,7 @@ export function createPhaseAwareJoinViewModel(input: PhaseAwareJoinInput): Phase
       instruction: 'The current game has priority on the shared screen.',
       roomCode: null,
       manualUrl: null,
+      manualUrlLabel: null,
       qr: null,
       advertisesJoin: false,
       accessibleLabel: 'Join information hidden during active play',
@@ -97,10 +101,17 @@ export function createPhaseAwareJoinViewModel(input: PhaseAwareJoinInput): Phase
           : 'Use the address and room code to join from a phone.',
     roomCode,
     manualUrl,
+    // People type this off a television, so show the host and path only. The
+    // full absolute URL overflowed the panel and was cut mid-query-string.
+    manualUrlLabel: manualUrl ? buildJoinUrlLabel(input.origin, input.gameId) : null,
     qr,
     advertisesJoin,
     accessibleLabel: `${mode === 'full' ? 'Full' : 'Compact'} join information for room ${roomCode}`,
   };
+}
+
+function buildJoinUrlLabel(origin: string, gameId: SupportedGameId): string {
+  return `${new URL(origin).host}${buildPlayRoute(gameId)}`;
 }
 
 function buildAbsoluteJoinUrl(origin: string, gameId: SupportedGameId, roomCode: string): string {

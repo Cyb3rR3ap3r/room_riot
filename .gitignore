@@ -8,3 +8,7 @@ coverage/
 *.tsbuildinfo
 .DS_Store
 Thumbs.db
+
+# UI audit artefacts (screenshots, reports and run logs)
+.ui-*/
+.ui-*.txt

@@ -27,6 +27,8 @@
     "check:browser-performance": "node scripts/browser-performance.mjs",
     "check:browser-accessibility": "node scripts/browser-accessibility.mjs",
     "check:browser-layout": "node scripts/browser-layout-matrix.mjs",
+    "check:ui": "node scripts/ui-audit.mjs",
+    "check:ui-playthrough": "node scripts/ui-playthrough.mjs",
     "check:browser-multiclient": "node scripts/browser-multiclient-smoke.mjs",
     "check:fonts": "node scripts/check-font-assets.mjs",
     "check": "pnpm typecheck && pnpm test && pnpm lint && pnpm format && pnpm check:contrast && pnpm check:motion && pnpm check:workflow-pins && pnpm check:fonts"

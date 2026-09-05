@@ -608,13 +608,9 @@ function createDrawingPad(
 }
 
 function setGameTheme(root: HTMLElement, gameId: string | null | undefined): void {
-  root.classList.remove(
-    'game-groupthink',
-    'game-hot-take',
-    'game-suspect',
-    'game-drawn-out',
-    'game-blank-line',
-  );
+  // Derived from the catalogue so a newly added game can never be left behind
+  // here; a stale theme class keeps the previous game's palette on the page.
+  root.classList.remove(...GAME_CATALOG.map((game) => `game-${game.id}`));
   if (!gameId) {
     delete root.dataset.gameId;
     return;
@@ -799,14 +795,15 @@ function createGamePicker(
       selected = game;
       options.querySelectorAll<HTMLButtonElement>('.game-option').forEach((button) => {
         button.setAttribute('aria-pressed', String(button === option));
-        const artwork = button.querySelector<HTMLImageElement>('.game-art-option');
-        if (artwork) artwork.loading = button === option ? 'eager' : 'lazy';
       });
       renderDetail();
       onSelect?.(game);
     });
 
-    option.append(createGameArtwork(game, 'game-art game-art-option', game.id === selected.id));
+    // Every tile is above the fold and is the main content of this screen, so
+    // all of the artwork loads eagerly. Deferring five of the six left the grid
+    // visibly empty for the first beat after the page appeared.
+    option.append(createGameArtwork(game, 'game-art game-art-option', true));
     const copy = document.createElement('span');
     copy.className = 'game-option-copy';
     const label = document.createElement('strong');
@@ -1271,32 +1268,41 @@ function renderHost(root: HTMLElement): void {
         updateLauncherGuidance?.();
       });
       form.append(gamePicker.element);
+      // Every room setting lives in one rail so the column can size to its own
+      // content. As separate grid items they were stretched across rows sized by
+      // the game grid opposite, which opened a large gap mid-column.
+      const settingsRail = document.createElement('div');
+      settingsRail.className = 'launcher-rail';
       const contentMode = createContentModeSelect();
-      form.append(createField('Content mode', contentMode));
+      settingsRail.append(createField('Content mode', contentMode));
       const drawnOutMode = createDrawnOutModeSelect();
       drawnOutModeField = createField('Drawn Out mode', drawnOutMode);
       drawnOutModeField.hidden = gamePicker.getValue() !== 'drawn-out';
-      form.append(drawnOutModeField);
+      settingsRail.append(drawnOutModeField);
       const wavelengthMode = createWavelengthModeSelect();
       wavelengthModeField = createField('WaveLength mode', wavelengthMode);
       wavelengthModeField.hidden = gamePicker.getValue() !== 'wavelength';
-      form.append(wavelengthModeField);
+      settingsRail.append(wavelengthModeField);
       const promptMode = createPromptModeSelect();
       const promptModeField = createField('Question source', promptMode);
-      const promptModeHint = document.createElement('small');
-      promptModeHint.className = 'muted';
+      // The hint sits beside the label rather than inside it: nested in the
+      // label it inherited the label's uppercase micro-type and was also read
+      // out as part of the select's accessible name.
+      const promptModeHint = document.createElement('p');
+      promptModeHint.className = 'field-hint';
+      promptModeHint.id = 'prompt-mode-hint';
       promptModeHint.textContent =
         'Remix deck creates a fresh shuffled deck from local prompt ingredients, so it works offline on the big screen.';
-      promptModeField.append(promptModeHint);
+      promptMode.setAttribute('aria-describedby', promptModeHint.id);
       const advancedSettings = document.createElement('details');
       advancedSettings.className = 'advanced-settings';
       const advancedSummary = document.createElement('summary');
       advancedSummary.textContent = 'Advanced settings';
       const advancedSettingsBody = document.createElement('div');
       advancedSettingsBody.className = 'advanced-settings-body';
-      advancedSettingsBody.append(promptModeField);
+      advancedSettingsBody.append(promptModeField, promptModeHint);
       advancedSettings.append(advancedSummary, advancedSettingsBody);
-      form.append(advancedSettings);
+      settingsRail.append(advancedSettings);
       const actions = document.createElement('div');
       actions.className = 'actions game-launcher-actions';
       const submit = createButton('Create Game', 'submit');
@@ -1309,7 +1315,8 @@ function renderHost(root: HTMLElement): void {
       };
       updateLauncherGuidance();
       actions.append(guidance, submit);
-      form.append(actions);
+      settingsRail.append(actions);
+      form.append(settingsRail);
       form.addEventListener('submit', (event) => {
         event.preventDefault();
         const gameId = gamePicker.getValue();

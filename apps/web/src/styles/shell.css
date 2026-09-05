@@ -54,10 +54,16 @@
   object-fit: contain;
 }
 
+/*
+ * break-word, not anywhere. "anywhere" also shrinks an element's min-content
+ * width to a single character, so flexible grid columns collapsed around the
+ * text and headings broke mid-word ("marke / r."). break-word still splits a
+ * genuinely too-long word, but leaves intrinsic sizing intact.
+ */
 h1,
 h2,
 p {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 h1 {

@@ -50,9 +50,12 @@ export function createRosterComponent(
   return {
     element,
     update(state, presentation, now = Date.now()) {
-      element.className = `${presentation.rosterClass} ${extraClass}`.trim();
+      element.className = `roster-panel ${presentation.rosterClass} ${extraClass}`.trim();
       title.textContent = presentation.rosterTitle;
-      list.className = presentation.rosterGridClass;
+      // Every roster carries a stable class alongside its per-game one. The
+      // shared layout used to be attached to the game classes individually, so
+      // games added later rendered the name and score run together on one line.
+      list.className = `roster-grid ${presentation.rosterGridClass}`;
       const activePlayerCount = state.players.filter(
         (player) => player.status !== 'removed',
       ).length;
